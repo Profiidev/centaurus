@@ -43,7 +43,7 @@ tracing = ["dep:tracing", "dep:tracing-subscriber"]
 tokio = ["dep:tokio"]
 
 [dependencies]
-centaurus-derive = { path = "../centaurus-derive" }
+centaurus-derive = { workspace = true }
 axum = { version = "0.8.4", optional = true, features = [
   "multipart",
   "macros",

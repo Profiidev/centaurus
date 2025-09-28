@@ -1,0 +1,34 @@
+name: Linting and Formatting
+on:
+  pull_request:
+
+jobs:
+  linters:
+    name: Run linters
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.PERSONAL_TOKEN }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt,clippy
+
+      - name: Cache cargo and rust files
+        id: rust_cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          shared-key: "linter_cache"
+
+      - name: Run linters
+        uses: profiidev/rust-lint-action@v3
+        with:
+          rustfmt: true
+          rustfmt_args: "--all-features"
+          clippy: true
+          clippy_args: "--all-features"
+          auto_fix: true
