@@ -119,6 +119,7 @@ impl_from_error!(sea_orm::DbErr, StatusCode::INTERNAL_SERVER_ERROR);
 impl_from_error!(base64::DecodeError, StatusCode::BAD_REQUEST);
 #[cfg(feature = "rsa")]
 impl_from_error!(rsa::Error, StatusCode::BAD_REQUEST);
+#[cfg(feature = "argon2")]
 impl_from_error!(argon2::password_hash::Error, StatusCode::BAD_REQUEST);
 
 #[cfg(feature = "axum")]

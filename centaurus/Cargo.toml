@@ -11,7 +11,15 @@ keywords = []
 readme = "README.md"
 
 [features]
-default = ["axum", "config"]
+default = [
+  "axum",
+  "axum-extra",
+  "config",
+  "logging",
+  "error",
+  "tracing",
+  "tokio",
+]
 all = [
   "logging",
   "config",
