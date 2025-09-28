@@ -28,7 +28,6 @@ jobs:
         uses: profiidev/rust-lint-action@v3
         with:
           rustfmt: true
-          rustfmt_args: "--all-features"
           clippy: true
           clippy_args: "--all-features"
           auto_fix: true
