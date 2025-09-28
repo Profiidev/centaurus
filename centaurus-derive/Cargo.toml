@@ -2,6 +2,13 @@
 name = "centaurus-derive"
 version = "0.1.0"
 edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "A utility library for various use cases."
+repository = "https://github.com/Profiidev/centaurus"
+categories = []
+exclude = ["CHANGELOG.md"]
+keywords = []
+readme = "README.md"
 
 [dependencies]
 quote = "1.0.40"
