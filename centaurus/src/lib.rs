@@ -39,6 +39,7 @@ pub mod config;
 pub mod error;
 pub mod file;
 pub mod init;
+pub mod state;
 
 #[cfg(all(feature = "axum", feature = "http"))]
 pub use centaurus_derive::FromReqExtension;

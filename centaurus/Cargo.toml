@@ -4,13 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-default = ["logging"]
+default = ["axum", "config"]
 
 logging = ["tracing", "config", "dep:color-eyre", "dep:tracing-error"]
 config = ["dep:clap"]
 
 argon2 = ["dep:argon2"]
-axum = ["dep:axum"]
+axum = ["dep:axum", "dep:tower-http", "http", "dep:tokio", "dep:tower"]
 axum-extra = ["dep:axum-extra"]
 base64 = ["dep:base64"]
 chrono = ["dep:chrono"]
@@ -42,3 +42,9 @@ rsa = { version = "0.9.8", optional = true }
 sea-orm = { version = "1.1.16", optional = true }
 color-eyre = { version = "0.6.5", optional = true }
 tracing-error = { version = "0.2.1", optional = true }
+tower-http = { version = "0.6.6", optional = true, features = [
+  "trace",
+  "cors",
+] }
+tokio = { version = "1.47.1", features = ["full"], optional = true }
+tower = { version = "0.5.2", optional = true }
