@@ -25,7 +25,17 @@ pub use rsa;
 #[cfg(feature = "sea-orm")]
 pub use sea_orm;
 #[cfg(feature = "xml")]
+pub use serde;
+#[cfg(feature = "xml")]
 pub use serde_xml_rs;
+#[cfg(feature = "xml")]
+pub use thiserror;
+#[cfg(feature = "tokio")]
+pub use tokio;
+#[cfg(feature = "axum")]
+pub use tower;
+#[cfg(feature = "axum")]
+pub use tower_http;
 #[cfg(feature = "tracing")]
 pub use tracing;
 #[cfg(feature = "logging")]
@@ -39,6 +49,7 @@ pub mod config;
 pub mod error;
 pub mod file;
 pub mod init;
+pub mod req;
 pub mod state;
 
 #[cfg(all(feature = "axum", feature = "http"))]
