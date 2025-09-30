@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2025-09-30
+
+### 🚜 Refactor
+
+- Less feature flags
+
+
+
 ## [0.1.0](https://github.com/Profiidev/centaurus/releases/tag/centaurus-v0.1.0) - 2025-09-28
 
 ### Added
