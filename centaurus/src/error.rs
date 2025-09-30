@@ -8,7 +8,7 @@ use axum::{
   },
   response::{IntoResponse, Response},
 };
-#[cfg(feature = "axum-extra")]
+#[cfg(feature = "axum")]
 use axum_extra::typed_header::TypedHeaderRejection;
 #[cfg(feature = "hmac")]
 use hmac::digest::InvalidLength;
@@ -96,7 +96,7 @@ impl ErrorReport {
 impl_from_error!(std::io::Error, StatusCode::INTERNAL_SERVER_ERROR);
 #[cfg(feature = "http")]
 impl_from_error!(http::header::InvalidHeaderValue, StatusCode::BAD_REQUEST);
-#[cfg(feature = "axum-extra")]
+#[cfg(feature = "axum")]
 impl_from_error!(TypedHeaderRejection, StatusCode::BAD_REQUEST);
 #[cfg(feature = "axum")]
 impl_from_error!(BytesRejection, StatusCode::BAD_REQUEST);
@@ -109,7 +109,7 @@ impl_from_error!(MultipartError, StatusCode::BAD_REQUEST);
 #[cfg(feature = "chrono")]
 impl_from_error!(chrono::ParseError, StatusCode::BAD_REQUEST);
 impl_from_error!(ParseIntError, StatusCode::BAD_REQUEST);
-#[cfg(feature = "xml")]
+#[cfg(feature = "axum")]
 impl_from_error!(serde_xml_rs::Error, StatusCode::BAD_REQUEST);
 #[cfg(feature = "jsonwebtoken")]
 impl_from_error!(jsonwebtoken::errors::Error, StatusCode::BAD_REQUEST);
@@ -125,7 +125,7 @@ impl_from_error!(argon2::password_hash::Error, StatusCode::BAD_REQUEST);
 #[cfg(feature = "axum")]
 impl IntoResponse for ErrorReport {
   fn into_response(self) -> Response {
-    #[cfg(feature = "tracing")]
+    #[cfg(feature = "logging")]
     tracing::error!("{:?}", self.error);
     self.status.into_response()
   }
