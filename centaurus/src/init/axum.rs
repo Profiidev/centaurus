@@ -2,7 +2,6 @@ use std::net::SocketAddr;
 
 use axum::{Router, serve};
 use tokio::{net::TcpListener, signal};
-#[cfg(feature = "config")]
 use tower::ServiceBuilder;
 
 pub async fn listener_setup(port: u16) -> TcpListener {
@@ -40,7 +39,6 @@ async fn shutdown_signal() {
   }
 }
 
-#[cfg(feature = "config")]
 crate::router_extension!(
   async fn add_base_layers(self, config: &crate::config::BaseConfig) -> Self {
     #[cfg(feature = "logging")]
@@ -49,16 +47,9 @@ crate::router_extension!(
     #[allow(unused_mut)]
     let mut router = self;
 
-    #[cfg(feature = "error")]
-    {
-      router = router.layer(
-        ServiceBuilder::new().layer(super::cors::cors(config).expect("Failed to build CORS layer")),
-      );
-    }
-    #[cfg(not(feature = "error"))]
-    {
-      router = router.layer(ServiceBuilder::new().layer(super::cors::cors(config)));
-    }
+    router = router.layer(
+      ServiceBuilder::new().layer(super::cors::cors(config).expect("Failed to build CORS layer")),
+    );
 
     #[cfg(feature = "logging")]
     {

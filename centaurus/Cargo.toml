@@ -11,50 +11,50 @@ keywords = []
 readme = "README.md"
 
 [features]
-default = [
-  "axum",
-  "axum-extra",
-  "config",
-  "logging",
-  "error",
-  "tracing",
-  "tokio",
-]
+default = ["axum", "logging"]
 all = [
   "logging",
-  "config",
-  "xml",
-  "argon2",
   "axum",
-  "axum-extra",
+  "argon2",
   "base64",
   "chrono",
-  "error",
   "hmac",
   "http",
   "jsonwebtoken",
   "rsa",
   "sea-orm",
-  "tracing",
   "tokio",
 ]
 
-logging = ["tracing", "config", "dep:color-eyre", "dep:tracing-error"]
-config = ["dep:clap"]
-xml = ["dep:serde-xml-rs", "dep:serde", "dep:thiserror"]
+logging = [
+  "dep:color-eyre",
+  "dep:tracing-error",
+  "dep:clap",
+  "dep:tracing-subscriber",
+  "dep:tracing",
+]
+axum = [
+  "http",
+  "tokio",
+  "dep:axum",
+  "dep:tower-http",
+  "dep:tower",
+  "dep:axum-extra",
+  "dep:clap",
+  "dep:eyre",
+  "dep:serde-xml-rs",
+  "dep:serde",
+  "dep:thiserror",
+]
 
 argon2 = ["dep:argon2"]
-axum = ["dep:axum", "dep:tower-http", "http", "tokio", "dep:tower"]
-axum-extra = ["dep:axum-extra"]
 base64 = ["dep:base64"]
 chrono = ["dep:chrono"]
-error = ["dep:eyre"]
 hmac = ["dep:hmac"]
 http = ["dep:http"]
 jsonwebtoken = ["dep:jsonwebtoken"]
 rsa = ["dep:rsa"]
 sea-orm = ["dep:sea-orm"]
-tracing = ["dep:tracing", "dep:tracing-subscriber"]
 tokio = ["dep:tokio"]
 
 [dependencies]

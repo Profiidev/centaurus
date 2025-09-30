@@ -2,17 +2,17 @@
 pub use argon2;
 #[cfg(feature = "axum")]
 pub use axum;
-#[cfg(feature = "axum-extra")]
+#[cfg(feature = "axum")]
 pub use axum_extra;
 #[cfg(feature = "base64")]
 pub use base64;
 #[cfg(feature = "chrono")]
 pub use chrono;
-#[cfg(feature = "config")]
+#[cfg(any(feature = "axum", feature = "logging"))]
 pub use clap;
 #[cfg(feature = "logging")]
 pub use color_eyre;
-#[cfg(feature = "error")]
+#[cfg(feature = "axum")]
 pub use eyre;
 #[cfg(feature = "hmac")]
 pub use hmac;
@@ -24,11 +24,11 @@ pub use jsonwebtoken;
 pub use rsa;
 #[cfg(feature = "sea-orm")]
 pub use sea_orm;
-#[cfg(feature = "xml")]
+#[cfg(feature = "axum")]
 pub use serde;
-#[cfg(feature = "xml")]
+#[cfg(feature = "axum")]
 pub use serde_xml_rs;
-#[cfg(feature = "xml")]
+#[cfg(feature = "axum")]
 pub use thiserror;
 #[cfg(feature = "tokio")]
 pub use tokio;
@@ -36,23 +36,23 @@ pub use tokio;
 pub use tower;
 #[cfg(feature = "axum")]
 pub use tower_http;
-#[cfg(feature = "tracing")]
+#[cfg(feature = "logging")]
 pub use tracing;
 #[cfg(feature = "logging")]
 pub use tracing_error;
-#[cfg(feature = "tracing")]
+#[cfg(feature = "logging")]
 pub use tracing_subscriber;
 
-#[cfg(feature = "config")]
+#[cfg(any(feature = "axum", feature = "logging"))]
 pub mod config;
-#[cfg(feature = "error")]
+#[cfg(feature = "axum")]
 pub mod error;
 pub mod file;
 pub mod init;
 pub mod req;
 pub mod state;
 
-#[cfg(all(feature = "axum", feature = "http"))]
+#[cfg(feature = "axum")]
 pub use centaurus_derive::FromReqExtension;
 
 // Used for re-reports required by macros

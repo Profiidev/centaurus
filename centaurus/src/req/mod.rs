@@ -1,4 +1,4 @@
-#[cfg(all(feature = "axum-extra", feature = "http"))]
+#[cfg(feature = "axum")]
 pub mod header;
-#[cfg(all(feature = "axum", feature = "http", feature = "xml"))]
+#[cfg(feature = "axum")]
 pub mod xml;
