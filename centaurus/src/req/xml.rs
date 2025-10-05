@@ -1,18 +1,26 @@
 use axum::{
   body::Bytes,
   extract::{FromRequest, OptionalFromRequest, Request, rejection::BytesRejection},
-  response::IntoResponse,
+  response::{IntoResponse, Response},
 };
-use http::StatusCode;
-use serde::Deserialize;
+use http::{StatusCode, header::CONTENT_TYPE};
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 #[derive(Debug)]
-pub struct Xml<T: for<'de> Deserialize<'de>>(pub T);
+pub struct Xml<T>(pub T);
 
 impl<T: for<'de> Deserialize<'de>> Xml<T> {
   pub fn from_slice(slice: &[u8]) -> Result<Self, serde_xml_rs::Error> {
     Ok(Xml(serde_xml_rs::from_reader(slice)?))
+  }
+}
+
+impl<T: Serialize> Xml<T> {
+  pub fn to_slice(&self) -> Result<Vec<u8>, serde_xml_rs::Error> {
+    let mut buf = Vec::new();
+    serde_xml_rs::to_writer(&mut buf, &self.0)?;
+    Ok(buf)
   }
 }
 
@@ -29,6 +37,15 @@ impl IntoResponse for XmlRejection {
     match self {
       XmlRejection::BytesRejection(rej) => rej.into_response(),
       XmlRejection::InvalidXml(_) => (StatusCode::BAD_REQUEST).into_response(),
+    }
+  }
+}
+
+impl<T: Serialize> IntoResponse for Xml<T> {
+  fn into_response(self) -> Response {
+    match self.to_slice() {
+      Ok(body) => (StatusCode::OK, [(CONTENT_TYPE, "application/xml")], body).into_response(),
+      Err(_) => (StatusCode::INTERNAL_SERVER_ERROR).into_response(),
     }
   }
 }
