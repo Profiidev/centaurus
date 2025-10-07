@@ -111,6 +111,8 @@ impl_from_error!(chrono::ParseError, StatusCode::BAD_REQUEST);
 impl_from_error!(ParseIntError, StatusCode::BAD_REQUEST);
 #[cfg(feature = "axum")]
 impl_from_error!(serde_xml_rs::Error, StatusCode::BAD_REQUEST);
+#[cfg(feature = "axum")]
+impl_from_error!(serde_json::Error, StatusCode::BAD_REQUEST);
 #[cfg(feature = "jsonwebtoken")]
 impl_from_error!(jsonwebtoken::errors::Error, StatusCode::BAD_REQUEST);
 #[cfg(feature = "sea-orm")]
@@ -121,6 +123,10 @@ impl_from_error!(base64::DecodeError, StatusCode::BAD_REQUEST);
 impl_from_error!(rsa::Error, StatusCode::BAD_REQUEST);
 #[cfg(feature = "argon2")]
 impl_from_error!(argon2::password_hash::Error, StatusCode::BAD_REQUEST);
+#[cfg(feature = "uuid")]
+impl_from_error!(uuid::Error, StatusCode::BAD_REQUEST);
+#[cfg(feature = "reqwest")]
+impl_from_error!(reqwest::Error, StatusCode::BAD_GATEWAY);
 
 #[cfg(feature = "axum")]
 impl IntoResponse for ErrorReport {
