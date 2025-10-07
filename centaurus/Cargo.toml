@@ -24,6 +24,8 @@ all = [
   "rsa",
   "sea-orm",
   "tokio",
+  "uuid",
+  "reqwest",
 ]
 
 logging = [
@@ -43,6 +45,7 @@ axum = [
   "dep:clap",
   "dep:eyre",
   "dep:serde-xml-rs",
+  "dep:serde_json",
   "dep:serde",
   "dep:thiserror",
 ]
@@ -56,6 +59,8 @@ jsonwebtoken = ["dep:jsonwebtoken"]
 rsa = ["dep:rsa"]
 sea-orm = ["dep:sea-orm"]
 tokio = ["dep:tokio"]
+uuid = ["dep:uuid"]
+reqwest = ["dep:reqwest"]
 
 [dependencies]
 centaurus-derive = { workspace = true }
@@ -97,6 +102,14 @@ tokio = { version = "1.47.1", features = ["full"], optional = true }
 tower = { version = "0.5.2", optional = true }
 thiserror = { version = "2.0.16", optional = true }
 serde = { version = "1.0.228", features = ["derive"], optional = true }
+serde_json = { version = "1.0.145", optional = true }
+uuid = { version = "1.18.1", optional = true }
+reqwest = { version = "0.12.23", optional = true, features = [
+  "http2",
+  "system-proxy",
+  "charset",
+  "rustls-tls",
+], default-features = false }
 
 [lib]
 path = "src/lib.rs"
