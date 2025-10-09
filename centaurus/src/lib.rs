@@ -8,8 +8,6 @@ pub use axum_extra;
 pub use base64;
 #[cfg(feature = "chrono")]
 pub use chrono;
-#[cfg(any(feature = "axum", feature = "logging"))]
-pub use clap;
 #[cfg(feature = "logging")]
 pub use color_eyre;
 #[cfg(feature = "axum")]
