@@ -2,6 +2,8 @@
 pub use axum;
 #[cfg(feature = "axum")]
 pub use axum_extra;
+#[cfg(feature = "axum")]
+pub use eyre;
 #[cfg(feature = "http")]
 pub use http;
 

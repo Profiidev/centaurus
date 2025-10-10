@@ -39,8 +39,27 @@ async fn shutdown_signal() {
   }
 }
 
-crate::router_extension!(
+#[allow(non_camel_case_types, async_fn_in_trait)]
+pub trait add_base_layers {
+  async fn add_base_layers(self, config: &crate::config::BaseConfig) -> Self;
+
+  async fn add_base_layers_filtered<F: Fn(&str) -> bool + Clone + Send + Sync + 'static>(
+    self,
+    config: &crate::config::BaseConfig,
+    filter: F,
+  ) -> Self;
+}
+
+impl add_base_layers for axum::Router {
   async fn add_base_layers(self, config: &crate::config::BaseConfig) -> Self {
+    self.add_base_layers_filtered(config, |_| true).await
+  }
+
+  async fn add_base_layers_filtered<F: Fn(&str) -> bool + Clone + Send + Sync + 'static>(
+    self,
+    config: &crate::config::BaseConfig,
+    filter: F,
+  ) -> Self {
     #[cfg(feature = "logging")]
     use super::logging::logging;
 
@@ -53,9 +72,9 @@ crate::router_extension!(
 
     #[cfg(feature = "logging")]
     {
-      router = router.logging().await;
+      router = router.logging(filter);
     }
 
     router
   }
-);
+}

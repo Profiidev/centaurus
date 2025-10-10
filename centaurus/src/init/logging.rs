@@ -17,15 +17,31 @@ pub fn init_logging(config: &BaseConfig) {
 }
 
 #[cfg(all(feature = "logging", feature = "axum"))]
-crate::router_extension!(
-  async fn logging(self) -> Self {
+#[allow(non_camel_case_types, async_fn_in_trait)]
+pub trait logging {
+  fn logging<F: Fn(&str) -> bool + Clone + Send + Sync + 'static>(self, filter: F) -> Self;
+}
+
+impl logging for axum::Router {
+  fn logging<F: Fn(&str) -> bool + Clone + Send + Sync + 'static>(self, filter: F) -> Self {
     self.layer(
       tower_http::trace::TraceLayer::new_for_http()
-        .on_request(|request: &http::Request<_>, _span: &tracing::Span| {
-          tracing::info!("Received request: {}", request.uri());
+        .on_request(move |request: &http::Request<_>, span: &tracing::Span| {
+          let path = request.uri().path();
+          span.record("http.target.path", path);
+          if filter(path) {
+            tracing::info!("Received request: {}", request.uri());
+          }
         })
         .on_response(
-          |response: &http::Response<_>, latency: std::time::Duration, _span: &tracing::Span| {
+          |response: &http::Response<_>, latency: std::time::Duration, span: &tracing::Span| {
+            let path = span
+              .metadata()
+              .unwrap()
+              .fields()
+              .field("http.target.path")
+              .unwrap();
+            dbg!(path);
             tracing::info!(
               "Response sent with status: {} in {:?}",
               response.status(),
@@ -35,4 +51,4 @@ crate::router_extension!(
         ),
     )
   }
-);
+}
