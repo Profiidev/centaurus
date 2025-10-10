@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2025-10-10
+
+### 🚀 Features
+
+- Added optional filter method for request logging
+
+### 🐛 Bug Fixes
+
+- Correct uri usage in response handler
+
+### 🚜 Refactor
+
+- Removed unnessacary reexports
+
+### 🧪 Testing
+
+- Debug field
+- Debug field
+
+
+
 ## [0.2.4] - 2025-10-09
 
 ### 🚀 Features
