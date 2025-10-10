@@ -35,12 +35,7 @@ impl logging for axum::Router {
         })
         .on_response(
           |response: &http::Response<_>, latency: std::time::Duration, span: &tracing::Span| {
-            let path = span
-              .metadata()
-              .unwrap()
-              .fields()
-              .field("http.target.path")
-              .unwrap();
+            let path = span.metadata().unwrap().fields();
             dbg!(path);
             tracing::info!(
               "Response sent with status: {} in {:?}",
