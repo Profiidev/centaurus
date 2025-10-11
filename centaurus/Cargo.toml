@@ -11,7 +11,7 @@ keywords = []
 readme = "README.md"
 
 [features]
-default = ["axum", "logging"]
+default = ["axum", "logging", "metrics"]
 all = [
   "logging",
   "axum",
@@ -26,7 +26,8 @@ all = [
   "tokio",
   "uuid",
   "reqwest",
-]
+  "metrics"
+  ]
 
 logging = [
   "dep:color-eyre",
@@ -47,6 +48,7 @@ axum = [
   "dep:serde",
   "dep:thiserror",
 ]
+metrics = ["dep:metrics", "dep:metrics-exporter-prometheus"]
 
 argon2 = ["dep:argon2"]
 base64 = ["dep:base64"]
@@ -107,6 +109,8 @@ reqwest = { version = "0.12.23", optional = true, features = [
   "charset",
   "rustls-tls",
 ], default-features = false }
+metrics-exporter-prometheus = { version = "0.17.2", optional = true, default-features = false }
+metrics = { version = "0.24.2", optional = true }
 
 [lib]
 path = "src/lib.rs"
