@@ -11,7 +11,6 @@ macro_rules! router_extension {
     }
 
     impl $name for $self {
-      #[cfg_attr(feature = "logging", tracing::instrument(skip_all))]
       async fn $name($($arg)*) -> Self {
         $($body)*
       }
