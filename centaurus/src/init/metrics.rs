@@ -31,15 +31,15 @@ impl Deref for MetricsHandle {
 }
 
 #[cfg_attr(feature = "logging", tracing::instrument)]
-pub fn init_metrics(service_name: String) -> Extension<MetricsHandle> {
+pub fn init_metrics(service_name: String) -> MetricsHandle {
   let builder = PrometheusBuilder::new().add_global_label("service_name", service_name);
   let handle = builder
     .install_recorder()
     .expect("failed to install Prometheus recorder");
 
-  Extension(MetricsHandle {
+  MetricsHandle {
     prometheus_handle: handle,
-  })
+  }
 }
 
 router_extension!(
@@ -52,14 +52,20 @@ router_extension!(
 );
 
 #[derive(Clone, FromReqExtension)]
-struct MetricsPrefix(String);
+struct MetricsPrefix(String, Vec<(String, String)>);
 
 router_extension!(
-  async fn metrics(self, metrics_prefix: String) -> Self {
+  async fn metrics(
+    self,
+    metrics_prefix: String,
+    handle: MetricsHandle,
+    extra_labels: Vec<(String, String)>,
+  ) -> Self {
     describe_metrics(&metrics_prefix);
     self
       .layer(from_fn(request_metrics))
-      .layer(Extension(MetricsPrefix(metrics_prefix)))
+      .layer(Extension(MetricsPrefix(metrics_prefix, extra_labels)))
+      .layer(Extension(handle))
   }
 );
 
@@ -107,13 +113,14 @@ async fn request_metrics(mut req: Request, next: Next) -> Response {
   let method = req.method().to_string();
   let path = req.uri().path().to_string();
 
-  let Ok(MetricsPrefix(prefix)) = req.extract_parts::<MetricsPrefix>().await;
+  let Ok(MetricsPrefix(prefix, extra_labels)) = req.extract_parts::<MetricsPrefix>().await;
 
-  let labels = [
-    ("http.request.method", method),
-    ("url.path", path),
-    ("url.scheme", scheme),
+  let mut labels = vec![
+    ("http.request.method".to_string(), method),
+    ("url.path".to_string(), path),
+    ("url.scheme".to_string(), scheme),
   ];
+  labels.extend(extra_labels);
 
   gauge!(format!("{}_http_active_requests", prefix), &labels).increment(1);
   counter!(format!("{}_http_requests_total", prefix), &labels).increment(1);
