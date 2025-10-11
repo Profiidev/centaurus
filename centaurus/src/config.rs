@@ -4,7 +4,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 #[cfg(feature = "logging")]
 use tracing::level_filters::LevelFilter;
 
-#[derive(Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BaseConfig {
   //base
   pub port: u16,
