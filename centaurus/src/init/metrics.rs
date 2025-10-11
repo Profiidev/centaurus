@@ -126,7 +126,7 @@ async fn request_metrics(mut req: Request, next: Next) -> Response {
   counter!(format!("{}_http_requests_total", prefix), &labels).increment(1);
 
   let size = content_size(req.headers());
-  histogram!(format!("{}_http_request_size", prefix), &labels).record(size as f64);
+  histogram!(format!("{}_http_request_size", prefix), &labels).record(size);
 
   let response = next.run(req).await;
 
@@ -137,7 +137,7 @@ async fn request_metrics(mut req: Request, next: Next) -> Response {
   }
 
   let size = content_size(response.headers());
-  histogram!(format!("{}_http_response_size", prefix), &labels).record(size as f64);
+  histogram!(format!("{}_http_response_size", prefix), &labels).record(size);
 
   let duration = start.elapsed().as_millis() as f64;
   histogram!(format!("{}_http_request_duration", prefix), &labels).record(duration);
