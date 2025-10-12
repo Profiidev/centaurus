@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2025-10-12
+
+### 🚀 Features
+
+- Custom error status
+- Added context option for errors without setting status
+
+### 🚜 Refactor
+
+- Log user error only as warning and not error
+
+
+
 ## [0.3.1] - 2025-10-11
 
 ### 🚀 Features
