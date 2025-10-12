@@ -1,4 +1,3 @@
-use http::Uri;
 use tracing_error::ErrorLayer;
 use tracing_subscriber::{Layer, layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -23,6 +22,7 @@ pub trait logging {
   fn logging<F: Fn(&str) -> bool + Clone + Send + Sync + 'static>(self, filter: F) -> Self;
 }
 
+#[cfg(all(feature = "logging", feature = "axum"))]
 impl logging for axum::Router {
   fn logging<F: Fn(&str) -> bool + Clone + Send + Sync + 'static>(self, filter: F) -> Self {
     let response_filter = filter.clone();
@@ -56,8 +56,10 @@ impl logging for axum::Router {
 }
 
 #[derive(Clone)]
-pub struct RequestUri(Uri);
+#[cfg(all(feature = "logging", feature = "axum"))]
+pub struct RequestUri(http::Uri);
 
+#[cfg(all(feature = "logging", feature = "axum"))]
 async fn uri_middleware(
   req: axum::extract::Request,
   next: axum::middleware::Next,

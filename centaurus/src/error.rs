@@ -101,13 +101,13 @@ impl_from_error!(TypedHeaderRejection, StatusCode::BAD_REQUEST);
 #[cfg(feature = "axum")]
 impl_from_error!(BytesRejection, StatusCode::BAD_REQUEST);
 #[cfg(feature = "hmac")]
-impl_from_error!(InvalidLength, StatusCode::BAD_REQUEST);
+impl_from_error!(InvalidLength, StatusCode::INTERNAL_SERVER_ERROR);
 #[cfg(feature = "axum")]
 impl_from_error!(MultipartRejection, StatusCode::BAD_REQUEST);
 #[cfg(feature = "axum")]
 impl_from_error!(MultipartError, StatusCode::BAD_REQUEST);
 #[cfg(feature = "chrono")]
-impl_from_error!(chrono::ParseError, StatusCode::BAD_REQUEST);
+impl_from_error!(chrono::ParseError, StatusCode::INTERNAL_SERVER_ERROR);
 impl_from_error!(ParseIntError, StatusCode::BAD_REQUEST);
 #[cfg(feature = "axum")]
 impl_from_error!(serde_xml_rs::Error, StatusCode::BAD_REQUEST);
@@ -118,15 +118,48 @@ impl_from_error!(jsonwebtoken::errors::Error, StatusCode::BAD_REQUEST);
 #[cfg(feature = "sea-orm")]
 impl_from_error!(sea_orm::DbErr, StatusCode::INTERNAL_SERVER_ERROR);
 #[cfg(feature = "base64")]
-impl_from_error!(base64::DecodeError, StatusCode::BAD_REQUEST);
+impl_from_error!(base64::DecodeError, StatusCode::INTERNAL_SERVER_ERROR);
 #[cfg(feature = "rsa")]
-impl_from_error!(rsa::Error, StatusCode::BAD_REQUEST);
+impl_from_error!(rsa::Error, StatusCode::INTERNAL_SERVER_ERROR);
 #[cfg(feature = "argon2")]
-impl_from_error!(argon2::password_hash::Error, StatusCode::BAD_REQUEST);
+impl_from_error!(
+  argon2::password_hash::Error,
+  StatusCode::INTERNAL_SERVER_ERROR
+);
 #[cfg(feature = "uuid")]
-impl_from_error!(uuid::Error, StatusCode::BAD_REQUEST);
+impl_from_error!(uuid::Error, StatusCode::INTERNAL_SERVER_ERROR);
 #[cfg(feature = "reqwest")]
-impl_from_error!(reqwest::Error, StatusCode::BAD_GATEWAY);
+impl_from_error!(reqwest::Error, StatusCode::INTERNAL_SERVER_ERROR);
+
+#[cfg(feature = "http")]
+pub trait ErrorReportExt<T> {
+  fn status(self, status: StatusCode) -> Result<T>;
+  fn status_info(self, status: StatusCode, msg: &str) -> Result<T>;
+}
+
+#[cfg(feature = "http")]
+impl<T, E: std::error::Error + Send + Sync + 'static> ErrorReportExt<T>
+  for std::result::Result<T, E>
+{
+  fn status(self, status: StatusCode) -> Result<T> {
+    self.map_err(|e| ErrorReport::new(eyre::Report::new(e), status))
+  }
+
+  fn status_info(self, status: StatusCode, msg: &str) -> Result<T> {
+    self.map_err(|e| ErrorReport::new(eyre::Report::new(e).wrap_err(msg.to_string()), status))
+  }
+}
+
+#[cfg(feature = "http")]
+impl<T> ErrorReportExt<T> for Option<T> {
+  fn status(self, status: StatusCode) -> Result<T> {
+    self.ok_or_else(|| ErrorReport::new(eyre::Report::msg("Option is None"), status))
+  }
+
+  fn status_info(self, status: StatusCode, msg: &str) -> Result<T> {
+    self.ok_or_else(|| ErrorReport::new(eyre::Report::msg(msg.to_string()), status))
+  }
+}
 
 #[cfg(feature = "axum")]
 impl IntoResponse for ErrorReport {
