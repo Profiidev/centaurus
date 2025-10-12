@@ -179,7 +179,11 @@ impl<T, E: Into<ErrorReport>> ErrorReportExt<T> for std::result::Result<T, E> {
 impl IntoResponse for ErrorReport {
   fn into_response(self) -> Response {
     #[cfg(feature = "logging")]
-    tracing::error!("{:?}", self.error);
+    if self.status.is_server_error() {
+      tracing::error!("{:?}", self.error);
+    } else {
+      tracing::warn!("{:?}", self.error);
+    }
     self.status.into_response()
   }
 }
