@@ -132,32 +132,46 @@ impl_from_error!(uuid::Error, StatusCode::INTERNAL_SERVER_ERROR);
 impl_from_error!(reqwest::Error, StatusCode::INTERNAL_SERVER_ERROR);
 
 #[cfg(feature = "http")]
-pub trait ErrorReportExt<T> {
+pub trait ErrorReportStatusExt<T> {
   fn status(self, status: StatusCode) -> Result<T>;
-  fn status_info(self, status: StatusCode, msg: &str) -> Result<T>;
+  fn status_context(self, status: StatusCode, msg: &str) -> Result<T>;
 }
 
 #[cfg(feature = "http")]
-impl<T, E: std::error::Error + Send + Sync + 'static> ErrorReportExt<T>
+impl<T, E: std::error::Error + Send + Sync + 'static> ErrorReportStatusExt<T>
   for std::result::Result<T, E>
 {
   fn status(self, status: StatusCode) -> Result<T> {
     self.map_err(|e| ErrorReport::new(eyre::Report::new(e), status))
   }
 
-  fn status_info(self, status: StatusCode, msg: &str) -> Result<T> {
+  fn status_context(self, status: StatusCode, msg: &str) -> Result<T> {
     self.map_err(|e| ErrorReport::new(eyre::Report::new(e).wrap_err(msg.to_string()), status))
   }
 }
 
 #[cfg(feature = "http")]
-impl<T> ErrorReportExt<T> for Option<T> {
+impl<T> ErrorReportStatusExt<T> for Option<T> {
   fn status(self, status: StatusCode) -> Result<T> {
     self.ok_or_else(|| ErrorReport::new(eyre::Report::msg("Option is None"), status))
   }
 
-  fn status_info(self, status: StatusCode, msg: &str) -> Result<T> {
+  fn status_context(self, status: StatusCode, msg: &str) -> Result<T> {
     self.ok_or_else(|| ErrorReport::new(eyre::Report::msg(msg.to_string()), status))
+  }
+}
+
+pub trait ErrorReportExt<T> {
+  fn context(self, msg: &str) -> Result<T>;
+}
+
+impl<T, E: Into<ErrorReport>> ErrorReportExt<T> for std::result::Result<T, E> {
+  fn context(self, msg: &str) -> Result<T> {
+    self.map_err(|e| {
+      let mut e = e.into();
+      e.error = e.error.wrap_err(msg.to_string());
+      e
+    })
   }
 }
 
