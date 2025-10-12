@@ -26,8 +26,9 @@ all = [
   "tokio",
   "uuid",
   "reqwest",
-  "metrics"
-  ]
+  "metrics",
+  "error",
+]
 
 logging = [
   "dep:color-eyre",
@@ -42,13 +43,14 @@ axum = [
   "dep:tower-http",
   "dep:tower",
   "dep:axum-extra",
-  "dep:eyre",
+  "error",
   "dep:serde-xml-rs",
   "dep:serde_json",
   "dep:serde",
   "dep:thiserror",
 ]
 metrics = ["dep:metrics", "dep:metrics-exporter-prometheus"]
+error = ["dep:eyre"]
 
 argon2 = ["dep:argon2"]
 base64 = ["dep:base64"]
