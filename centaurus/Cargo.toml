@@ -35,6 +35,7 @@ logging = [
   "dep:tracing-error",
   "dep:tracing-subscriber",
   "dep:tracing",
+  "serde",
 ]
 axum = [
   "http",
@@ -46,11 +47,14 @@ axum = [
   "error",
   "dep:serde-xml-rs",
   "dep:serde_json",
-  "dep:serde",
+  "serde",
   "dep:thiserror",
 ]
 metrics = ["dep:metrics", "dep:metrics-exporter-prometheus"]
 error = ["dep:eyre"]
+sea-orm = ["dep:sea-orm", "dep:tracing", "dep:sea-orm-migration", "serde"]
+auth = ["argon2", "base64", "error", "rsa"]
+serde = ["dep:serde"]
 
 argon2 = ["dep:argon2"]
 base64 = ["dep:base64"]
@@ -59,10 +63,12 @@ hmac = ["dep:hmac"]
 http = ["dep:http"]
 jsonwebtoken = ["dep:jsonwebtoken"]
 rsa = ["dep:rsa"]
-sea-orm = ["dep:sea-orm"]
 tokio = ["dep:tokio"]
 uuid = ["dep:uuid"]
 reqwest = ["dep:reqwest"]
+lettre = ["dep:lettre"]
+webauthn = ["dep:webauthn-rs-core"]
+image = ["dep:image"]
 
 [dependencies]
 centaurus-derive = { workspace = true }
@@ -113,6 +119,10 @@ reqwest = { version = "0.12.23", optional = true, features = [
 ], default-features = false }
 metrics-exporter-prometheus = { version = "0.17.2", optional = true, default-features = false }
 metrics = { version = "0.24.2", optional = true }
+sea-orm-migration = { version = "1.1.17", optional = true }
+lettre = { version = "0.11.19", default-features = false, optional = true }
+webauthn-rs-core = { version = "0.5.3", default-features = false, optional = true }
+image = { version = "0.25.8", default-features = false, optional = true }
 
 [lib]
 path = "src/lib.rs"

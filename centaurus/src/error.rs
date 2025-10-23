@@ -64,12 +64,11 @@ macro_rules! bail {
 #[macro_export]
 macro_rules! impl_from_error {
   ($error:ty, $status:expr) => {
-    impl From<$error> for ErrorReport {
+    impl From<$error> for $crate::error::ErrorReport {
       #[track_caller]
       fn from(value: $error) -> Self {
         Self {
-          error: eyre::Report::new(value),
-          #[cfg(feature = "http")]
+          error: $crate::eyre::Report::new(value),
           status: $status,
         }
       }
@@ -78,9 +77,9 @@ macro_rules! impl_from_error {
 }
 
 pub struct ErrorReport {
-  error: eyre::Report,
+  pub error: eyre::Report,
   #[cfg(feature = "http")]
-  status: StatusCode,
+  pub status: StatusCode,
 }
 
 impl ErrorReport {
@@ -130,6 +129,15 @@ impl_from_error!(
 impl_from_error!(uuid::Error, StatusCode::INTERNAL_SERVER_ERROR);
 #[cfg(feature = "reqwest")]
 impl_from_error!(reqwest::Error, StatusCode::INTERNAL_SERVER_ERROR);
+#[cfg(feature = "lettre")]
+impl_from_error!(lettre::error::Error, StatusCode::INTERNAL_SERVER_ERROR);
+#[cfg(feature = "webauthn")]
+impl_from_error!(
+  webauthn_rs_core::error::WebauthnError,
+  StatusCode::BAD_REQUEST
+);
+#[cfg(feature = "image")]
+impl_from_error!(image::error::ImageError, StatusCode::INTERNAL_SERVER_ERROR);
 
 #[cfg(feature = "http")]
 pub trait ErrorReportStatusExt<T> {
