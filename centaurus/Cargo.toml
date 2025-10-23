@@ -11,7 +11,7 @@ keywords = []
 readme = "README.md"
 
 [features]
-default = ["axum", "logging", "metrics", "sea-orm", "auth"]
+default = ["axum", "logging", "metrics"]
 all = [
   "logging",
   "axum",

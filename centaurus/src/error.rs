@@ -133,7 +133,10 @@ impl_from_error!(reqwest::Error, StatusCode::INTERNAL_SERVER_ERROR);
 #[cfg(feature = "lettre")]
 impl_from_error!(lettre::error::Error, StatusCode::INTERNAL_SERVER_ERROR);
 #[cfg(feature = "webauthn")]
-impl_from_error!(webauthn::error::WebauthnError, StatusCode::BAD_REQUEST);
+impl_from_error!(
+  webauthn_rs_core::error::WebauthnError,
+  StatusCode::BAD_REQUEST
+);
 #[cfg(feature = "image")]
 impl_from_error!(image::error::ImageError, StatusCode::INTERNAL_SERVER_ERROR);
 
