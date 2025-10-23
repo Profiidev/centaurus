@@ -9,7 +9,7 @@ use crate as centaurus;
 use crate::db::config::DBConfig;
 
 #[derive(FromReqExtension, Clone)]
-pub struct Connection(DatabaseConnection);
+pub struct Connection(pub DatabaseConnection);
 
 impl Deref for Connection {
   type Target = DatabaseConnection;

@@ -64,11 +64,11 @@ macro_rules! bail {
 #[macro_export]
 macro_rules! impl_from_error {
   ($error:ty, $status:expr) => {
-    impl From<$error> for ErrorReport {
+    impl From<$error> for $crate::error::ErrorReport {
       #[track_caller]
       fn from(value: $error) -> Self {
         Self {
-          error: eyre::Report::new(value),
+          error: $crate::eyre::Report::new(value),
           #[cfg(feature = "http")]
           status: $status,
         }
@@ -78,9 +78,9 @@ macro_rules! impl_from_error {
 }
 
 pub struct ErrorReport {
-  error: eyre::Report,
+  pub error: eyre::Report,
   #[cfg(feature = "http")]
-  status: StatusCode,
+  pub status: StatusCode,
 }
 
 impl ErrorReport {
