@@ -35,6 +35,7 @@ logging = [
   "dep:tracing-error",
   "dep:tracing-subscriber",
   "dep:tracing",
+  "serde",
 ]
 axum = [
   "http",
