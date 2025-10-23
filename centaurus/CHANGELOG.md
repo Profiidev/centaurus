@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2025-10-23
+
+### 🚀 Features
+
+- Added db init
+- Added auth utils
+- Added health route
+- Added new error types
+- Added redirect
+
+### 🐛 Bug Fixes
+
+- Webauthn rs error
+- Error impl
+- Error impl
+
+### 🚜 Refactor
+
+- Moved serde fns
+
+
+
 ## [0.3.2] - 2025-10-12
 
 ### 🚀 Features
