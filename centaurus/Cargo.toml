@@ -11,7 +11,7 @@ keywords = []
 readme = "README.md"
 
 [features]
-default = ["axum", "logging", "metrics", "sea-orm"]
+default = ["axum", "logging", "metrics", "sea-orm", "auth"]
 all = [
   "logging",
   "axum",
@@ -46,12 +46,14 @@ axum = [
   "error",
   "dep:serde-xml-rs",
   "dep:serde_json",
-  "dep:serde",
+  "serde",
   "dep:thiserror",
 ]
 metrics = ["dep:metrics", "dep:metrics-exporter-prometheus"]
 error = ["dep:eyre"]
-sea-orm = ["dep:sea-orm", "dep:tracing", "dep:sea-orm-migration"]
+sea-orm = ["dep:sea-orm", "dep:tracing", "dep:sea-orm-migration", "serde"]
+auth = ["argon2", "base64", "error", "rsa"]
+serde = ["dep:serde"]
 
 argon2 = ["dep:argon2"]
 base64 = ["dep:base64"]

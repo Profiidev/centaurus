@@ -7,6 +7,8 @@ pub use eyre;
 #[cfg(feature = "http")]
 pub use http;
 
+#[cfg(feature = "auth")]
+pub mod auth;
 #[cfg(any(feature = "axum", feature = "logging"))]
 pub mod config;
 #[cfg(feature = "sea-orm")]
@@ -16,6 +18,7 @@ pub mod error;
 pub mod file;
 pub mod init;
 pub mod req;
+pub mod serde;
 pub mod state;
 
 #[cfg(feature = "axum")]
