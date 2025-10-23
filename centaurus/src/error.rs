@@ -69,7 +69,6 @@ macro_rules! impl_from_error {
       fn from(value: $error) -> Self {
         Self {
           error: $crate::eyre::Report::new(value),
-          #[cfg(feature = "http")]
           status: $status,
         }
       }
