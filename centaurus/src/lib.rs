@@ -9,6 +9,8 @@ pub use http;
 
 #[cfg(any(feature = "axum", feature = "logging"))]
 pub mod config;
+#[cfg(feature = "sea-orm")]
+pub mod db;
 #[cfg(feature = "error")]
 pub mod error;
 pub mod file;

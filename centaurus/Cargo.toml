@@ -11,7 +11,7 @@ keywords = []
 readme = "README.md"
 
 [features]
-default = ["axum", "logging", "metrics"]
+default = ["axum", "logging", "metrics", "sea-orm"]
 all = [
   "logging",
   "axum",
@@ -51,6 +51,7 @@ axum = [
 ]
 metrics = ["dep:metrics", "dep:metrics-exporter-prometheus"]
 error = ["dep:eyre"]
+sea-orm = ["dep:sea-orm", "dep:tracing", "dep:sea-orm-migration"]
 
 argon2 = ["dep:argon2"]
 base64 = ["dep:base64"]
@@ -59,7 +60,6 @@ hmac = ["dep:hmac"]
 http = ["dep:http"]
 jsonwebtoken = ["dep:jsonwebtoken"]
 rsa = ["dep:rsa"]
-sea-orm = ["dep:sea-orm"]
 tokio = ["dep:tokio"]
 uuid = ["dep:uuid"]
 reqwest = ["dep:reqwest"]
@@ -113,6 +113,7 @@ reqwest = { version = "0.12.23", optional = true, features = [
 ], default-features = false }
 metrics-exporter-prometheus = { version = "0.17.2", optional = true, default-features = false }
 metrics = { version = "0.24.2", optional = true }
+sea-orm-migration = { version = "1.1.17", optional = true }
 
 [lib]
 path = "src/lib.rs"
