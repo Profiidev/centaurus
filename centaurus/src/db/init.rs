@@ -1,14 +1,14 @@
 use std::{ops::Deref, time::Duration};
 
-use centaurus_derive::FromReqExtension;
+use axum::{Extension, extract::FromRequestParts};
 use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use sea_orm_migration::MigratorTrait;
 use tracing::instrument;
 
-use crate as centaurus;
 use crate::db::config::DBConfig;
 
-#[derive(FromReqExtension, Clone)]
+#[derive(FromRequestParts, Clone)]
+#[from_request(via(Extension))]
 pub struct Connection(pub DatabaseConnection);
 
 impl Deref for Connection {

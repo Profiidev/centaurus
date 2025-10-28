@@ -1,23 +1,22 @@
 use std::{ops::Deref, time::Instant};
 
-use crate as centaurus;
 use ::metrics::{
   Unit, counter, describe_counter, describe_gauge, describe_histogram, gauge, histogram,
 };
 use axum::{
   Extension, RequestExt,
-  extract::Request,
+  extract::{FromRequestParts, Request},
   middleware::{Next, from_fn},
   response::Response,
   routing::get,
 };
-use centaurus_derive::FromReqExtension;
 use http::HeaderMap;
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 
 use crate::router_extension;
 
-#[derive(FromReqExtension, Clone)]
+#[derive(FromRequestParts, Clone)]
+#[from_request(via(Extension))]
 pub struct MetricsHandle {
   prometheus_handle: PrometheusHandle,
 }
@@ -51,7 +50,8 @@ router_extension!(
   }
 );
 
-#[derive(Clone, FromReqExtension)]
+#[derive(Clone, FromRequestParts)]
+#[from_request(via(Extension))]
 struct MetricsPrefix(String, Vec<(String, String)>);
 
 router_extension!(
@@ -113,7 +113,7 @@ async fn request_metrics(mut req: Request, next: Next) -> Response {
   let method = req.method().to_string();
   let path = req.uri().path().to_string();
 
-  let Ok(MetricsPrefix(prefix, extra_labels)) = req.extract_parts::<MetricsPrefix>().await;
+  let MetricsPrefix(prefix, extra_labels) = req.extract_parts::<MetricsPrefix>().await.unwrap();
 
   let mut labels = vec![
     ("http.request.method".to_string(), method),
