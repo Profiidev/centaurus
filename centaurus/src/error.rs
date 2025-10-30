@@ -141,6 +141,28 @@ impl_from_error!(
 );
 #[cfg(feature = "image")]
 impl_from_error!(image::error::ImageError, StatusCode::INTERNAL_SERVER_ERROR);
+#[cfg(feature = "k8s")]
+impl_from_error!(kube::Error, StatusCode::INTERNAL_SERVER_ERROR);
+#[cfg(feature = "k8s")]
+impl_from_error!(
+  kube::core::request::Error,
+  StatusCode::INTERNAL_SERVER_ERROR
+);
+#[cfg(feature = "k8s")]
+impl_from_error!(
+  kube::runtime::watcher::Error,
+  StatusCode::INTERNAL_SERVER_ERROR
+);
+#[cfg(feature = "k8s")]
+impl_from_error!(
+  kube::runtime::wait::Error,
+  StatusCode::INTERNAL_SERVER_ERROR
+);
+#[cfg(feature = "k8s")]
+impl_from_error!(
+  kube::runtime::finalizer::Error<ErrorReport>,
+  StatusCode::INTERNAL_SERVER_ERROR
+);
 
 #[cfg(feature = "http")]
 pub trait ErrorReportStatusExt<T> {
