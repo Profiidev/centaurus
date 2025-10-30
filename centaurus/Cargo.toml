@@ -29,6 +29,7 @@ all = [
   "metrics",
   "error",
   "auth",
+  "k8s",
 ]
 
 logging = [
@@ -50,12 +51,14 @@ axum = [
   "dep:serde_json",
   "serde",
   "dep:thiserror",
+  "dep:async-trait",
 ]
 metrics = ["dep:metrics", "dep:metrics-exporter-prometheus"]
 error = ["dep:eyre"]
 sea-orm = ["dep:sea-orm", "dep:tracing", "dep:sea-orm-migration", "serde"]
 auth = ["argon2", "base64", "error", "rsa"]
 serde = ["dep:serde"]
+k8s = ["dep:k8s-openapi", "dep:kube"]
 
 argon2 = ["dep:argon2"]
 base64 = ["dep:base64"]
@@ -124,7 +127,12 @@ sea-orm-migration = { version = "1.1.17", optional = true }
 lettre = { version = "0.11.19", default-features = false, optional = true }
 webauthn-rs-core = { version = "0.5.3", default-features = false, optional = true }
 image = { version = "0.25.8", default-features = false, optional = true }
-async-trait = "0.1.89"
+kube = { version = "2.0.1", features = ["runtime", "derive"], optional = true }
+k8s-openapi = { version = "0.26.0", features = [
+  "latest",
+  "schemars",
+], optional = true }
+async-trait = { version = "0.1.89", optional = true }
 
 [lib]
 path = "src/lib.rs"

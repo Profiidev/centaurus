@@ -1,4 +1,7 @@
-use std::{fmt::Debug, num::ParseIntError};
+use std::{
+  fmt::{Debug, Display},
+  num::ParseIntError,
+};
 
 #[cfg(feature = "axum")]
 use axum::{
@@ -138,6 +141,28 @@ impl_from_error!(
 );
 #[cfg(feature = "image")]
 impl_from_error!(image::error::ImageError, StatusCode::INTERNAL_SERVER_ERROR);
+#[cfg(feature = "k8s")]
+impl_from_error!(kube::Error, StatusCode::INTERNAL_SERVER_ERROR);
+#[cfg(feature = "k8s")]
+impl_from_error!(
+  kube::core::request::Error,
+  StatusCode::INTERNAL_SERVER_ERROR
+);
+#[cfg(feature = "k8s")]
+impl_from_error!(
+  kube::runtime::watcher::Error,
+  StatusCode::INTERNAL_SERVER_ERROR
+);
+#[cfg(feature = "k8s")]
+impl_from_error!(
+  kube::runtime::wait::Error,
+  StatusCode::INTERNAL_SERVER_ERROR
+);
+#[cfg(feature = "k8s")]
+impl_from_error!(
+  kube::runtime::finalizer::Error<ErrorReport>,
+  StatusCode::INTERNAL_SERVER_ERROR
+);
 
 #[cfg(feature = "http")]
 pub trait ErrorReportStatusExt<T> {
@@ -201,6 +226,14 @@ impl Debug for ErrorReport {
     <eyre::Report as Debug>::fmt(&self.error, f)
   }
 }
+
+impl Display for ErrorReport {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    <eyre::Report as Display>::fmt(&self.error, f)
+  }
+}
+
+impl std::error::Error for ErrorReport {}
 
 impl From<eyre::Report> for ErrorReport {
   fn from(value: eyre::Report) -> Self {
