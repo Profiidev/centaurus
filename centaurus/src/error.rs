@@ -1,4 +1,7 @@
-use std::{fmt::Debug, num::ParseIntError};
+use std::{
+  fmt::{Debug, Display},
+  num::ParseIntError,
+};
 
 #[cfg(feature = "axum")]
 use axum::{
@@ -201,6 +204,14 @@ impl Debug for ErrorReport {
     <eyre::Report as Debug>::fmt(&self.error, f)
   }
 }
+
+impl Display for ErrorReport {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    <eyre::Report as Display>::fmt(&self.error, f)
+  }
+}
+
+impl std::error::Error for ErrorReport {}
 
 impl From<eyre::Report> for ErrorReport {
   fn from(value: eyre::Report) -> Self {
