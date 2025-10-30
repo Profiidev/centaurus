@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2025-10-30
+
+### 🚀 Features
+
+- Added state extract method
+
+### 🚜 Refactor
+
+- Replace custom from request derive with official
+
+
+
 ## [0.4.0] - 2025-10-23
 
 ### 🚀 Features
