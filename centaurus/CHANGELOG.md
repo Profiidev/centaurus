@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2025-10-30
+
+### 🚀 Features
+
+- Impl std error for error report
+- Added kube rs error impl
+
+
+
 ## [0.4.1] - 2025-10-30
 
 ### 🚀 Features
