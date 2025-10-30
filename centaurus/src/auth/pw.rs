@@ -2,18 +2,19 @@ use argon2::{
   Argon2,
   password_hash::{PasswordHasher, SaltString},
 };
+#[cfg(feature = "axum")]
+use axum::{Extension, extract::FromRequestParts};
 use base64::prelude::*;
-use centaurus_derive::FromReqExtension;
 use rsa::{
   Pkcs1v15Encrypt, RsaPrivateKey, RsaPublicKey, pkcs1::EncodeRsaPublicKey, pkcs8::LineEnding,
 };
 use tracing::instrument;
 
-use crate as centaurus;
 use crate::error::Result;
 
 #[cfg(feature = "axum")]
-#[derive(Clone, FromReqExtension)]
+#[derive(Clone, FromRequestParts)]
+#[from_request(via(Extension))]
 pub struct PasswordState {
   key: RsaPrivateKey,
   pub pub_key: String,
