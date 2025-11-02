@@ -163,6 +163,8 @@ impl_from_error!(
   kube::runtime::finalizer::Error<ErrorReport>,
   StatusCode::INTERNAL_SERVER_ERROR
 );
+#[cfg(feature = "docker")]
+impl_from_error!(bollard::errors::Error, StatusCode::INTERNAL_SERVER_ERROR);
 
 #[cfg(feature = "http")]
 pub trait ErrorReportStatusExt<T> {
