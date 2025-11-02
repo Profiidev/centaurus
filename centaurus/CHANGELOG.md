@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3] - 2025-11-02
+
+### 🚀 Features
+
+- Docker error impl
+
+
+
 ## [0.4.2] - 2025-10-30
 
 ### 🚀 Features
