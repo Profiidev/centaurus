@@ -84,7 +84,7 @@ axum = { version = "0.8.4", optional = true, features = [
   "ws",
   "tracing",
 ] }
-axum-extra = { version = "0.10.1", optional = true, features = [
+axum-extra = { version = "0.12.1", optional = true, features = [
   "typed-header",
   "cookie",
 ] }
