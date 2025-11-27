@@ -168,7 +168,9 @@ impl_from_error!(bollard::errors::Error, StatusCode::INTERNAL_SERVER_ERROR);
 
 #[cfg(feature = "http")]
 pub trait ErrorReportStatusExt<T> {
+  #[track_caller]
   fn status(self, status: StatusCode) -> Result<T>;
+  #[track_caller]
   fn status_context(self, status: StatusCode, msg: &str) -> Result<T>;
 }
 
@@ -176,10 +178,12 @@ pub trait ErrorReportStatusExt<T> {
 impl<T, E: std::error::Error + Send + Sync + 'static> ErrorReportStatusExt<T>
   for std::result::Result<T, E>
 {
+  #[track_caller]
   fn status(self, status: StatusCode) -> Result<T> {
     self.map_err(|e| ErrorReport::new(eyre::Report::new(e), status))
   }
 
+  #[track_caller]
   fn status_context(self, status: StatusCode, msg: &str) -> Result<T> {
     self.map_err(|e| ErrorReport::new(eyre::Report::new(e).wrap_err(msg.to_string()), status))
   }
@@ -187,20 +191,24 @@ impl<T, E: std::error::Error + Send + Sync + 'static> ErrorReportStatusExt<T>
 
 #[cfg(feature = "http")]
 impl<T> ErrorReportStatusExt<T> for Option<T> {
+  #[track_caller]
   fn status(self, status: StatusCode) -> Result<T> {
     self.ok_or_else(|| ErrorReport::new(eyre::Report::msg("Option is None"), status))
   }
 
+  #[track_caller]
   fn status_context(self, status: StatusCode, msg: &str) -> Result<T> {
     self.ok_or_else(|| ErrorReport::new(eyre::Report::msg(msg.to_string()), status))
   }
 }
 
 pub trait ErrorReportExt<T> {
+  #[track_caller]
   fn context(self, msg: &str) -> Result<T>;
 }
 
 impl<T, E: Into<ErrorReport>> ErrorReportExt<T> for std::result::Result<T, E> {
+  #[track_caller]
   fn context(self, msg: &str) -> Result<T> {
     self.map_err(|e| {
       let mut e = e.into();
