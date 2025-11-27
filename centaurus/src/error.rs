@@ -180,12 +180,23 @@ impl<T, E: std::error::Error + Send + Sync + 'static> ErrorReportStatusExt<T>
 {
   #[track_caller]
   fn status(self, status: StatusCode) -> Result<T> {
-    self.map_err(|e| ErrorReport::new(eyre::Report::new(e), status))
+    // closures can not be used with track_caller
+    match self {
+      Ok(v) => Ok(v),
+      Err(e) => Err(ErrorReport::new(eyre::Report::new(e), status)),
+    }
   }
 
   #[track_caller]
   fn status_context(self, status: StatusCode, msg: &str) -> Result<T> {
-    self.map_err(|e| ErrorReport::new(eyre::Report::new(e).wrap_err(msg.to_string()), status))
+    // closures can not be used with track_caller
+    match self {
+      Ok(v) => Ok(v),
+      Err(e) => Err(ErrorReport::new(
+        eyre::Report::new(e).wrap_err(msg.to_string()),
+        status,
+      )),
+    }
   }
 }
 
@@ -193,12 +204,23 @@ impl<T, E: std::error::Error + Send + Sync + 'static> ErrorReportStatusExt<T>
 impl<T> ErrorReportStatusExt<T> for Option<T> {
   #[track_caller]
   fn status(self, status: StatusCode) -> Result<T> {
-    self.ok_or_else(|| ErrorReport::new(eyre::Report::msg("Option is None"), status))
+    // closures can not be used with track_caller
+    match self {
+      Some(v) => Ok(v),
+      None => Err(ErrorReport::new(
+        eyre::Report::msg("Option is None"),
+        status,
+      )),
+    }
   }
 
   #[track_caller]
   fn status_context(self, status: StatusCode, msg: &str) -> Result<T> {
-    self.ok_or_else(|| ErrorReport::new(eyre::Report::msg(msg.to_string()), status))
+    // closures can not be used with track_caller
+    match self {
+      Some(v) => Ok(v),
+      None => Err(ErrorReport::new(eyre::Report::msg(msg.to_string()), status)),
+    }
   }
 }
 
@@ -210,11 +232,15 @@ pub trait ErrorReportExt<T> {
 impl<T, E: Into<ErrorReport>> ErrorReportExt<T> for std::result::Result<T, E> {
   #[track_caller]
   fn context(self, msg: &str) -> Result<T> {
-    self.map_err(|e| {
-      let mut e = e.into();
-      e.error = e.error.wrap_err(msg.to_string());
-      e
-    })
+    // closures can not be used with track_caller
+    match self {
+      Ok(v) => Ok(v),
+      Err(e) => {
+        let mut e = e.into();
+        e.error = e.error.wrap_err(msg.to_string());
+        Err(e)
+      }
+    }
   }
 }
 
