@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.7] - 2025-12-06
+
+### 🚀 Features
+
+- Add base router setup
+- Added metrics and frontend state init
+- Added metrics config
+
+
+
 ## [0.4.6] - 2025-11-27
 
 ### 🐛 Bug Fixes
