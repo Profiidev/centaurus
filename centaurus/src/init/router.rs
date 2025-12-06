@@ -1,17 +1,16 @@
 use axum::Router;
 
-#[cfg(feature = "metrics")]
-use crate::init::metrics::init_metrics;
 use crate::{config::BaseConfig, init::axum::add_base_layers, req::health};
+#[cfg(feature = "metrics")]
+use crate::{config::MetricsConfig, init::metrics::init_metrics};
 
 pub async fn base_router(
   api_router: Router,
   config: &BaseConfig,
-  #[cfg(feature = "metrics")] metrics_name: String,
-  #[cfg(feature = "metrics")] extra_labels: Vec<(String, String)>,
+  #[cfg(feature = "metrics")] metrics_config: &MetricsConfig,
 ) -> Router {
   #[cfg(feature = "metrics")]
-  let handle = init_metrics(metrics_name.clone());
+  let handle = init_metrics(metrics_config.metrics_name.clone());
 
   #[cfg(feature = "frontend")]
   let mut router = crate::init::frontend::router();
@@ -46,7 +45,13 @@ pub async fn base_router(
   {
     use crate::init::metrics::metrics;
 
-    router = router.metrics(metrics_name, handle, extra_labels).await;
+    router = router
+      .metrics(
+        metrics_config.metrics_name.clone(),
+        handle,
+        metrics_config.extra_labels.clone(),
+      )
+      .await;
   }
 
   router

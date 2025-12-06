@@ -26,3 +26,9 @@ impl Default for BaseConfig {
     }
   }
 }
+
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct MetricsConfig {
+  pub metrics_name: String,
+  pub extra_labels: Vec<(String, String)>,
+}
