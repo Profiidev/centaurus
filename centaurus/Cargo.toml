@@ -32,6 +32,7 @@ all = [
   "k8s",
   "docker",
   "frontend",
+  "url",
 ]
 
 logging = [
@@ -77,6 +78,7 @@ reqwest = ["dep:reqwest"]
 lettre = ["dep:lettre"]
 webauthn = ["dep:webauthn-rs-core"]
 image = ["dep:image"]
+url = ["dep:url"]
 
 [dependencies]
 centaurus-derive = { workspace = true }
@@ -119,28 +121,28 @@ thiserror = { version = "2.0.16", optional = true }
 serde = { version = "1.0.228", features = ["derive"], optional = true }
 serde_json = { version = "1.0.145", optional = true }
 uuid = { version = "1.18.1", optional = true }
-reqwest = { version = "0.12.23", optional = true, features = [
+reqwest = { version = "0.13.1", optional = true, features = [
   "http2",
   "system-proxy",
   "charset",
-  "rustls-tls",
 ], default-features = false }
-metrics-exporter-prometheus = { version = "0.17.2", optional = true, default-features = false }
+metrics-exporter-prometheus = { version = "0.18.1", optional = true, default-features = false }
 metrics = { version = "0.24.2", optional = true }
 sea-orm-migration = { version = "1.1.17", optional = true }
 lettre = { version = "0.11.19", default-features = false, optional = true }
 webauthn-rs-core = { version = "0.5.3", default-features = false, optional = true }
 image = { version = "0.25.8", default-features = false, optional = true }
-kube = { version = "2.0.1", features = ["runtime", "derive"], optional = true }
-k8s-openapi = { version = "0.26.0", features = [
+kube = { version = "3.0.0", features = ["runtime", "derive"], optional = true }
+k8s-openapi = { version = "0.27.0", features = [
   "latest",
   "schemars",
 ], optional = true }
 async-trait = { version = "0.1.89", optional = true }
-bollard = { version = "0.19.4", optional = true, default-features = false }
+bollard = { version = "0.20.0", optional = true, default-features = false }
 hyper-util = { version = "0.1.19", features = [
   "client-legacy",
 ], optional = true }
+url = { version = "2.5.8", optional = true }
 
 [lib]
 path = "src/lib.rs"
