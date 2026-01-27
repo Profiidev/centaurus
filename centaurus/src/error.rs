@@ -165,6 +165,8 @@ impl_from_error!(
 );
 #[cfg(feature = "docker")]
 impl_from_error!(bollard::errors::Error, StatusCode::INTERNAL_SERVER_ERROR);
+#[cfg(feature = "url")]
+impl_from_error!(url::ParseError, StatusCode::BAD_REQUEST);
 
 #[cfg(feature = "http")]
 pub trait ErrorReportStatusExt<T> {
