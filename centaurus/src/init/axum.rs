@@ -19,7 +19,17 @@ pub async fn run_app(listener: TcpListener, app: Router) {
     .expect("Failed to start server");
 }
 
-async fn shutdown_signal() {
+pub async fn run_app_connect_info(listener: TcpListener, app: Router) {
+  serve(
+    listener,
+    app.into_make_service_with_connect_info::<SocketAddr>(),
+  )
+  .with_graceful_shutdown(shutdown_signal())
+  .await
+  .expect("Failed to start server");
+}
+
+pub async fn shutdown_signal() {
   let ctrl_c = async {
     signal::ctrl_c()
       .await
