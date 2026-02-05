@@ -50,8 +50,8 @@ axum = [
   "dep:tower",
   "dep:axum-extra",
   "error",
-  "dep:serde-xml-rs",
-  "dep:serde_json",
+  "serde_json",
+  "serde_xml",
   "serde",
   "dep:thiserror",
   "dep:async-trait",
@@ -79,6 +79,8 @@ lettre = ["dep:lettre"]
 webauthn = ["dep:webauthn-rs-core"]
 image = ["dep:image"]
 url = ["dep:url"]
+serde_json = ["dep:serde_json"]
+serde_xml = ["dep:serde-xml-rs"]
 
 [dependencies]
 centaurus-derive = { workspace = true }

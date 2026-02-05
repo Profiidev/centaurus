@@ -126,6 +126,10 @@ impl_from_error!(
 impl_from_error!(jsonwebtoken::errors::Error, StatusCode::BAD_REQUEST);
 #[cfg(feature = "sea-orm")]
 impl_from_error!(sea_orm::DbErr, StatusCode::INTERNAL_SERVER_ERROR);
+#[cfg(feature = "serde_xml")]
+impl_from_error!(serde_xml_rs::Error, StatusCode::BAD_REQUEST);
+#[cfg(feature = "serde_json")]
+impl_from_error!(serde_json::Error, StatusCode::BAD_REQUEST);
 
 #[cfg(feature = "http")]
 impl_from_error!(http::header::InvalidHeaderValue, StatusCode::BAD_REQUEST);
@@ -139,10 +143,6 @@ impl_from_error!(InvalidLength, StatusCode::INTERNAL_SERVER_ERROR);
 impl_from_error!(MultipartRejection, StatusCode::BAD_REQUEST);
 #[cfg(feature = "axum")]
 impl_from_error!(MultipartError, StatusCode::BAD_REQUEST);
-#[cfg(feature = "axum")]
-impl_from_error!(serde_xml_rs::Error, StatusCode::BAD_REQUEST);
-#[cfg(feature = "axum")]
-impl_from_error!(serde_json::Error, StatusCode::BAD_REQUEST);
 #[cfg(feature = "reqwest")]
 impl_from_error!(reqwest::Error, StatusCode::INTERNAL_SERVER_ERROR);
 #[cfg(feature = "lettre")]
