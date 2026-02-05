@@ -18,6 +18,7 @@ pub mod error;
 pub mod file;
 pub mod init;
 pub mod req;
+#[cfg(feature = "serde")]
 pub mod serde;
 pub mod state;
 

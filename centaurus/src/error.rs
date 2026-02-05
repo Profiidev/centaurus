@@ -72,6 +72,7 @@ macro_rules! impl_from_error {
       fn from(value: $error) -> Self {
         Self {
           error: $crate::eyre::Report::new(value),
+          #[cfg(feature = "http")]
           status: $status,
         }
       }
@@ -96,6 +97,36 @@ impl ErrorReport {
 }
 
 impl_from_error!(std::io::Error, StatusCode::INTERNAL_SERVER_ERROR);
+#[cfg(feature = "chrono")]
+impl_from_error!(chrono::ParseError, StatusCode::INTERNAL_SERVER_ERROR);
+impl_from_error!(ParseIntError, StatusCode::BAD_REQUEST);
+#[cfg(feature = "url")]
+impl_from_error!(url::ParseError, StatusCode::BAD_REQUEST);
+#[cfg(feature = "docker")]
+impl_from_error!(bollard::errors::Error, StatusCode::INTERNAL_SERVER_ERROR);
+#[cfg(feature = "image")]
+impl_from_error!(image::error::ImageError, StatusCode::INTERNAL_SERVER_ERROR);
+#[cfg(feature = "webauthn")]
+impl_from_error!(
+  webauthn_rs_core::error::WebauthnError,
+  StatusCode::BAD_REQUEST
+);
+#[cfg(feature = "uuid")]
+impl_from_error!(uuid::Error, StatusCode::INTERNAL_SERVER_ERROR);
+#[cfg(feature = "base64")]
+impl_from_error!(base64::DecodeError, StatusCode::INTERNAL_SERVER_ERROR);
+#[cfg(feature = "rsa")]
+impl_from_error!(rsa::Error, StatusCode::INTERNAL_SERVER_ERROR);
+#[cfg(feature = "argon2")]
+impl_from_error!(
+  argon2::password_hash::Error,
+  StatusCode::INTERNAL_SERVER_ERROR
+);
+#[cfg(feature = "jsonwebtoken")]
+impl_from_error!(jsonwebtoken::errors::Error, StatusCode::BAD_REQUEST);
+#[cfg(feature = "sea-orm")]
+impl_from_error!(sea_orm::DbErr, StatusCode::INTERNAL_SERVER_ERROR);
+
 #[cfg(feature = "http")]
 impl_from_error!(http::header::InvalidHeaderValue, StatusCode::BAD_REQUEST);
 #[cfg(feature = "axum")]
@@ -108,39 +139,14 @@ impl_from_error!(InvalidLength, StatusCode::INTERNAL_SERVER_ERROR);
 impl_from_error!(MultipartRejection, StatusCode::BAD_REQUEST);
 #[cfg(feature = "axum")]
 impl_from_error!(MultipartError, StatusCode::BAD_REQUEST);
-#[cfg(feature = "chrono")]
-impl_from_error!(chrono::ParseError, StatusCode::INTERNAL_SERVER_ERROR);
-impl_from_error!(ParseIntError, StatusCode::BAD_REQUEST);
 #[cfg(feature = "axum")]
 impl_from_error!(serde_xml_rs::Error, StatusCode::BAD_REQUEST);
 #[cfg(feature = "axum")]
 impl_from_error!(serde_json::Error, StatusCode::BAD_REQUEST);
-#[cfg(feature = "jsonwebtoken")]
-impl_from_error!(jsonwebtoken::errors::Error, StatusCode::BAD_REQUEST);
-#[cfg(feature = "sea-orm")]
-impl_from_error!(sea_orm::DbErr, StatusCode::INTERNAL_SERVER_ERROR);
-#[cfg(feature = "base64")]
-impl_from_error!(base64::DecodeError, StatusCode::INTERNAL_SERVER_ERROR);
-#[cfg(feature = "rsa")]
-impl_from_error!(rsa::Error, StatusCode::INTERNAL_SERVER_ERROR);
-#[cfg(feature = "argon2")]
-impl_from_error!(
-  argon2::password_hash::Error,
-  StatusCode::INTERNAL_SERVER_ERROR
-);
-#[cfg(feature = "uuid")]
-impl_from_error!(uuid::Error, StatusCode::INTERNAL_SERVER_ERROR);
 #[cfg(feature = "reqwest")]
 impl_from_error!(reqwest::Error, StatusCode::INTERNAL_SERVER_ERROR);
 #[cfg(feature = "lettre")]
 impl_from_error!(lettre::error::Error, StatusCode::INTERNAL_SERVER_ERROR);
-#[cfg(feature = "webauthn")]
-impl_from_error!(
-  webauthn_rs_core::error::WebauthnError,
-  StatusCode::BAD_REQUEST
-);
-#[cfg(feature = "image")]
-impl_from_error!(image::error::ImageError, StatusCode::INTERNAL_SERVER_ERROR);
 #[cfg(feature = "k8s")]
 impl_from_error!(kube::Error, StatusCode::INTERNAL_SERVER_ERROR);
 #[cfg(feature = "k8s")]
@@ -163,10 +169,6 @@ impl_from_error!(
   kube::runtime::finalizer::Error<ErrorReport>,
   StatusCode::INTERNAL_SERVER_ERROR
 );
-#[cfg(feature = "docker")]
-impl_from_error!(bollard::errors::Error, StatusCode::INTERNAL_SERVER_ERROR);
-#[cfg(feature = "url")]
-impl_from_error!(url::ParseError, StatusCode::BAD_REQUEST);
 
 #[cfg(feature = "http")]
 pub trait ErrorReportStatusExt<T> {
