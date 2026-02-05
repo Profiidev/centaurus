@@ -585,7 +585,7 @@ dependencies = [
 
 [[package]]
 name = "centaurus"
-version = "0.4.10"
+version = "0.4.11"
 dependencies = [
  "argon2",
  "async-trait",
