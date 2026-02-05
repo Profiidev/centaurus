@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.10] - 2026-02-05
+
+### 🚀 Features
+
+- Only pass log level to logging init
+
+### 🐛 Bug Fixes
+
+- Errors without http status
+
+
+
 ## [0.4.9] - 2026-01-29
 
 ### 🚀 Features
