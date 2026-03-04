@@ -64,6 +64,7 @@ macro_rules! bail {
   };
 }
 
+#[cfg(feature = "http")]
 #[macro_export]
 macro_rules! impl_from_error {
   ($error:ty, $status:expr) => {
@@ -72,8 +73,22 @@ macro_rules! impl_from_error {
       fn from(value: $error) -> Self {
         Self {
           error: $crate::eyre::Report::new(value),
-          #[cfg(feature = "http")]
           status: $status,
+        }
+      }
+    }
+  };
+}
+
+#[cfg(not(feature = "http"))]
+#[macro_export]
+macro_rules! impl_from_error {
+  ($error:ty) => {
+    impl From<$error> for $crate::error::ErrorReport {
+      #[track_caller]
+      fn from(value: $error) -> Self {
+        Self {
+          error: $crate::eyre::Report::new(value),
         }
       }
     }
