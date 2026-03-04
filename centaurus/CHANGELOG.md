@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.12] - 2026-03-04
+
+### 🐛 Bug Fixes
+
+- Impl error report macro not working because of http feature
+
+
+
 ## [0.4.11] - 2026-02-05
 
 ### 🚀 Features
