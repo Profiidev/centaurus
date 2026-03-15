@@ -83,7 +83,7 @@ macro_rules! impl_from_error {
 #[cfg(not(feature = "http"))]
 #[macro_export]
 macro_rules! impl_from_error {
-  ($error:ty) => {
+  ($error:ty, $rest:expr) => {
     impl From<$error> for $crate::error::ErrorReport {
       #[track_caller]
       fn from(value: $error) -> Self {
