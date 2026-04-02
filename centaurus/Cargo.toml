@@ -11,7 +11,7 @@ keywords = []
 readme = "README.md"
 
 [features]
-default = ["axum", "logging", "metrics", "frontend"]
+default = ["axum", "logging", "metrics", "frontend", "openapi"]
 all = [
   "logging",
   "axum",
@@ -56,6 +56,7 @@ axum = [
   "dep:thiserror",
   "dep:async-trait",
 ]
+openapi = ["dep:aide"]
 metrics = ["dep:metrics", "dep:metrics-exporter-prometheus"]
 error = ["dep:eyre"]
 sea-orm = ["dep:sea-orm", "dep:tracing", "dep:sea-orm-migration", "serde"]
@@ -145,6 +146,7 @@ hyper-util = { version = "0.1.19", features = [
   "client-legacy",
 ], optional = true }
 url = { version = "2.5.8", optional = true }
+aide = { version = "0.15.1", features = ["axum", "axum-json", "axum-tokio", "axum-ws", "axum-extra", "axum-extra-cookie", "axum-extra-headers"], optional = true }
 
 [lib]
 path = "src/lib.rs"
