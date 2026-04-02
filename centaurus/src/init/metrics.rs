@@ -16,6 +16,7 @@ use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use crate::router_extension;
 
 #[derive(FromRequestParts, Clone)]
+#[cfg_attr(feature = "openapi", derive(aide::OperationIo))]
 #[from_request(via(Extension))]
 pub struct MetricsHandle {
   prometheus_handle: PrometheusHandle,
@@ -51,6 +52,7 @@ router_extension!(
 );
 
 #[derive(Clone, FromRequestParts)]
+#[cfg_attr(feature = "openapi", derive(aide::OperationIo))]
 #[from_request(via(Extension))]
 struct MetricsPrefix(String, Vec<(String, String)>);
 

@@ -56,6 +56,7 @@ version = "0.16.0-alpha.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "87a769cd3a8984b7236931cd48f4d1f6b99c0475d60987a1f69490b079116306"
 dependencies = [
+ "aide-macros",
  "axum",
  "axum-extra",
  "bytes",
@@ -70,6 +71,18 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
+]
+
+[[package]]
+name = "aide-macros"
+version = "0.16.0-alpha.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "15e90573b48a90439758669afeff706f4f6f54515303beba88e118e8c6006d09"
+dependencies = [
+ "darling 0.23.0",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
 ]
 
 [[package]]

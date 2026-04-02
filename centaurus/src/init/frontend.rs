@@ -48,6 +48,7 @@ router_extension!(
 type Client = hyper_util::client::legacy::Client<HttpConnector, Body>;
 
 #[derive(FromRequestParts, Clone, Debug)]
+#[cfg_attr(feature = "openapi", derive(aide::OperationIo))]
 #[from_request(via(Extension))]
 struct FrontendState {
   client: Client,
