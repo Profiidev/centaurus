@@ -307,7 +307,7 @@ impl aide::OperationOutput for ErrorReport {
   fn inferred_responses(
     _ctx: &mut aide::generate::GenContext,
     _operation: &mut aide::openapi::Operation,
-  ) -> Vec<(Option<u16>, aide::openapi::Response)> {
+  ) -> Vec<(Option<aide::openapi::StatusCode>, aide::openapi::Response)> {
     fn empty() -> aide::openapi::Response {
       aide::openapi::Response {
         description: "An error occurred".to_string(),
@@ -315,6 +315,9 @@ impl aide::OperationOutput for ErrorReport {
       }
     }
 
-    vec![(Some(400), empty()), (Some(500), empty())]
+    vec![
+      (Some(aide::openapi::StatusCode::Range(4)), empty()),
+      (Some(aide::openapi::StatusCode::Range(5)), empty()),
+    ]
   }
 }
