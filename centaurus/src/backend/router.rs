@@ -11,7 +11,7 @@ use crate::{
 pub async fn build_router<R, S, C, F>(router: R, state: S, config: C) -> BackendRouter
 where
   R: FnOnce(&mut RateLimiter) -> BackendRouter,
-  S: FnOnce(BackendRouter, &C) -> F,
+  S: FnOnce(BackendRouter, C) -> F,
   F: Future<Output = BackendRouter>,
   C: Config,
 {
@@ -69,5 +69,5 @@ where
     );
   }
 
-  state(router, &config).await.layer(Extension(config))
+  state(router, config.clone()).await.layer(Extension(config))
 }
