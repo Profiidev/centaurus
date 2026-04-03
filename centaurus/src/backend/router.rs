@@ -1,18 +1,21 @@
-use axum::Router;
+use axum::{Extension, Router};
 
 #[cfg(feature = "metrics")]
-use crate::{backend::metrics::init_metrics, config::MetricsConfig};
+use crate::backend::metrics::init_metrics;
 use crate::{
-  backend::{init::add_base_layers, rate_limiter::RateLimiter},
-  config::BaseConfig,
+  backend::{config::Config, init::add_base_layers, rate_limiter::RateLimiter},
   req::health,
 };
 
-pub async fn base_router<R: FnOnce(&mut RateLimiter) -> Router>(
-  router: R,
-  config: &BaseConfig,
-  #[cfg(feature = "metrics")] metrics_config: &MetricsConfig,
-) -> Router {
+pub async fn base_router<R, S, C, F>(router: R, state: S, config: C) -> Router
+where
+  R: FnOnce(&mut RateLimiter) -> Router,
+  S: FnOnce(Router, &C) -> F,
+  F: Future<Output = Router>,
+  C: Config,
+{
+  #[cfg(feature = "metrics")]
+  let metrics_config = config.metrics();
   #[cfg(feature = "metrics")]
   let handle = init_metrics(metrics_config.metrics_name.clone());
 
@@ -38,7 +41,7 @@ pub async fn base_router<R: FnOnce(&mut RateLimiter) -> Router>(
 
   router = router
     .nest("/api", sub_router)
-    .add_base_layers_filtered(config, |path| path.starts_with("/api"))
+    .add_base_layers_filtered(config.base(), |path| path.starts_with("/api"))
     .await;
 
   #[cfg(feature = "frontend")]
@@ -59,5 +62,5 @@ pub async fn base_router<R: FnOnce(&mut RateLimiter) -> Router>(
     );
   }
 
-  router
+  state(router, &config).await.layer(Extension(config))
 }

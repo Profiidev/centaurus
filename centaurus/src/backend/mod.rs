@@ -1,3 +1,4 @@
+pub mod config;
 pub mod cors;
 #[cfg(feature = "frontend")]
 pub mod frontend;

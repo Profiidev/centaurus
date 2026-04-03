@@ -2,7 +2,7 @@ use axum::http::HeaderValue;
 use http::Method;
 use tower_http::cors::CorsLayer;
 
-use crate::{config::BaseConfig, error::Result};
+use crate::{backend::config::BaseConfig, error::Result};
 
 pub fn cors(config: &BaseConfig) -> Result<CorsLayer> {
   let cors = CorsLayer::new()

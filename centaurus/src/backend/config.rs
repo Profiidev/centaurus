@@ -32,3 +32,9 @@ pub struct MetricsConfig {
   pub metrics_name: String,
   pub extra_labels: Vec<(String, String)>,
 }
+
+pub trait Config: Clone + Send + Sync + 'static {
+  fn base(&self) -> &BaseConfig;
+  #[cfg(feature = "metrics")]
+  fn metrics(&self) -> &MetricsConfig;
+}
