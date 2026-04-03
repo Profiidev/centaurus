@@ -1,5 +1,5 @@
 use axum::{
-  Extension, Router,
+  Extension,
   body::Body,
   extract::{FromRequestParts, Request},
   response::{IntoResponse, Response},
@@ -9,13 +9,15 @@ use http::StatusCode;
 use hyper_util::{client::legacy::connect::HttpConnector, rt::TokioExecutor};
 use tracing::instrument;
 
-pub fn router() -> Router {
-  Router::new()
+use crate::backend::BackendRouter;
+
+pub fn router() -> BackendRouter {
+  BackendRouter::new()
     .route("/{*p}", get(handler))
     .route("/", get(handler))
 }
 
-pub fn frontend(router: Router) -> Router {
+pub fn frontend(router: BackendRouter) -> BackendRouter {
   #[cfg(not(debug_assertions))]
   let frontend_dir = env!("FRONTEND_DIR");
 

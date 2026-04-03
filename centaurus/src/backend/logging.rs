@@ -1,9 +1,9 @@
-use axum::Router;
+use crate::backend::BackendRouter;
 
 pub fn logging<F: Fn(&str) -> bool + Clone + Send + Sync + 'static>(
-  router: Router,
+  router: BackendRouter,
   filter: F,
-) -> Router {
+) -> BackendRouter {
   let response_filter = filter.clone();
   router
     .layer(axum::middleware::from_fn(uri_middleware))

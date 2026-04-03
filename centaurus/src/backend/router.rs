@@ -1,17 +1,18 @@
-use axum::{Extension, Router};
+use axum::Extension;
+use tower::ServiceBuilder;
 
 #[cfg(feature = "metrics")]
 use crate::backend::metrics::init_metrics;
 use crate::{
-  backend::{config::Config, init::add_base_layers, rate_limiter::RateLimiter},
+  backend::{BackendRouter, config::Config, rate_limiter::RateLimiter},
   req::health,
 };
 
-pub async fn base_router<R, S, C, F>(router: R, state: S, config: C) -> Router
+pub async fn base_router<R, S, C, F>(router: R, state: S, config: C) -> BackendRouter
 where
-  R: FnOnce(&mut RateLimiter) -> Router,
-  S: FnOnce(Router, &C) -> F,
-  F: Future<Output = Router>,
+  R: FnOnce(&mut RateLimiter) -> BackendRouter,
+  S: FnOnce(BackendRouter, &C) -> F,
+  F: Future<Output = BackendRouter>,
   C: Config,
 {
   #[cfg(feature = "metrics")]
@@ -26,7 +27,7 @@ where
   #[cfg(feature = "frontend")]
   let mut router = crate::backend::frontend::router();
   #[cfg(not(feature = "frontend"))]
-  let mut router = Router::new();
+  let mut router = BackendRouter::new();
 
   #[cfg(not(feature = "metrics"))]
   let sub_router = api_router.merge(health::router());
@@ -39,10 +40,16 @@ where
     sub_router = metrics_route(sub_router);
   }
 
-  router = router
-    .nest("/api", sub_router)
-    .add_base_layers_filtered(config.base(), |path| path.starts_with("/api"))
-    .await;
+  router = router.nest("/api", sub_router).layer(
+    ServiceBuilder::new()
+      .layer(super::cors::cors(config.base()).expect("Faield to build CORS layer")),
+  );
+
+  #[cfg(feature = "frontend")]
+  {
+    use super::logging::logging;
+    router = logging(router, |path| path.starts_with("/api"));
+  }
 
   #[cfg(feature = "frontend")]
   {

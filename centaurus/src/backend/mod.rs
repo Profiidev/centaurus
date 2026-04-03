@@ -9,3 +9,8 @@ pub mod logging;
 pub mod metrics;
 pub mod rate_limiter;
 pub mod router;
+
+#[cfg(not(feature = "openapi"))]
+pub type BackendRouter = axum::Router;
+#[cfg(feature = "openapi")]
+pub type BackendRouter = aide::axum::ApiRouter;

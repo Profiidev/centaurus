@@ -13,6 +13,8 @@ use axum::{
 use http::HeaderMap;
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 
+use crate::backend::BackendRouter;
+
 #[derive(FromRequestParts, Clone)]
 #[cfg_attr(feature = "openapi", derive(aide::OperationIo))]
 #[from_request(via(Extension))]
@@ -40,7 +42,7 @@ pub fn init_metrics(service_name: String) -> MetricsHandle {
   }
 }
 
-pub fn metrics_route(router: axum::Router) -> axum::Router {
+pub fn metrics_route(router: BackendRouter) -> BackendRouter {
   router.route(
     "/metrics",
     get(async |handle: MetricsHandle| handle.render()),
@@ -53,11 +55,11 @@ pub fn metrics_route(router: axum::Router) -> axum::Router {
 struct MetricsPrefix(String, Vec<(String, String)>);
 
 pub fn metrics(
-  router: axum::Router,
+  router: BackendRouter,
   metrics_prefix: String,
   handle: MetricsHandle,
   extra_labels: Vec<(String, String)>,
-) -> axum::Router {
+) -> BackendRouter {
   describe_metrics(&metrics_prefix);
   router
     .layer(from_fn(request_metrics))

@@ -2,7 +2,6 @@ use std::net::SocketAddr;
 
 use axum::{Router, serve};
 use tokio::{net::TcpListener, signal};
-use tower::ServiceBuilder;
 
 pub async fn listener_setup(port: u16) -> TcpListener {
   let addr = SocketAddr::from(([0, 0, 0, 0], port));
@@ -46,45 +45,5 @@ pub async fn shutdown_signal() {
   tokio::select! {
       _ = ctrl_c => {},
       _ = terminate => {},
-  }
-}
-
-#[allow(non_camel_case_types, async_fn_in_trait)]
-pub trait add_base_layers {
-  async fn add_base_layers(self, config: &super::config::BaseConfig) -> Self;
-
-  async fn add_base_layers_filtered<F: Fn(&str) -> bool + Clone + Send + Sync + 'static>(
-    self,
-    config: &super::config::BaseConfig,
-    filter: F,
-  ) -> Self;
-}
-
-impl add_base_layers for axum::Router {
-  async fn add_base_layers(self, config: &super::config::BaseConfig) -> Self {
-    self.add_base_layers_filtered(config, |_| true).await
-  }
-
-  async fn add_base_layers_filtered<F: Fn(&str) -> bool + Clone + Send + Sync + 'static>(
-    self,
-    config: &super::config::BaseConfig,
-    filter: F,
-  ) -> Self {
-    #[cfg(feature = "logging")]
-    use super::logging::logging;
-
-    #[allow(unused_mut)]
-    let mut router = self;
-
-    router = router.layer(
-      ServiceBuilder::new().layer(super::cors::cors(config).expect("Failed to build CORS layer")),
-    );
-
-    #[cfg(feature = "logging")]
-    {
-      router = logging(router, filter);
-    }
-
-    router
   }
 }
