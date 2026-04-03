@@ -158,6 +158,7 @@ aide = { version = "0.16.0-alpha.3", features = [
   "axum-extra-cookie",
   "axum-extra-headers",
   "macros",
+  "swagger"
 ], optional = true }
 tower_governor = { version = "0.8.0", features = [
   "axum",

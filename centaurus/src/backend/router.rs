@@ -75,6 +75,10 @@ where
   {
     let mut api = aide::openapi::OpenApi::default();
     router
+      .route(
+        "/swagger",
+        aide::swagger::Swagger::new("/openapi.json").axum_route(),
+      )
       .route("/openapi.json", axum::routing::get(api_spec))
       .finish_api(&mut api)
       .layer(Extension(api))
