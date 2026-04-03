@@ -9,41 +9,37 @@ use http::StatusCode;
 use hyper_util::{client::legacy::connect::HttpConnector, rt::TokioExecutor};
 use tracing::instrument;
 
-use crate::router_extension;
-
 pub fn router() -> Router {
   Router::new()
     .route("/{*p}", get(handler))
     .route("/", get(handler))
 }
 
-router_extension!(
-  async fn frontend(self) -> Self {
-    #[cfg(not(debug_assertions))]
-    let frontend_dir = env!("FRONTEND_DIR");
+pub fn frontend(router: Router) -> Router {
+  #[cfg(not(debug_assertions))]
+  let frontend_dir = env!("FRONTEND_DIR");
 
-    #[cfg(not(debug_assertions))]
-    let frontend_url = env!("FRONTEND_URL");
-    #[cfg(debug_assertions)]
-    let frontend_url = "http://frontend:5173";
+  #[cfg(not(debug_assertions))]
+  let frontend_url = env!("FRONTEND_URL");
+  #[cfg(debug_assertions)]
+  let frontend_url = "http://frontend:5173";
 
-    #[cfg(not(debug_assertions))]
-    let handle = tokio::process::Command::new("node")
-      .arg(".")
-      .current_dir(frontend_dir)
-      .kill_on_drop(true)
-      .spawn()
-      .expect("Failed to start frontend server");
+  #[cfg(not(debug_assertions))]
+  let handle = tokio::process::Command::new("node")
+    .arg(".")
+    .current_dir(frontend_dir)
+    .kill_on_drop(true)
+    .spawn()
+    .expect("Failed to start frontend server");
 
-    self.layer(Extension(FrontendState {
-      client: hyper_util::client::legacy::Client::<(), ()>::builder(TokioExecutor::new())
-        .build(HttpConnector::new()),
-      frontend_url,
-      #[cfg(not(debug_assertions))]
-      _handle: std::sync::Arc::new(handle),
-    }))
-  }
-);
+  router.layer(Extension(FrontendState {
+    client: hyper_util::client::legacy::Client::<(), ()>::builder(TokioExecutor::new())
+      .build(HttpConnector::new()),
+    frontend_url,
+    #[cfg(not(debug_assertions))]
+    _handle: std::sync::Arc::new(handle),
+  }))
+}
 
 type Client = hyper_util::client::legacy::Client<HttpConnector, Body>;
 

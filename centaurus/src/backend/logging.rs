@@ -1,37 +1,19 @@
-use tracing::level_filters::LevelFilter;
-use tracing_error::ErrorLayer;
-use tracing_subscriber::{Layer, layer::SubscriberExt, util::SubscriberInitExt};
+use axum::Router;
 
-pub fn init_logging(log_level: LevelFilter) {
-  color_eyre::install().expect("Failed to install color_eyre");
-
-  let layer = tracing_subscriber::fmt::layer()
-    .with_ansi(true)
-    .with_filter(log_level);
-
-  tracing_subscriber::registry()
-    .with(layer)
-    .with(ErrorLayer::default())
-    .init();
-}
-
-#[cfg(all(feature = "logging", feature = "axum"))]
-#[allow(non_camel_case_types, async_fn_in_trait)]
-pub trait logging {
-  fn logging<F: Fn(&str) -> bool + Clone + Send + Sync + 'static>(self, filter: F) -> Self;
-}
-
-#[cfg(all(feature = "logging", feature = "axum"))]
-impl logging for axum::Router {
-  fn logging<F: Fn(&str) -> bool + Clone + Send + Sync + 'static>(self, filter: F) -> Self {
-    let response_filter = filter.clone();
-    self.layer(axum::middleware::from_fn(uri_middleware)).layer(
+pub fn logging<F: Fn(&str) -> bool + Clone + Send + Sync + 'static>(
+  router: Router,
+  filter: F,
+) -> Router {
+  let response_filter = filter.clone();
+  router
+    .layer(axum::middleware::from_fn(uri_middleware))
+    .layer(
       tower_http::trace::TraceLayer::new_for_http()
         .on_request(move |request: &http::Request<_>, span: &tracing::Span| {
           let path = request.uri().path();
           span.record("http.target.path", path);
           if filter(path) {
-            tracing::info!("Received request: {}", request.uri());
+            tracing::info!("Received request: {} {}", request.method(), request.uri());
           }
         })
         .on_response(
@@ -51,14 +33,11 @@ impl logging for axum::Router {
           },
         ),
     )
-  }
 }
 
 #[derive(Clone)]
-#[cfg(all(feature = "logging", feature = "axum"))]
 pub struct RequestUri(http::Uri);
 
-#[cfg(all(feature = "logging", feature = "axum"))]
 async fn uri_middleware(
   req: axum::extract::Request,
   next: axum::middleware::Next,

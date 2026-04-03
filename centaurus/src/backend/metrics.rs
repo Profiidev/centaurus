@@ -13,8 +13,6 @@ use axum::{
 use http::HeaderMap;
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 
-use crate::router_extension;
-
 #[derive(FromRequestParts, Clone)]
 #[cfg_attr(feature = "openapi", derive(aide::OperationIo))]
 #[from_request(via(Extension))]
@@ -42,34 +40,30 @@ pub fn init_metrics(service_name: String) -> MetricsHandle {
   }
 }
 
-router_extension!(
-  async fn metrics_route(self) -> Self {
-    self.route(
-      "/metrics",
-      get(async |handle: MetricsHandle| handle.render()),
-    )
-  }
-);
+pub fn metrics_route(router: axum::Router) -> axum::Router {
+  router.route(
+    "/metrics",
+    get(async |handle: MetricsHandle| handle.render()),
+  )
+}
 
 #[derive(Clone, FromRequestParts)]
 #[cfg_attr(feature = "openapi", derive(aide::OperationIo))]
 #[from_request(via(Extension))]
 struct MetricsPrefix(String, Vec<(String, String)>);
 
-router_extension!(
-  async fn metrics(
-    self,
-    metrics_prefix: String,
-    handle: MetricsHandle,
-    extra_labels: Vec<(String, String)>,
-  ) -> Self {
-    describe_metrics(&metrics_prefix);
-    self
-      .layer(from_fn(request_metrics))
-      .layer(Extension(MetricsPrefix(metrics_prefix, extra_labels)))
-      .layer(Extension(handle))
-  }
-);
+pub fn metrics(
+  router: axum::Router,
+  metrics_prefix: String,
+  handle: MetricsHandle,
+  extra_labels: Vec<(String, String)>,
+) -> axum::Router {
+  describe_metrics(&metrics_prefix);
+  router
+    .layer(from_fn(request_metrics))
+    .layer(Extension(MetricsPrefix(metrics_prefix, extra_labels)))
+    .layer(Extension(handle))
+}
 
 fn describe_metrics(prefix: &str) {
   describe_counter!(

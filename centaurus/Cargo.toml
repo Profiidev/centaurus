@@ -55,6 +55,9 @@ axum = [
   "serde",
   "dep:thiserror",
   "dep:async-trait",
+  "dep:governor",
+  "dep:tower_governor",
+  "dep:dashmap"
 ]
 openapi = ["dep:aide"]
 metrics = ["dep:metrics", "dep:metrics-exporter-prometheus"]
@@ -156,6 +159,11 @@ aide = { version = "0.16.0-alpha.3", features = [
   "axum-extra-headers",
   "macros",
 ], optional = true }
+tower_governor = { version = "0.8.0", features = [
+  "axum",
+], default-features = false, optional = true }
+governor = { version = "0.10.4", optional = true }
+dashmap = { version = "6.1.0", optional = true }
 
 [lib]
 path = "src/lib.rs"

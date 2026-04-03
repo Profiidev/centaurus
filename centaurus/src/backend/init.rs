@@ -82,7 +82,7 @@ impl add_base_layers for axum::Router {
 
     #[cfg(feature = "logging")]
     {
-      router = router.logging(filter);
+      router = logging(router, filter);
     }
 
     router

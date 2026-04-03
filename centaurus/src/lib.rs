@@ -9,6 +9,8 @@ pub use http;
 
 #[cfg(feature = "auth")]
 pub mod auth;
+#[cfg(feature = "axum")]
+pub mod backend;
 #[cfg(any(feature = "axum", feature = "logging"))]
 pub mod config;
 #[cfg(feature = "sea-orm")]
@@ -16,7 +18,8 @@ pub mod db;
 #[cfg(feature = "error")]
 pub mod error;
 pub mod file;
-pub mod init;
+#[cfg(feature = "logging")]
+pub mod logging;
 pub mod req;
 #[cfg(feature = "serde")]
 pub mod serde;
