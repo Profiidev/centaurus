@@ -1,4 +1,4 @@
-use axum::Extension;
+use axum::{Extension, Router};
 use tower::ServiceBuilder;
 
 #[cfg(feature = "metrics")]
@@ -8,7 +8,7 @@ use crate::{
   req::health,
 };
 
-pub async fn build_router<R, S, C, F>(router: R, state: S, config: C) -> BackendRouter
+pub async fn build_router<R, S, C, F>(router: R, state: S, config: C) -> Router
 where
   R: FnOnce(&mut RateLimiter) -> BackendRouter,
   S: FnOnce(BackendRouter, C) -> F,
@@ -45,7 +45,7 @@ where
       .layer(super::cors::cors(config.base()).expect("Faield to build CORS layer")),
   );
 
-  #[cfg(feature = "frontend")]
+  #[cfg(feature = "logging")]
   {
     use super::logging::logging;
     router = logging(router, |path| path.starts_with("/api"));
@@ -69,5 +69,24 @@ where
     );
   }
 
-  state(router, config.clone()).await.layer(Extension(config))
+  router = state(router, config.clone()).await.layer(Extension(config));
+
+  #[cfg(feature = "openapi")]
+  {
+    let mut api = aide::openapi::OpenApi::default();
+    router
+      .route("/openapi.json", axum::routing::get(api_spec))
+      .finish_api(&mut api)
+      .layer(Extension(api))
+  }
+
+  #[cfg(not(feature = "openapi"))]
+  router
+}
+
+#[cfg(feature = "openapi")]
+async fn api_spec(
+  Extension(api): Extension<aide::openapi::OpenApi>,
+) -> axum::Json<aide::openapi::OpenApi> {
+  axum::Json(api)
 }
