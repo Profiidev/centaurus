@@ -8,7 +8,7 @@ use crate::{
   req::health,
 };
 
-pub async fn base_router<R, S, C, F>(router: R, state: S, config: C) -> BackendRouter
+pub async fn build_router<R, S, C, F>(router: R, state: S, config: C) -> BackendRouter
 where
   R: FnOnce(&mut RateLimiter) -> BackendRouter,
   S: FnOnce(BackendRouter, &C) -> F,
