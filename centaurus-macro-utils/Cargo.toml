@@ -1,9 +1,9 @@
 [package]
-name = "centaurus-derive"
-version = "0.1.1"
+name = "centaurus-macro-utils"
+version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
-description = "A utility library for various use cases."
+description = "Macro utilities for the centaurus"
 repository = "https://github.com/Profiidev/centaurus"
 categories = []
 exclude = ["CHANGELOG.md"]
@@ -11,13 +11,5 @@ keywords = []
 readme = "README.md"
 
 [dependencies]
-quote = "1.0.45"
 syn = { version = "2.0.117", features = ["full"] }
-centaurus-macro-utils = { workspace = true }
-
-[features]
-metrics = []
-
-[lib]
-proc-macro = true
-path = "src/lib.rs"
+toml_edit = { version = "0.25.10", default-features = false, features = ["parse"] }

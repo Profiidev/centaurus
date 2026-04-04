@@ -11,7 +11,7 @@ keywords = []
 readme = "README.md"
 
 [features]
-default = ["axum", "logging", "metrics", "frontend", "openapi"]
+default = ["axum", "logging", "metrics", "frontend", "openapi", "sea-orm", "lettre", "auth"]
 all = [
   "logging",
   "axum",
@@ -62,17 +62,18 @@ axum = [
   "dep:addr",
   "dep:url",
 ]
-openapi = ["dep:aide"]
+openapi = ["dep:aide", "dep:schemars"]
 metrics = ["dep:metrics", "dep:metrics-exporter-prometheus", "centaurus-derive/metrics"]
 error = ["dep:eyre"]
-sea-orm = ["dep:sea-orm", "dep:tracing", "dep:sea-orm-migration", "serde"]
-auth = ["argon2", "base64", "error", "rsa"]
+sea-orm = ["dep:sea-orm", "dep:tracing", "dep:sea-orm-migration", "serde", "error", "chrono", "uuid/v4"]
+auth = ["argon2", "base64", "error", "rsa", "serde", "url", "url/serde", "schemars/url2"]
 serde = ["dep:serde"]
 k8s = ["dep:k8s-openapi", "dep:kube"]
 docker = ["dep:bollard"]
 frontend = ["proxy"]
 proxy = ["axum", "dep:hyper-util"]
 gravatar = ["dep:md5"]
+lettre = ["dep:lettre", "serde", "error", "http"]
 
 argon2 = ["dep:argon2"]
 base64 = ["dep:base64"]
@@ -84,7 +85,6 @@ rsa = ["dep:rsa"]
 tokio = ["dep:tokio"]
 uuid = ["dep:uuid"]
 reqwest = ["dep:reqwest"]
-lettre = ["dep:lettre"]
 webauthn = ["dep:webauthn-rs-core"]
 image = ["dep:image"]
 url = ["dep:url"]
@@ -140,7 +140,14 @@ reqwest = { version = "0.13.2", optional = true, features = [
 metrics-exporter-prometheus = { version = "0.18.1", optional = true, default-features = false }
 metrics = { version = "0.24.3", optional = true }
 sea-orm-migration = { version = "1.1.20", optional = true }
-lettre = { version = "0.11.21", default-features = false, optional = true }
+lettre = { version = "0.11.21", default-features = false, features = [
+  "smtp-transport",
+  "rustls",
+  "builder",
+  "rustls-native-certs",
+  "ring",
+  "tokio1-rustls",
+], optional = true }
 webauthn-rs-core = { version = "0.5.4", default-features = false, optional = true }
 image = { version = "0.25.10", default-features = false, optional = true }
 kube = { version = "3.1.0", features = ["runtime", "derive"], optional = true }
@@ -173,6 +180,7 @@ dashmap = { version = "6.1.0", optional = true }
 tower-service = { version = "0.3.3", optional = true }
 addr = { version = "0.15.6", optional = true }
 md5 = { version = "0.8.0", optional = true }
+schemars = { version = "1.2.1", optional = true }
 
 [lib]
 path = "src/lib.rs"

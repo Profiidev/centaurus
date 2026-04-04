@@ -20,6 +20,8 @@ pub mod file;
 pub mod gravatar;
 #[cfg(feature = "logging")]
 pub mod logging;
+#[cfg(feature = "lettre")]
+pub mod mail;
 pub mod req;
 #[cfg(feature = "serde")]
 pub mod serde;
@@ -27,6 +29,8 @@ pub mod state;
 
 #[cfg(feature = "axum")]
 pub use centaurus_derive::Config;
+#[cfg(feature = "sea-orm")]
+pub use centaurus_derive::Settings;
 
 // Used for re-reports required by macros
 #[doc(hidden)]
