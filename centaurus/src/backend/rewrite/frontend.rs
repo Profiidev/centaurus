@@ -1,6 +1,6 @@
 use axum::Extension;
 
-use crate::backend::{BackendRouter, proxy::ProxyExt};
+use crate::backend::{BackendRouter, rewrite::proxy::ProxyExt};
 
 pub fn frontend(router: BackendRouter) -> BackendRouter {
   #[cfg(not(debug_assertions))]

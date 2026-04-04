@@ -652,6 +652,7 @@ dependencies = [
  "color-eyre",
  "dashmap",
  "eyre",
+ "futures-util",
  "governor",
  "hmac 0.13.0",
  "http",

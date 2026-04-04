@@ -1,18 +1,9 @@
 pub mod config;
-pub mod cors;
-#[cfg(feature = "frontend")]
-pub mod frontend;
 pub mod init;
-#[cfg(feature = "logging")]
-pub mod logging;
-#[cfg(feature = "metrics")]
-pub mod metrics;
-#[cfg(feature = "proxy")]
-pub mod proxy;
-pub mod rate_limiter;
+pub mod middleware;
+pub mod rewrite;
 pub mod router;
-pub mod version;
-pub mod virtual_host;
+pub mod websocket;
 
 #[cfg(not(feature = "openapi"))]
 pub type BackendRouter = axum::Router;
