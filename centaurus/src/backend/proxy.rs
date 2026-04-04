@@ -13,17 +13,23 @@ use crate::backend::BackendRouter;
 
 type Client = hyper_util::client::legacy::Client<HttpConnector, Body>;
 
-/// from and to both must have a trailing slash, e.g. "/proxy/" or "/"
-pub fn proxy(router: BackendRouter, from: String, to: String) -> BackendRouter {
-  router
-    .route(&format!("{}{{*p}}", from), get(handler))
-    .route(&from, get(handler))
-    .layer(Extension(ProxyState {
-      client: hyper_util::client::legacy::Client::<(), ()>::builder(TokioExecutor::new())
-        .build(HttpConnector::new()),
-      proxy_url: to,
-      rewrite: from,
-    }))
+pub trait ProxyExt {
+  fn proxy(self, from: String, to: String) -> Self;
+}
+
+impl ProxyExt for BackendRouter {
+  /// from and to both must have a trailing slash, e.g. "/proxy/" or "/"
+  fn proxy(self, from: String, to: String) -> Self {
+    self
+      .route(&format!("{}{{*p}}", from), get(handler))
+      .route(&from, get(handler))
+      .layer(Extension(ProxyState {
+        client: hyper_util::client::legacy::Client::<(), ()>::builder(TokioExecutor::new())
+          .build(HttpConnector::new()),
+        proxy_url: to,
+        rewrite: from,
+      }))
+  }
 }
 
 #[derive(FromRequestParts, Clone, Debug)]

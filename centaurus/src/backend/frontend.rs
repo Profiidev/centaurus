@@ -1,6 +1,6 @@
 use axum::Extension;
 
-use crate::backend::{BackendRouter, proxy::proxy};
+use crate::backend::{BackendRouter, proxy::ProxyExt};
 
 pub fn frontend(router: BackendRouter) -> BackendRouter {
   #[cfg(not(debug_assertions))]
@@ -19,10 +19,12 @@ pub fn frontend(router: BackendRouter) -> BackendRouter {
     .spawn()
     .expect("Failed to start frontend server");
 
-  proxy(router, "/".into(), frontend_url.into()).layer(Extension(FrontendState {
-    #[cfg(not(debug_assertions))]
-    _handle: std::sync::Arc::new(handle),
-  }))
+  router
+    .proxy("/".into(), frontend_url.into())
+    .layer(Extension(FrontendState {
+      #[cfg(not(debug_assertions))]
+      _handle: std::sync::Arc::new(handle),
+    }))
 }
 
 #[derive(Clone, Debug)]
