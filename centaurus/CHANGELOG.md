@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-04-04
+
+### 🚀 Features
+
+- Implement operation output for error report
+- Added aide derive to db
+- Added aide derive to all state
+- Added rate limiter
+- Added config trait
+- Use api router when using openapi
+- Better support for other service for run app
+- Added openapi json route
+- Added swagger docs
+- Added config derive macro
+
+### 🐛 Bug Fixes
+
+- Aide trait impl
+- Router build lifetime
+
+### ⚙️ Miscellaneous Tasks
+
+- Update aide
+
+
+
 ## [0.4.13] - 2026-03-15
 
 ### 🐛 Bug Fixes
