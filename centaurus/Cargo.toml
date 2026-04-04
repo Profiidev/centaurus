@@ -60,7 +60,7 @@ axum = [
   "dep:dashmap"
 ]
 openapi = ["dep:aide"]
-metrics = ["dep:metrics", "dep:metrics-exporter-prometheus"]
+metrics = ["dep:metrics", "dep:metrics-exporter-prometheus", "centaurus-derive/metrics"]
 error = ["dep:eyre"]
 sea-orm = ["dep:sea-orm", "dep:tracing", "dep:sea-orm-migration", "serde"]
 auth = ["argon2", "base64", "error", "rsa"]

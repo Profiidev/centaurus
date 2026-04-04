@@ -24,7 +24,7 @@ pub mod serde;
 pub mod state;
 
 #[cfg(feature = "axum")]
-pub use centaurus_derive::FromReqExtension;
+pub use centaurus_derive::Config;
 
 // Used for re-reports required by macros
 #[doc(hidden)]
