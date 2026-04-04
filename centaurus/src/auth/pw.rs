@@ -14,6 +14,7 @@ use crate::error::Result;
 
 #[cfg(feature = "axum")]
 #[derive(Clone, FromRequestParts)]
+#[cfg_attr(feature = "openapi", derive(aide::OperationIo))]
 #[from_request(via(Extension))]
 pub struct PasswordState {
   key: RsaPrivateKey,

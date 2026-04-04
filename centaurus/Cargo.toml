@@ -11,7 +11,7 @@ keywords = []
 readme = "README.md"
 
 [features]
-default = ["axum", "logging", "metrics", "frontend"]
+default = ["axum", "logging", "metrics", "frontend", "openapi"]
 all = [
   "logging",
   "axum",
@@ -55,8 +55,12 @@ axum = [
   "serde",
   "dep:thiserror",
   "dep:async-trait",
+  "dep:governor",
+  "dep:tower_governor",
+  "dep:dashmap"
 ]
-metrics = ["dep:metrics", "dep:metrics-exporter-prometheus"]
+openapi = ["dep:aide"]
+metrics = ["dep:metrics", "dep:metrics-exporter-prometheus", "centaurus-derive/metrics"]
 error = ["dep:eyre"]
 sea-orm = ["dep:sea-orm", "dep:tracing", "dep:sea-orm-migration", "serde"]
 auth = ["argon2", "base64", "error", "rsa"]
@@ -145,6 +149,22 @@ hyper-util = { version = "0.1.19", features = [
   "client-legacy",
 ], optional = true }
 url = { version = "2.5.8", optional = true }
+aide = { version = "0.16.0-alpha.3", features = [
+  "axum",
+  "axum-json",
+  "axum-tokio",
+  "axum-ws",
+  "axum-extra",
+  "axum-extra-cookie",
+  "axum-extra-headers",
+  "macros",
+  "swagger"
+], optional = true }
+tower_governor = { version = "0.8.0", features = [
+  "axum",
+], default-features = false, optional = true }
+governor = { version = "0.10.4", optional = true }
+dashmap = { version = "6.1.0", optional = true }
 
 [lib]
 path = "src/lib.rs"

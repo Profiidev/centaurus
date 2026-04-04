@@ -9,21 +9,22 @@ pub use http;
 
 #[cfg(feature = "auth")]
 pub mod auth;
-#[cfg(any(feature = "axum", feature = "logging"))]
-pub mod config;
+#[cfg(feature = "axum")]
+pub mod backend;
 #[cfg(feature = "sea-orm")]
 pub mod db;
 #[cfg(feature = "error")]
 pub mod error;
 pub mod file;
-pub mod init;
+#[cfg(feature = "logging")]
+pub mod logging;
 pub mod req;
 #[cfg(feature = "serde")]
 pub mod serde;
 pub mod state;
 
 #[cfg(feature = "axum")]
-pub use centaurus_derive::FromReqExtension;
+pub use centaurus_derive::Config;
 
 // Used for re-reports required by macros
 #[doc(hidden)]

@@ -8,6 +8,7 @@ use tracing::instrument;
 use crate::db::config::DBConfig;
 
 #[derive(FromRequestParts, Clone)]
+#[cfg_attr(feature = "openapi", derive(aide::OperationIo))]
 #[from_request(via(Extension))]
 pub struct Connection(pub DatabaseConnection);
 

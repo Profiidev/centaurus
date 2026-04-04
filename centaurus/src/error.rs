@@ -299,3 +299,25 @@ impl From<eyre::Report> for ErrorReport {
     }
   }
 }
+
+#[cfg(feature = "openapi")]
+impl aide::OperationOutput for ErrorReport {
+  type Inner = ErrorReport;
+
+  fn inferred_responses(
+    _ctx: &mut aide::generate::GenContext,
+    _operation: &mut aide::openapi::Operation,
+  ) -> Vec<(Option<aide::openapi::StatusCode>, aide::openapi::Response)> {
+    fn empty() -> aide::openapi::Response {
+      aide::openapi::Response {
+        description: "An error occurred".to_string(),
+        ..Default::default()
+      }
+    }
+
+    vec![
+      (Some(aide::openapi::StatusCode::Range(4)), empty()),
+      (Some(aide::openapi::StatusCode::Range(5)), empty()),
+    ]
+  }
+}
