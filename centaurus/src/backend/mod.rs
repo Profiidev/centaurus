@@ -7,6 +7,8 @@ pub mod init;
 pub mod logging;
 #[cfg(feature = "metrics")]
 pub mod metrics;
+#[cfg(feature = "proxy")]
+pub mod proxy;
 pub mod rate_limiter;
 pub mod router;
 pub mod version;

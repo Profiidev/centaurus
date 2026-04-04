@@ -24,9 +24,6 @@ where
   let api_router = router(&mut rate_limiter);
   rate_limiter.init();
 
-  #[cfg(feature = "frontend")]
-  let mut router = crate::backend::frontend::router();
-  #[cfg(not(feature = "frontend"))]
   let mut router = BackendRouter::new();
 
   #[cfg(not(feature = "metrics"))]
