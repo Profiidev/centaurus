@@ -57,7 +57,10 @@ axum = [
   "dep:async-trait",
   "dep:governor",
   "dep:tower_governor",
-  "dep:dashmap"
+  "dep:dashmap",
+  "dep:tower-service",
+  "dep:addr",
+  "dep:url",
 ]
 openapi = ["dep:aide"]
 metrics = ["dep:metrics", "dep:metrics-exporter-prometheus", "centaurus-derive/metrics"]
@@ -69,6 +72,7 @@ k8s = ["dep:k8s-openapi", "dep:kube"]
 docker = ["dep:bollard"]
 frontend = ["proxy"]
 proxy = ["axum", "dep:hyper-util"]
+gravatar = ["dep:md5"]
 
 argon2 = ["dep:argon2"]
 base64 = ["dep:base64"]
@@ -166,6 +170,9 @@ tower_governor = { version = "0.8.0", features = [
 ], default-features = false, optional = true }
 governor = { version = "0.10.4", optional = true }
 dashmap = { version = "6.1.0", optional = true }
+tower-service = { version = "0.3.3", optional = true }
+addr = { version = "0.15.6", optional = true }
+md5 = { version = "0.8.0", optional = true }
 
 [lib]
 path = "src/lib.rs"

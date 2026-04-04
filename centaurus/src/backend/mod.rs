@@ -12,6 +12,7 @@ pub mod proxy;
 pub mod rate_limiter;
 pub mod router;
 pub mod version;
+pub mod virtual_host;
 
 #[cfg(not(feature = "openapi"))]
 pub type BackendRouter = axum::Router;

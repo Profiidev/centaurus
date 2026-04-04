@@ -16,6 +16,8 @@ pub mod db;
 #[cfg(feature = "error")]
 pub mod error;
 pub mod file;
+#[cfg(feature = "gravatar")]
+pub mod gravatar;
 #[cfg(feature = "logging")]
 pub mod logging;
 pub mod req;

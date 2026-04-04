@@ -3,6 +3,16 @@
 version = 4
 
 [[package]]
+name = "addr"
+version = "0.15.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a93b8a41dbe230ad5087cc721f8d41611de654542180586b315d9f4cf6b72bef"
+dependencies = [
+ "psl",
+ "psl-types",
+]
+
+[[package]]
 name = "addr2line"
 version = "0.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -623,6 +633,7 @@ dependencies = [
 name = "centaurus"
 version = "0.5.0"
 dependencies = [
+ "addr",
  "aide",
  "argon2",
  "async-trait",
@@ -644,6 +655,7 @@ dependencies = [
  "k8s-openapi",
  "kube",
  "lettre",
+ "md5",
  "metrics",
  "metrics-exporter-prometheus",
  "reqwest",
@@ -657,6 +669,7 @@ dependencies = [
  "tokio",
  "tower",
  "tower-http",
+ "tower-service",
  "tower_governor",
  "tracing",
  "tracing-error",
@@ -2438,6 +2451,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "md5"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae960838283323069879657ca3de837e9f7bbb4c7bf6ea7f1b290d5e9476d2e0"
+
+[[package]]
 name = "memchr"
 version = "2.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3101,6 +3120,21 @@ dependencies = [
  "version_check",
  "yansi",
 ]
+
+[[package]]
+name = "psl"
+version = "2.1.200"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aeecfb788a39437717879e1055237308caaa520a0041bb9536899dff28bf24a6"
+dependencies = [
+ "psl-types",
+]
+
+[[package]]
+name = "psl-types"
+version = "2.0.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "33cb294fe86a74cbcf50d4445b37da762029549ebeea341421c7c70370f86cac"
 
 [[package]]
 name = "ptr_meta"
