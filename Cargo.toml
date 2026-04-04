@@ -3,4 +3,4 @@ resolver = "3"
 members = ["centaurus", "centaurus-derive"]
 
 [workspace.dependencies]
-centaurus-derive = { path = "./centaurus-derive", version = "0.1.0" }
+centaurus-derive = { path = "./centaurus-derive", version = "0.1.1" }
