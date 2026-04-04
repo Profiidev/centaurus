@@ -11,8 +11,8 @@ keywords = []
 readme = "README.md"
 
 [dependencies]
-quote = "1.0.40"
-syn = { version = "2.0.106", features = ["full"] }
+quote = "1.0.45"
+syn = { version = "2.0.117", features = ["full"] }
 
 [features]
 metrics = []

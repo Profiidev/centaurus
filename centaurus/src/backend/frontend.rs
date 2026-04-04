@@ -9,7 +9,7 @@ pub fn frontend(router: BackendRouter) -> BackendRouter {
   #[cfg(not(debug_assertions))]
   let frontend_url = env!("FRONTEND_URL");
   #[cfg(debug_assertions)]
-  let frontend_url = "http://frontend:5173";
+  let frontend_url = "http://frontend:5173/";
 
   #[cfg(not(debug_assertions))]
   let handle = tokio::process::Command::new("node")
