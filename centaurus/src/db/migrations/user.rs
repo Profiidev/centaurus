@@ -26,6 +26,7 @@ impl MigrationTrait for Migration {
     manager
       .create_index(
         Index::create()
+          .if_not_exists()
           .name(EMAIL_INDEX_NAME)
           .table(User::Table)
           .col(User::Email)

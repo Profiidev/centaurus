@@ -81,6 +81,7 @@ impl MigrationTrait for Migration {
     manager
       .create_index(
         Index::create()
+          .if_not_exists()
           .name(GROUP_USER_GROUP_ID_INDEX_NAME)
           .table(GroupUser::Table)
           .col(GroupUser::GroupId)
@@ -91,6 +92,7 @@ impl MigrationTrait for Migration {
     manager
       .create_index(
         Index::create()
+          .if_not_exists()
           .name(GROUP_USER_USER_ID_INDEX_NAME)
           .table(GroupUser::Table)
           .col(GroupUser::UserId)
@@ -101,6 +103,7 @@ impl MigrationTrait for Migration {
     manager
       .create_index(
         Index::create()
+          .if_not_exists()
           .name(GROUP_PERMISSION_GROUP_ID_INDEX_NAME)
           .table(GroupPermission::Table)
           .col(GroupPermission::GroupId)
