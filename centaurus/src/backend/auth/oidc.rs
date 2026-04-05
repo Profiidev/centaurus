@@ -9,8 +9,9 @@ use crate::{
     BackendRouter,
     auth::{
       jwt_state::JwtState,
-      settings::{OidcSettings, SiteConfig, UserSettings},
+      settings::{OidcSettings, UserSettings},
     },
+    config::SiteConfig,
     middleware::rate_limiter::RateLimiter,
   },
   bail,

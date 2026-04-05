@@ -11,9 +11,10 @@ macro_rules! version_header {
       next: $crate::axum::middleware::Next,
     ) -> $crate::axum::response::Response {
       let mut response = next.run(request).await;
-      response
-        .headers_mut()
-        .insert($crate::backend::version::HEADER_NAME, API_VERSION);
+      response.headers_mut().insert(
+        $crate::backend::middleware::version::HEADER_NAME,
+        API_VERSION,
+      );
       response
     }
 
