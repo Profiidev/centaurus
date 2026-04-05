@@ -7,8 +7,6 @@ pub use eyre;
 #[cfg(feature = "http")]
 pub use http;
 
-#[cfg(feature = "auth")]
-pub mod auth;
 #[cfg(feature = "axum")]
 pub mod backend;
 #[cfg(feature = "sea-orm")]

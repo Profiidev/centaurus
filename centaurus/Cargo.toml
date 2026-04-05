@@ -67,7 +67,7 @@ openapi = ["dep:aide", "dep:schemars"]
 metrics = ["dep:metrics", "dep:metrics-exporter-prometheus", "centaurus-derive/metrics"]
 error = ["dep:eyre"]
 sea-orm = ["dep:sea-orm", "dep:tracing", "dep:sea-orm-migration", "serde", "error", "chrono", "uuid/v4"]
-auth = ["argon2", "base64", "error", "rsa", "serde", "url", "url/serde", "schemars/url2"]
+auth = ["argon2", "base64", "error", "rsa", "serde", "url", "url/serde", "schemars/url2", "jsonwebtoken", "reqwest", "schemars/uuid1"]
 serde = ["dep:serde"]
 k8s = ["dep:k8s-openapi", "dep:kube"]
 docker = ["dep:bollard"]
@@ -137,6 +137,8 @@ reqwest = { version = "0.13.2", optional = true, features = [
   "http2",
   "system-proxy",
   "charset",
+  "json",
+  "form",
 ], default-features = false }
 metrics-exporter-prometheus = { version = "0.18.1", optional = true, default-features = false }
 metrics = { version = "0.24.3", optional = true }
