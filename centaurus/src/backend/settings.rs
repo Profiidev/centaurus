@@ -1,5 +1,5 @@
 use aide::axum::ApiRouter;
-use aide::axum::routing::{get_with, post_with};
+use aide::axum::routing::{ApiMethodRouter, get_with, post_with};
 use axum::Json;
 use http::StatusCode;
 
@@ -16,22 +16,26 @@ use crate::mail::{MailSettings, Mailer};
 
 pub fn router<T: UpdateMessage>() -> ApiRouter {
   ApiRouter::new()
-    .api_route(
-      "/user",
-      get_with(get_settings::<UserSettings>, |op| op.id("getUserSettings")),
-    )
-    .api_route(
-      "/user",
-      post_with(save_user_settings::<T>, |op| op.id("saveUserSettings")),
-    )
-    .api_route(
-      "/mail",
-      get_with(get_settings::<MailSettings>, |op| op.id("getMailSettings")),
-    )
-    .api_route(
-      "/mail",
-      post_with(save_mail_settings::<T>, |op| op.id("saveMailSettings")),
-    )
+    .api_route("/user", get_user_settings_route())
+    .api_route("/user", save_user_settings_route::<T>())
+    .api_route("/mail", get_mail_settings_route())
+    .api_route("/mail", save_mail_settings_route::<T>())
+}
+
+pub fn get_user_settings_route() -> ApiMethodRouter<()> {
+  get_with(get_settings::<UserSettings>, |op| op.id("getUserSettings"))
+}
+
+pub fn save_user_settings_route<T: UpdateMessage>() -> ApiMethodRouter<()> {
+  post_with(save_user_settings::<T>, |op| op.id("saveUserSettings"))
+}
+
+pub fn get_mail_settings_route() -> ApiMethodRouter<()> {
+  get_with(get_settings::<MailSettings>, |op| op.id("getMailSettings"))
+}
+
+pub fn save_mail_settings_route<T: UpdateMessage>() -> ApiMethodRouter<()> {
+  post_with(save_mail_settings::<T>, |op| op.id("saveMailSettings"))
 }
 
 async fn get_settings<S: Settings>(

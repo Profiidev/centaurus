@@ -1,5 +1,5 @@
 use aide::axum::ApiRouter;
-use aide::axum::routing::get_with;
+use aide::axum::routing::{ApiMethodRouter, get_with};
 use axum::Json;
 use schemars::JsonSchema;
 use serde::Serialize;
@@ -11,7 +11,11 @@ use crate::db::tables::ConnectionExt;
 use crate::error::Result;
 
 pub fn router() -> ApiRouter {
-  ApiRouter::new().api_route("/", get_with(info, |op| op.id("info")))
+  ApiRouter::new().api_route("/", info_route())
+}
+
+pub fn info_route() -> ApiMethodRouter<()> {
+  get_with(info, |op| op.id("info"))
 }
 
 #[derive(Serialize, JsonSchema)]

@@ -1,4 +1,4 @@
-use aide::axum::routing::post_with;
+use aide::axum::routing::{ApiMethodRouter, post_with};
 use image::{ImageFormat, imageops::FilterType};
 use std::io::Cursor;
 
@@ -22,19 +22,22 @@ use crate::{
 
 pub fn router<T: UpdateMessage>(rate_limiter: &mut RateLimiter) -> ApiRouter {
   ApiRouter::new()
-    .api_route(
-      "/avatar",
-      post_with(update_avatar::<T>, |op| op.id("updateAvatar")),
-    )
-    .api_route(
-      "/password",
-      post_with(update_password, |op| op.id("updatePassword")),
-    )
+    .api_route("/avatar", update_avatar_route::<T>())
+    .api_route("/password", update_password_route())
     .layer(GovernorLayer::new(rate_limiter.create_limiter()))
-    .api_route(
-      "/update",
-      post_with(update_account::<T>, |op| op.id("updateAccount")),
-    )
+    .api_route("/update", update_account_route::<T>())
+}
+
+pub fn update_avatar_route<T: UpdateMessage>() -> ApiMethodRouter<()> {
+  post_with(update_avatar::<T>, |op| op.id("updateAvatar"))
+}
+
+pub fn update_password_route() -> ApiMethodRouter<()> {
+  post_with(update_password, |op| op.id("updatePassword"))
+}
+
+pub fn update_account_route<T: UpdateMessage>() -> ApiMethodRouter<()> {
+  post_with(update_account::<T>, |op| op.id("updateAccount"))
 }
 
 #[derive(Deserialize, JsonSchema)]

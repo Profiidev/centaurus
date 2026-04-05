@@ -7,8 +7,8 @@ use crate::{
   db::{init::Connection, tables::ConnectionExt},
   mail::Mailer,
 };
-use aide::axum::ApiRouter;
 use aide::axum::routing::post_with;
+use aide::axum::{ApiRouter, routing::ApiMethodRouter};
 use axum::Json;
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -17,14 +17,16 @@ use tracing::warn;
 
 pub fn router() -> ApiRouter {
   ApiRouter::new()
-    .api_route(
-      "/send",
-      post_with(send_reset_link, |op| op.id("sendResetLink")),
-    )
-    .api_route(
-      "/confirm",
-      post_with(reset_password, |op| op.id("resetPassword")),
-    )
+    .api_route("/send", send_reset_link_route())
+    .api_route("/confirm", reset_password_route())
+}
+
+pub fn send_reset_link_route() -> ApiMethodRouter<()> {
+  post_with(send_reset_link, |op| op.id("sendResetLink"))
+}
+
+pub fn reset_password_route() -> ApiMethodRouter<()> {
+  post_with(reset_password, |op| op.id("resetPassword"))
 }
 
 #[derive(JsonSchema, Deserialize)]

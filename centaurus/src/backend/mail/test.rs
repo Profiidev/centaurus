@@ -7,13 +7,17 @@ use crate::{
   error::Result,
   mail::Mailer,
 };
-use aide::axum::ApiRouter;
 use aide::axum::routing::post_with;
+use aide::axum::{ApiRouter, routing::ApiMethodRouter};
 
 use crate::backend::mail::template;
 
 pub fn router() -> ApiRouter {
-  ApiRouter::new().api_route("/", post_with(test_mail, |op| op.id("testMail")))
+  ApiRouter::new().api_route("/", test_mail_route())
+}
+
+pub fn test_mail_route() -> ApiMethodRouter<()> {
+  post_with(test_mail, |op| op.id("testMail"))
 }
 
 async fn test_mail(

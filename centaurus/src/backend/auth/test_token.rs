@@ -1,3 +1,4 @@
+use aide::axum::routing::{ApiMethodRouter, get_with};
 use axum::Json;
 use axum_extra::extract::CookieJar;
 use serde::Serialize;
@@ -11,13 +12,11 @@ use crate::backend::{
 };
 
 pub fn router() -> BackendRouter {
-  #[cfg(feature = "openapi")]
-  return BackendRouter::new().api_route(
-    "/",
-    aide::axum::routing::get_with(test_token, |op| op.id("testToken")),
-  );
-  #[cfg(not(feature = "openapi"))]
-  BackendRouter::new().route("/", aide::axum::routing::get(test_token))
+  BackendRouter::new().api_route("/", test_token_route())
+}
+
+pub fn test_token_route() -> ApiMethodRouter<()> {
+  get_with(test_token, |op| op.id("testToken"))
 }
 
 #[derive(Serialize)]

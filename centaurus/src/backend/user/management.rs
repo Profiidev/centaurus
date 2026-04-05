@@ -1,5 +1,5 @@
 use aide::axum::ApiRouter;
-use aide::axum::routing::{delete_with, get_with, post_with, put_with};
+use aide::axum::routing::{ApiMethodRouter, delete_with, get_with, post_with, put_with};
 use argon2::password_hash::SaltString;
 use axum::{Json, extract::Path};
 use base64::prelude::*;
@@ -27,24 +27,51 @@ const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz012
 
 pub fn router<T: UpdateMessage>() -> ApiRouter {
   ApiRouter::new()
-    .api_route("/", get_with(list_users, |op| op.id("listUsers")))
-    .api_route("/", post_with(create_user::<T>, |op| op.id("createUser")))
-    .api_route("/", delete_with(delete_user::<T>, |op| op.id("deleteUser")))
-    .api_route("/", put_with(edit_user::<T>, |op| op.id("editUser")))
-    .api_route("/{uuid}", get_with(user_info, |op| op.id("userInfo")))
-    .api_route("/mail", get_with(mail_active, |op| op.id("mailActive")))
-    .api_route(
-      "/groups",
-      get_with(list_groups_simple, |op| op.id("listGroupsSimple")),
-    )
-    .api_route(
-      "/avatar",
-      delete_with(reset_user_avatar::<T>, |op| op.id("resetUserAvatar")),
-    )
-    .api_route(
-      "/password",
-      put_with(reset_user_password, |op| op.id("resetUserPassword")),
-    )
+    .api_route("/", list_users_route())
+    .api_route("/", create_user_route::<T>())
+    .api_route("/", delete_user_route::<T>())
+    .api_route("/", edit_user_route::<T>())
+    .api_route("/{uuid}", user_info_route())
+    .api_route("/mail", mail_active_route())
+    .api_route("/groups", list_groups_simple_route())
+    .api_route("/avatar", reset_user_avatar_route::<T>())
+    .api_route("/password", reset_user_password_route())
+}
+
+pub fn list_users_route() -> ApiMethodRouter<()> {
+  get_with(list_users, |op| op.id("listUsers"))
+}
+
+pub fn create_user_route<T: UpdateMessage>() -> ApiMethodRouter<()> {
+  post_with(create_user::<T>, |op| op.id("createUser"))
+}
+
+pub fn delete_user_route<T: UpdateMessage>() -> ApiMethodRouter<()> {
+  delete_with(delete_user::<T>, |op| op.id("deleteUser"))
+}
+
+pub fn edit_user_route<T: UpdateMessage>() -> ApiMethodRouter<()> {
+  put_with(edit_user::<T>, |op| op.id("editUser"))
+}
+
+pub fn user_info_route() -> ApiMethodRouter<()> {
+  get_with(user_info, |op| op.id("userInfo"))
+}
+
+pub fn mail_active_route() -> ApiMethodRouter<()> {
+  get_with(mail_active, |op| op.id("mailActive"))
+}
+
+pub fn list_groups_simple_route() -> ApiMethodRouter<()> {
+  get_with(list_groups_simple, |op| op.id("listGroupsSimple"))
+}
+
+pub fn reset_user_avatar_route<T: UpdateMessage>() -> ApiMethodRouter<()> {
+  delete_with(reset_user_avatar::<T>, |op| op.id("resetUserAvatar"))
+}
+
+pub fn reset_user_password_route() -> ApiMethodRouter<()> {
+  put_with(reset_user_password, |op| op.id("resetUserPassword"))
 }
 
 async fn list_users(_auth: JwtAuth<UserView>, db: Connection) -> Result<Json<Vec<UserInfo>>> {

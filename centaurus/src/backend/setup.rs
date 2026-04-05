@@ -1,5 +1,5 @@
 use aide::axum::ApiRouter;
-use aide::axum::routing::{get_with, post_with};
+use aide::axum::routing::{ApiMethodRouter, get_with, post_with};
 use argon2::password_hash::SaltString;
 use axum::Json;
 use axum_extra::extract::CookieJar;
@@ -19,8 +19,16 @@ use crate::error::Result;
 
 pub fn router() -> ApiRouter {
   ApiRouter::new()
-    .api_route("/", post_with(complete_setup, |op| op.id("completeSetup")))
-    .api_route("/", get_with(is_setup, |op| op.id("isSetup")))
+    .api_route("/", complete_setup_route())
+    .api_route("/", is_setup_route())
+}
+
+pub fn complete_setup_route() -> ApiMethodRouter<()> {
+  post_with(complete_setup, |op| op.id("completeSetup"))
+}
+
+pub fn is_setup_route() -> ApiMethodRouter<()> {
+  get_with(is_setup, |op| op.id("isSetup"))
 }
 
 pub async fn create_admin_group(db: &Connection, all_perms: Vec<&'static str>) -> Result<()> {

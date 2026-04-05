@@ -1,3 +1,4 @@
+use aide::axum::routing::{ApiMethodRouter, get_with, post_with};
 use axum::Json;
 use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
@@ -16,19 +17,18 @@ use crate::db::tables::ConnectionExt;
 use crate::error::Result;
 
 pub fn router(rate_limiter: &mut RateLimiter) -> BackendRouter {
-  #[cfg(feature = "openapi")]
-  return BackendRouter::new()
-    .api_route(
-      "/",
-      aide::axum::routing::post_with(authenticate, |op| op.id("authenticate")),
-    )
-    .layer(GovernorLayer::new(rate_limiter.create_limiter()))
-    .api_route("/", aide::axum::routing::get_with(key, |op| op.id("key")));
-  #[cfg(not(feature = "openapi"))]
   BackendRouter::new()
-    .route("/", aide::axum::routing::post(authenticate))
+    .api_route("/", authenticate_route())
     .layer(GovernorLayer::new(rate_limiter.create_limiter()))
-    .route("/", aide::axum::routing::get(key))
+    .api_route("/", key_route())
+}
+
+pub fn authenticate_route() -> ApiMethodRouter<()> {
+  post_with(authenticate, |op| op.id("authenticate"))
+}
+
+pub fn key_route() -> ApiMethodRouter<()> {
+  get_with(key, |op| op.id("key"))
 }
 
 #[derive(Serialize)]

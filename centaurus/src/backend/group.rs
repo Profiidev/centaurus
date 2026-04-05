@@ -1,5 +1,5 @@
 use aide::axum::ApiRouter;
-use aide::axum::routing::{delete_with, get_with, post_with, put_with};
+use aide::axum::routing::{ApiMethodRouter, delete_with, get_with, post_with, put_with};
 use axum::{Json, extract::Path};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -16,18 +16,36 @@ use crate::error::Result;
 
 pub fn router<T: UpdateMessage>() -> ApiRouter {
   ApiRouter::new()
-    .api_route("/", get_with(list_groups, |op| op.id("listGroups")))
-    .api_route("/", post_with(create_group::<T>, |op| op.id("createGroup")))
-    .api_route(
-      "/",
-      delete_with(delete_group::<T>, |op| op.id("deleteGroup")),
-    )
-    .api_route("/", put_with(edit_group::<T>, |op| op.id("editGroup")))
-    .api_route("/{uuid}", get_with(group_info, |op| op.id("groupInfo")))
-    .api_route(
-      "/users",
-      get_with(list_users_simple, |op| op.id("listUsersSimple")),
-    )
+    .api_route("/", list_groups_route())
+    .api_route("/", create_group_route::<T>())
+    .api_route("/", delete_group_route::<T>())
+    .api_route("/", edit_group_route::<T>())
+    .api_route("/{uuid}", group_info_route())
+    .api_route("/users", list_users_simple_route())
+}
+
+pub fn list_groups_route() -> ApiMethodRouter<()> {
+  get_with(list_groups, |op| op.id("listGroups"))
+}
+
+pub fn create_group_route<T: UpdateMessage>() -> ApiMethodRouter<()> {
+  post_with(create_group::<T>, |op| op.id("createGroup"))
+}
+
+pub fn delete_group_route<T: UpdateMessage>() -> ApiMethodRouter<()> {
+  delete_with(delete_group::<T>, |op| op.id("deleteGroup"))
+}
+
+pub fn edit_group_route<T: UpdateMessage>() -> ApiMethodRouter<()> {
+  put_with(edit_group::<T>, |op| op.id("editGroup"))
+}
+
+pub fn group_info_route() -> ApiMethodRouter<()> {
+  get_with(group_info, |op| op.id("groupInfo"))
+}
+
+pub fn list_users_simple_route() -> ApiMethodRouter<()> {
+  get_with(list_users_simple, |op| op.id("listUsersSimple"))
 }
 
 #[derive(Serialize, JsonSchema)]

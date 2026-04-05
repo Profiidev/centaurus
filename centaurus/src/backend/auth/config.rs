@@ -1,3 +1,4 @@
+use aide::axum::routing::{ApiMethodRouter, get_with};
 use axum::Json;
 use schemars::JsonSchema;
 use serde::Serialize;
@@ -12,13 +13,11 @@ use crate::{
 };
 
 pub fn router() -> BackendRouter {
-  #[cfg(feature = "openapi")]
-  return BackendRouter::new().api_route(
-    "/",
-    aide::axum::routing::get_with(config, |op| op.id("authConfig")),
-  );
-  #[cfg(not(feature = "openapi"))]
-  BackendRouter::new().route("/", axum::routing::get(config))
+  BackendRouter::new().api_route("/", auth_config_route())
+}
+
+pub fn auth_config_route() -> ApiMethodRouter<()> {
+  get_with(config, |op| op.id("authConfig"))
 }
 
 #[derive(Serialize, Debug, JsonSchema)]

@@ -1,5 +1,5 @@
 use aide::axum::ApiRouter;
-use aide::axum::routing::post_with;
+use aide::axum::routing::{ApiMethodRouter, post_with};
 use axum_extra::extract::CookieJar;
 use chrono::DateTime;
 use http::StatusCode;
@@ -13,7 +13,11 @@ use crate::db::tables::ConnectionExt;
 use crate::error::{ErrorReportStatusExt, Result};
 
 pub fn router() -> ApiRouter {
-  ApiRouter::new().api_route("/", post_with(logout, |op| op.id("logout")))
+  ApiRouter::new().api_route("/", logout_route())
+}
+
+pub fn logout_route() -> ApiMethodRouter<()> {
+  post_with(logout, |op| op.id("logout"))
 }
 
 async fn logout(
