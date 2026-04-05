@@ -12,4 +12,6 @@ readme = "README.md"
 
 [dependencies]
 syn = { version = "2.0.117", features = ["full"] }
-toml_edit = { version = "^0.25.0", default-features = false, features = ["parse"] }
+toml_edit = { version = "^0.25.0", default-features = false, features = [
+  "parse",
+] }

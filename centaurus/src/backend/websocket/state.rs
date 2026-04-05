@@ -1,6 +1,5 @@
 use std::{fmt::Debug, sync::Arc};
 
-use aide::OperationIo;
 use axum::{
   Extension, RequestPartsExt,
   extract::{FromRequestParts, rejection::ExtensionRejection},
@@ -22,7 +21,8 @@ pub trait UpdateMessage: Serialize + DeserializeOwned + Clone + Debug + Send + '
   fn user_permissions() -> Self;
 }
 
-#[derive(Clone, OperationIo)]
+#[derive(Clone)]
+#[cfg_attr(feature = "openapi", derive(aide::OperationIo))]
 pub struct UpdateState<T: UpdateMessage> {
   sessions: Arc<DashMap<Uuid, DashMap<Uuid, Sender<T>>>>,
   #[allow(dead_code)]
@@ -43,7 +43,8 @@ impl<T: UpdateMessage, R: Sync> FromRequestParts<R> for UpdateState<T> {
   }
 }
 
-#[derive(Clone, OperationIo)]
+#[derive(Clone)]
+#[cfg_attr(feature = "openapi", derive(aide::OperationIo))]
 pub struct Updater<T: UpdateMessage>(Sender<UpdateTrigger<T>>);
 
 impl<T: UpdateMessage, R: Sync> FromRequestParts<R> for Updater<T> {

@@ -24,6 +24,7 @@ pub fn router<T: UpdateMessage>() -> ApiRouter {
     .api_route("/users", list_users_simple_route())
 }
 
+#[cfg(feature = "openapi")]
 pub fn list_groups_route() -> ApiMethodRouter<()> {
   get_with(list_groups, |op| op.id("listGroups"))
 }

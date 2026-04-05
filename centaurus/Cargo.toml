@@ -11,7 +11,7 @@ keywords = []
 readme = "README.md"
 
 [features]
-default = ["axum", "logging", "metrics", "frontend", "openapi", "sea-orm", "lettre", "auth", "image", "gravatar"]
+default = ["axum", "logging", "metrics", "frontend"]
 all = [
   "logging",
   "axum",
@@ -62,19 +62,48 @@ axum = [
   "dep:addr",
   "dep:url",
   "dep:futures-util",
-  "config_site"
+  "config_site",
+  "url/serde",
+  "uuid",
+  "uuid/v4",
+  "openapi",
 ]
-openapi = ["dep:aide", "dep:schemars"]
-metrics = ["dep:metrics", "dep:metrics-exporter-prometheus", "centaurus-derive/metrics"]
+openapi = ["dep:aide", "dep:schemars", "schemars/uuid1", "schemars/url2"]
+metrics = [
+  "dep:metrics",
+  "dep:metrics-exporter-prometheus",
+  "centaurus-derive/metrics",
+]
 error = ["dep:eyre"]
-sea-orm = ["dep:sea-orm", "dep:tracing", "dep:sea-orm-migration", "serde", "error", "chrono", "uuid/v4"]
-auth = ["argon2", "base64", "error", "rsa", "serde", "url", "url/serde", "schemars/url2", "jsonwebtoken", "reqwest", "schemars/uuid1", "dep:time", "rand"]
+sea-orm = [
+  "dep:sea-orm",
+  "dep:tracing",
+  "dep:sea-orm-migration",
+  "serde",
+  "error",
+  "chrono",
+  "uuid/v4",
+  "uuid",
+]
+auth = [
+  "argon2",
+  "base64",
+  "error",
+  "rsa",
+  "serde",
+  "url",
+  "url/serde",
+  "jsonwebtoken",
+  "reqwest",
+  "dep:time",
+  "rand",
+]
 serde = ["dep:serde"]
 k8s = ["dep:k8s-openapi", "dep:kube"]
 docker = ["dep:bollard"]
 frontend = ["proxy"]
 proxy = ["axum", "dep:hyper-util"]
-gravatar = ["dep:md5"]
+gravatar = ["dep:md5", "reqwest", "base64"]
 lettre = ["dep:lettre", "serde", "error", "http"]
 config_site = ["centaurus-derive/site"]
 
@@ -176,7 +205,7 @@ aide = { version = "0.16.0-alpha.3", features = [
   "axum-extra-cookie",
   "axum-extra-headers",
   "macros",
-  "swagger"
+  "swagger",
 ], optional = true }
 tower_governor = { version = "0.8.0", features = [
   "axum",

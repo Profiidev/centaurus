@@ -1,4 +1,3 @@
-use aide::axum::ApiRouter;
 use axum::Extension;
 
 use crate::backend::{
@@ -9,8 +8,8 @@ use crate::backend::{
 pub mod state;
 mod updater;
 
-pub fn router<T: UpdateMessage>() -> ApiRouter {
-  ApiRouter::new().merge(updater::router::<T>())
+pub fn router<T: UpdateMessage>() -> BackendRouter {
+  BackendRouter::new().merge(updater::router::<T>())
 }
 
 pub async fn state<T: UpdateMessage>(router: BackendRouter) -> BackendRouter {

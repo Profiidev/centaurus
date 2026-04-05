@@ -1,4 +1,4 @@
-use sea_orm::{IntoActiveModel, Set, prelude::*};
+use sea_orm::{Set, prelude::*};
 use serde::{Deserialize, Serialize};
 
 use crate::db::{
@@ -50,6 +50,8 @@ impl<'db> UserTable<'db> {
     password: String,
     salt: String,
   ) -> crate::error::Result<Uuid> {
+    use sea_orm::IntoActiveModel;
+
     let url = crate::gravatar::get_gravatar_url(&email);
     let data = match reqwest::get(&url).await {
       Ok(response) => {
