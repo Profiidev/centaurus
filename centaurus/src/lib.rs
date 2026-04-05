@@ -37,3 +37,5 @@ pub use centaurus_derive::UpdateMessage;
 pub mod private {
   pub use std::result::Result::Err;
 }
+
+pub const VERSION_HEADER_NAME: &str = "X-Api-Version";
