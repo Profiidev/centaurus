@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-04-05
+
+### 🚀 Features
+
+- Added db invalid jwt, key and settings table
+- Added auth handling logic
+- Added update message derive macro
+
+### 🐛 Bug Fixes
+
+- Add missing attribute
+
+### ⚙️ Miscellaneous Tasks
+
+- Updated deps
+
+
+
 ## [0.1.1] - 2026-04-04
 
 ### 🚀 Features
