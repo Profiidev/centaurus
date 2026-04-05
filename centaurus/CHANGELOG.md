@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-04-05
+
+### 🚀 Features
+
+- Added version middleware macro
+- Added http proxy
+- Added virtual host rewrite and gravatar
+- Added db invalid jwt, key and settings table
+- Added auth
+- Added user and group table
+- Added auth handling logic
+- Added mail endpoints
+- Added settings
+- Added setup table
+- Added setup endpoints
+- Added group endpoints
+- Added user endpoints
+- Added if not exists to index creation
+- Added update message derive macro
+
+### 🐛 Bug Fixes
+
+- Naming
+- Wrong item paths
+- Better endpoint exposure
+- User endpoint pub
+- Feature inconsistencies
+- Version header location
+
+### 🚜 Refactor
+
+- Use trait for proxy
+- Backend file structure
+
+### ⚙️ Miscellaneous Tasks
+
+- Updated deps
+
+
+
 ## [0.5.0] - 2026-04-04
 
 ### 🚀 Features
