@@ -1,6 +1,8 @@
+use axum::{Extension, extract::FromRequestParts};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "logging")]
 use tracing::level_filters::LevelFilter;
+use url::Url;
 
 use crate::serde::{de_str, se_str};
 
@@ -37,4 +39,25 @@ pub trait Config: Clone + Send + Sync + 'static {
   fn base(&self) -> &BaseConfig;
   #[cfg(feature = "metrics")]
   fn metrics(&self) -> &MetricsConfig;
+  #[cfg(feature = "config_site")]
+  fn site(&self) -> &SiteConfig;
+}
+
+#[cfg(feature = "config_site")]
+#[derive(Serialize, Deserialize, Debug, FromRequestParts, Clone)]
+#[cfg_attr(feature = "openapi", derive(schemars::JsonSchema, aide::OperationIo))]
+#[cfg_attr(feature = "sea-orm", derive(crate::Settings))]
+#[cfg_attr(feature = "sea-orm", settings(id = 4))]
+#[from_request(via(Extension))]
+pub struct SiteConfig {
+  pub site_url: Url,
+}
+
+#[cfg(feature = "config_site")]
+impl Default for SiteConfig {
+  fn default() -> Self {
+    Self {
+      site_url: Url::parse("http://localhost:8000").unwrap(),
+    }
+  }
 }

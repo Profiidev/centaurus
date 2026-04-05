@@ -1,7 +1,9 @@
 use std::{ops::Deref, time::Duration};
 
 use axum::{Extension, extract::FromRequestParts};
-use sea_orm::{ConnectOptions, Database, DatabaseConnection};
+use sea_orm::{
+  ConnectOptions, ConnectionTrait, Database, DatabaseBackend, DatabaseConnection, Statement,
+};
 use sea_orm_migration::MigratorTrait;
 use tracing::instrument;
 
@@ -35,6 +37,16 @@ pub async fn init_db<M: MigratorTrait>(config: &DBConfig, connection_url: &str) 
   M::up(&conn, None)
     .await
     .expect("Failed to run database migrations");
+
+  if conn.get_database_backend() == DatabaseBackend::Sqlite {
+    conn
+      .execute(Statement::from_string(
+        DatabaseBackend::Sqlite,
+        "PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 60000;".to_string(),
+      ))
+      .await
+      .expect("Failed to set SQLite pragmas");
+  }
 
   Connection(conn)
 }

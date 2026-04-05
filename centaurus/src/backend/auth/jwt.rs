@@ -2,7 +2,10 @@ use axum::{RequestPartsExt, extract::Query};
 use axum_extra::{
   TypedHeader,
   extract::CookieJar,
-  headers::{Authorization, authorization::Bearer},
+  headers::{
+    Authorization,
+    authorization::{Basic, Bearer},
+  },
 };
 use http::request::Parts;
 use serde::Deserialize;
@@ -30,13 +33,20 @@ pub async fn jwt_from_request(req: &mut Parts, token_name: &str) -> Result<Strin
       .and_then(|jar| jar.get(token_name).map(|cookie| cookie.value().to_string()))
     {
       Some(token) => token,
-      None => {
-        let Some(Query(token)) = req.extract::<Query<Token>>().await.ok() else {
-          bail!("JWT token not found in Authorization header, cookies, or query parameters");
-        };
+      None => match req.extract::<Query<Token>>().await {
+        Ok(Query(token)) => token.token,
+        Err(_) => {
+          let Some(TypedHeader(Authorization(basic))) = req
+            .extract::<TypedHeader<Authorization<Basic>>>()
+            .await
+            .ok()
+          else {
+            bail!("JWT token not found in Authorization header, cookies, or query parameters");
+          };
 
-        token.token
-      }
+          basic.password().to_string()
+        }
+      },
     },
   };
 

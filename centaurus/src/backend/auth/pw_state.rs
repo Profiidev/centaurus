@@ -2,7 +2,6 @@ use argon2::{
   Argon2,
   password_hash::{PasswordHasher, SaltString},
 };
-#[cfg(feature = "axum")]
 use axum::{Extension, extract::FromRequestParts};
 use base64::prelude::*;
 use rsa::{
@@ -12,7 +11,6 @@ use tracing::instrument;
 
 use crate::error::Result;
 
-#[cfg(feature = "axum")]
 #[derive(Clone, FromRequestParts)]
 #[cfg_attr(feature = "openapi", derive(aide::OperationIo))]
 #[from_request(via(Extension))]
@@ -22,7 +20,6 @@ pub struct PasswordState {
   pub pepper: Vec<u8>,
 }
 
-#[cfg(feature = "axum")]
 impl PasswordState {
   pub fn decrypt(&self, message: &[u8]) -> Result<Vec<u8>> {
     Ok(self.key.decrypt(Pkcs1v15Encrypt, message)?)
