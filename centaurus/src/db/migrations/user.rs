@@ -18,6 +18,7 @@ impl MigrationTrait for Migration {
           .col(string(User::Email))
           .col(string(User::Password))
           .col(string(User::Salt))
+          .col(string_null(User::Avatar))
           .to_owned(),
       )
       .await?;
@@ -53,4 +54,5 @@ pub enum User {
   Email,
   Password,
   Salt,
+  Avatar,
 }

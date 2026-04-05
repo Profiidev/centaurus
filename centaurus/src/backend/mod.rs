@@ -14,6 +14,8 @@ pub mod router;
 pub mod settings;
 #[cfg(all(feature = "sea-orm", feature = "auth"))]
 pub mod setup;
+#[cfg(all(feature = "sea-orm", feature = "auth"))]
+pub mod user;
 #[cfg(feature = "auth")]
 pub mod websocket;
 

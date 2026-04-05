@@ -16,6 +16,7 @@ pub struct UserInfo {
   pub uuid: Uuid,
   pub name: String,
   pub email: String,
+  pub avatar: Option<String>,
   pub groups: Vec<SimpleGroupInfo>,
 }
 
@@ -41,6 +42,7 @@ impl<'db> UserTable<'db> {
     Self { db }
   }
 
+  #[cfg(all(feature = "image", feature = "gravatar"))]
   pub async fn create_user(
     &self,
     username: String,
@@ -48,12 +50,41 @@ impl<'db> UserTable<'db> {
     password: String,
     salt: String,
   ) -> crate::error::Result<Uuid> {
+    let url = crate::gravatar::get_gravatar_url(&email);
+    let data = match reqwest::get(&url).await {
+      Ok(response) => {
+        if response.status().is_success() {
+          match response.bytes().await {
+            Ok(bytes) => {
+              use std::io::Cursor;
+
+              use base64::{Engine, prelude::BASE64_STANDARD};
+              use image::{ImageFormat, imageops::FilterType};
+
+              let img = image::load_from_memory(&bytes)?;
+              let img = img.resize_exact(128, 128, FilterType::Lanczos3);
+
+              let mut buf = Cursor::new(Vec::new());
+              img.write_to(&mut buf, ImageFormat::WebP)?;
+              let avatar = BASE64_STANDARD.encode(buf.into_inner());
+              Some(avatar)
+            }
+            Err(_) => None,
+          }
+        } else {
+          None
+        }
+      }
+      Err(_) => None,
+    };
+
     let model = user::Model {
       id: Uuid::new_v4(),
       name: username,
       email,
       password,
       salt,
+      avatar: data,
     }
     .into_active_model();
 
@@ -121,32 +152,6 @@ impl<'db> UserTable<'db> {
         })
         .collect(),
     )
-  }
-
-  pub async fn list_users(&self) -> Result<Vec<UserInfo>, DbErr> {
-    let users = user::Entity::find().all(self.db).await?;
-    let group_user = users
-      .load_many_to_many(group::Entity, group_user::Entity, self.db)
-      .await?;
-
-    let result = users
-      .into_iter()
-      .zip(group_user.into_iter())
-      .map(|(user, groups)| UserInfo {
-        uuid: user.id,
-        name: user.name,
-        email: user.email,
-        groups: groups
-          .into_iter()
-          .map(|group| SimpleGroupInfo {
-            uuid: group.id,
-            name: group.name,
-          })
-          .collect(),
-      })
-      .collect();
-
-    Ok(result)
   }
 
   pub async fn get_user_groups(&self, user_id: Uuid) -> Result<Vec<SimpleGroupInfo>, DbErr> {
@@ -217,5 +222,52 @@ impl<'db> UserTable<'db> {
     }
 
     Ok(())
+  }
+
+  pub async fn update_user_avatar(&self, id: Uuid, new_avatar: String) -> Result<(), DbErr> {
+    let mut user: user::ActiveModel = self.get_user_by_id(id).await?.into();
+
+    user.avatar = Set(Some(new_avatar));
+
+    user.update(self.db).await?;
+
+    Ok(())
+  }
+
+  pub async fn reset_avatar(&self, user_id: Uuid) -> Result<(), DbErr> {
+    let mut user: user::ActiveModel = self.get_user_by_id(user_id).await?.into();
+
+    user.avatar = Set(None);
+
+    user.update(self.db).await?;
+
+    Ok(())
+  }
+
+  pub async fn list_users(&self) -> Result<Vec<UserInfo>, DbErr> {
+    let users = user::Entity::find().all(self.db).await?;
+    let group_user = users
+      .load_many_to_many(group::Entity, group_user::Entity, self.db)
+      .await?;
+
+    let result = users
+      .into_iter()
+      .zip(group_user.into_iter())
+      .map(|(user, groups)| UserInfo {
+        uuid: user.id,
+        name: user.name,
+        email: user.email,
+        avatar: user.avatar,
+        groups: groups
+          .into_iter()
+          .map(|group| SimpleGroupInfo {
+            uuid: group.id,
+            name: group.name,
+          })
+          .collect(),
+      })
+      .collect();
+
+    Ok(result)
   }
 }
