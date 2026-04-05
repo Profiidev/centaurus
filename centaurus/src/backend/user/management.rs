@@ -19,7 +19,7 @@ use crate::backend::websocket::state::{UpdateMessage, Updater};
 use crate::bail;
 use crate::db::init::Connection;
 use crate::db::tables::ConnectionExt;
-use crate::db::tables::user::{DetailUserInfo, SimpleGroupInfo, UserInfo};
+use crate::db::tables::user::{DetailUserInfo, SimpleGroupInfo, UserListInfo};
 use crate::error::{ErrorReportStatusExt, Result};
 use crate::mail::Mailer;
 
@@ -74,7 +74,7 @@ pub fn reset_user_password_route() -> ApiMethodRouter<()> {
   put_with(reset_user_password, |op| op.id("resetUserPassword"))
 }
 
-async fn list_users(_auth: JwtAuth<UserView>, db: Connection) -> Result<Json<Vec<UserInfo>>> {
+async fn list_users(_auth: JwtAuth<UserView>, db: Connection) -> Result<Json<Vec<UserListInfo>>> {
   let users = db.user().list_users().await?;
   Ok(Json(users))
 }
