@@ -5,8 +5,8 @@ use serde::Serialize;
 use crate::backend::{
   BackendRouter,
   auth::{
-    jwt_state::{JWT_COOKIE_NAME, JwtState},
     jwt_auth::JwtAuth,
+    jwt_state::{JWT_COOKIE_NAME, JwtState},
   },
 };
 

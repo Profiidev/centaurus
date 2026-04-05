@@ -20,9 +20,9 @@ use crate::{
 pub mod config;
 pub mod jwt;
 #[cfg(feature = "sea-orm")]
-pub mod jwt_state;
-#[cfg(feature = "sea-orm")]
 pub mod jwt_auth;
+#[cfg(feature = "sea-orm")]
+pub mod jwt_state;
 #[cfg(feature = "sea-orm")]
 pub mod logout;
 #[cfg(feature = "sea-orm")]
