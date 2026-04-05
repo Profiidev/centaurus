@@ -2,6 +2,8 @@
 pub mod auth;
 pub mod config;
 pub mod init;
+#[cfg(feature = "lettre")]
+pub mod mail;
 pub mod middleware;
 pub mod res;
 pub mod rewrite;
