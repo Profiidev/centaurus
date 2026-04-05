@@ -29,6 +29,8 @@ pub mod state;
 pub use centaurus_derive::Config;
 #[cfg(feature = "sea-orm")]
 pub use centaurus_derive::Settings;
+#[cfg(all(feature = "auth", feature = "axum"))]
+pub use centaurus_derive::UpdateMessage;
 
 // Used for re-reports required by macros
 #[doc(hidden)]
