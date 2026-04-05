@@ -10,6 +10,8 @@ pub mod rewrite;
 pub mod router;
 #[cfg(feature = "sea-orm")]
 pub mod settings;
+#[cfg(feature = "sea-orm")]
+pub mod setup;
 #[cfg(feature = "auth")]
 pub mod websocket;
 
