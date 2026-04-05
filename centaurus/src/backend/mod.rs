@@ -6,6 +6,7 @@ pub mod middleware;
 pub mod res;
 pub mod rewrite;
 pub mod router;
+#[cfg(feature = "auth")]
 pub mod websocket;
 
 #[cfg(not(feature = "openapi"))]

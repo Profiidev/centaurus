@@ -32,6 +32,7 @@ pub fn config(input: TokenStream) -> TokenStream {
 
   let mut base_field: Option<Ident> = None;
   let mut metrics_field: Option<Ident> = None;
+  let mut site_field: Option<Ident> = None;
 
   for field in files {
     for attr in &field.attrs {
@@ -55,6 +56,16 @@ pub fn config(input: TokenStream) -> TokenStream {
           .into();
         }
         metrics_field = field.ident.clone();
+      } else if attr.path().is_ident("site") {
+        if site_field.is_some() {
+          return syn::Error::new_spanned(
+            &field.ident,
+            "Multiple fields with #[site] attribute found",
+          )
+          .to_compile_error()
+          .into();
+        }
+        site_field = field.ident.clone();
       }
     }
   }
@@ -81,6 +92,21 @@ pub fn config(input: TokenStream) -> TokenStream {
     quote! {}
   };
 
+  let site_impl = if cfg!(feature = "site") {
+    let Some(site_field) = site_field else {
+      return syn::Error::new_spanned(&input, "No field with #[site] attribute found")
+        .to_compile_error()
+        .into();
+    };
+    quote! {
+      fn site(&self) -> &#path::backend::config::SiteConfig {
+        &self.#site_field
+      }
+    }
+  } else {
+    quote! {}
+  };
+
   quote! {
     impl #path::backend::config::Config for #name {
       fn base(&self) -> &#path::backend::config::BaseConfig {
@@ -88,6 +114,8 @@ pub fn config(input: TokenStream) -> TokenStream {
       }
 
       #metrics_impl
+
+      #site_impl
     }
   }
   .into()

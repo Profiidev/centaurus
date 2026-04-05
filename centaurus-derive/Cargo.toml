@@ -17,6 +17,7 @@ centaurus-macro-utils = { workspace = true }
 
 [features]
 metrics = []
+site = []
 
 [lib]
 proc-macro = true

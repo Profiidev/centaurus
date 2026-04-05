@@ -66,6 +66,11 @@ where
     );
   }
 
+  #[cfg(feature = "config_site")]
+  {
+    router = router.layer(Extension(config.site().clone()));
+  }
+
   router = state(router, config.clone()).await.layer(Extension(config));
 
   #[cfg(feature = "openapi")]

@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "logging")]
 use tracing::level_filters::LevelFilter;
 
+#[cfg(feature = "config_site")]
+use crate::backend::auth::settings::SiteConfig;
 use crate::serde::{de_str, se_str};
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -37,4 +39,6 @@ pub trait Config: Clone + Send + Sync + 'static {
   fn base(&self) -> &BaseConfig;
   #[cfg(feature = "metrics")]
   fn metrics(&self) -> &MetricsConfig;
+  #[cfg(feature = "config_site")]
+  fn site(&self) -> &SiteConfig;
 }

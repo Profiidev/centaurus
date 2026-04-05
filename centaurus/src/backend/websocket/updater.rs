@@ -10,9 +10,9 @@ use futures_util::StreamExt;
 use tokio::sync::mpsc::Receiver;
 use uuid::Uuid;
 
-use crate::{
-  auth::jwt_auth::JwtAuth,
-  backend::websocket::state::{UpdateMessage, UpdateState},
+use crate::backend::{
+  auth::jwt_state::JwtAuth,
+  websocket::state::{UpdateMessage, UpdateState},
 };
 
 pub fn router<T: UpdateMessage>() -> ApiRouter {

@@ -7,7 +7,10 @@ use std::{
 use crate::{
   backend::{
     BackendRouter,
-    auth::settings::{OidcSettings, UserSettings},
+    auth::{
+      jwt_auth::JwtState,
+      settings::{OidcSettings, SiteConfig, UserSettings},
+    },
     middleware::rate_limiter::RateLimiter,
   },
   bail,
@@ -29,7 +32,6 @@ use jsonwebtoken::{
 };
 use reqwest::{Client, redirect::Policy};
 use rsa::rand_core::OsRng;
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::{spawn, sync::Mutex, time::sleep};
 use tower_governor::GovernorLayer;
@@ -227,7 +229,8 @@ impl OidcConfig {
   }
 }
 
-#[derive(Serialize, JsonSchema)]
+#[derive(Serialize)]
+#[cfg_attr(feature = "openapi", derive(schemars::JsonSchema))]
 struct OidcResponse {
   url: String,
 }
@@ -290,7 +293,8 @@ async fn oidc_url(
   }
 }
 
-#[derive(Deserialize, JsonSchema)]
+#[derive(Deserialize, Clone)]
+#[cfg_attr(feature = "openapi", derive(schemars::JsonSchema))]
 struct OidcCallbackQuery {
   code: Option<String>,
   state: Uuid,
@@ -313,7 +317,7 @@ async fn oidc_callback(
   oidc_state: OidcState,
   cookies: CookieJar,
   db: Connection,
-  app_config: Config,
+  oidc_config: SiteConfig,
   jwt: JwtState,
 ) -> Result<(CookieJar, Redirect)> {
   let mut lock = oidc_state.0.lock().await;
@@ -335,7 +339,7 @@ async fn oidc_callback(
 
   cookies = cookies.remove(Cookie::from(OIDC_STATE));
 
-  let mut url = app_config.site_url;
+  let mut url = oidc_config.site_url;
   url.set_path(path);
   url.set_query(error.map(|e| format!("error={e}")).as_deref());
 
