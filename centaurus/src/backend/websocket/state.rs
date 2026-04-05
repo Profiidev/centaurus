@@ -17,6 +17,8 @@ use uuid::Uuid;
 
 pub trait UpdateMessage: Serialize + DeserializeOwned + Clone + Debug + Send + 'static {
   fn settings() -> Self;
+  fn group(uuid: Uuid) -> Self;
+  fn user_permissions() -> Self;
 }
 
 #[derive(Clone, OperationIo)]
