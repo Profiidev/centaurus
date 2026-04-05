@@ -28,7 +28,8 @@ pub mod setup;
   feature = "sea-orm",
   feature = "auth",
   feature = "gravatar",
-  feature = "image"
+  feature = "image",
+  feature = "lettre"
 ))]
 pub mod user;
 #[cfg(all(feature = "auth", feature = "sea-orm"))]

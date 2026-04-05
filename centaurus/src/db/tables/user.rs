@@ -12,7 +12,7 @@ pub struct UserTable<'db> {
 
 #[derive(Serialize, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(schemars::JsonSchema))]
-pub struct UserInfo {
+pub struct UserListInfo {
   pub uuid: Uuid,
   pub name: String,
   pub email: String,
@@ -246,7 +246,7 @@ impl<'db> UserTable<'db> {
     Ok(())
   }
 
-  pub async fn list_users(&self) -> Result<Vec<UserInfo>, DbErr> {
+  pub async fn list_users(&self) -> Result<Vec<UserListInfo>, DbErr> {
     let users = user::Entity::find().all(self.db).await?;
     let group_user = users
       .load_many_to_many(group::Entity, group_user::Entity, self.db)
@@ -255,7 +255,7 @@ impl<'db> UserTable<'db> {
     let result = users
       .into_iter()
       .zip(group_user.into_iter())
-      .map(|(user, groups)| UserInfo {
+      .map(|(user, groups)| UserListInfo {
         uuid: user.id,
         name: user.name,
         email: user.email,
