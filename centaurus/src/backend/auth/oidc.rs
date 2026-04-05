@@ -5,7 +5,11 @@ use std::{
 };
 
 use crate::{
-  backend::{BackendRouter, auth::settings::{OidcSettings, UserSettings}, middleware::rate_limiter::RateLimiter},
+  backend::{
+    BackendRouter,
+    auth::settings::{OidcSettings, UserSettings},
+    middleware::rate_limiter::RateLimiter,
+  },
   bail,
   db::{init::Connection, tables::ConnectionExt},
   error::{ErrorReportStatusExt, Result},
