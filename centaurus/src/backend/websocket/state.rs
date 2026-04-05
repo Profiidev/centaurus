@@ -15,7 +15,9 @@ use tokio::{
 use tracing::debug;
 use uuid::Uuid;
 
-pub trait UpdateMessage: Serialize + DeserializeOwned + Clone + Debug + Send + 'static {}
+pub trait UpdateMessage: Serialize + DeserializeOwned + Clone + Debug + Send + 'static {
+  fn settings() -> Self;
+}
 
 #[derive(Clone, OperationIo)]
 pub struct UpdateState<T: UpdateMessage> {

@@ -8,6 +8,8 @@ pub mod middleware;
 pub mod res;
 pub mod rewrite;
 pub mod router;
+#[cfg(feature = "sea-orm")]
+pub mod settings;
 #[cfg(feature = "auth")]
 pub mod websocket;
 
