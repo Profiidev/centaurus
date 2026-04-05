@@ -2,6 +2,17 @@ pub trait Permission {
   fn name() -> &'static str;
 }
 
+pub fn permissions() -> Vec<&'static str> {
+  vec![
+    SettingsView::name(),
+    SettingsEdit::name(),
+    GroupView::name(),
+    GroupEdit::name(),
+    UserView::name(),
+    UserEdit::name(),
+  ]
+}
+
 #[macro_export]
 macro_rules! permission {
   ($type:ident, $name:literal) => {

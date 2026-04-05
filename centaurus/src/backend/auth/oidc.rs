@@ -8,7 +8,7 @@ use crate::{
   backend::{
     BackendRouter,
     auth::{
-      jwt_auth::JwtState,
+      jwt_state::JwtState,
       settings::{OidcSettings, SiteConfig, UserSettings},
     },
     middleware::rate_limiter::RateLimiter,

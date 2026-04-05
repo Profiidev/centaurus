@@ -11,7 +11,7 @@ use tokio::sync::mpsc::Receiver;
 use uuid::Uuid;
 
 use crate::backend::{
-  auth::jwt_state::JwtAuth,
+  auth::jwt_auth::JwtAuth,
   websocket::state::{UpdateMessage, UpdateState},
 };
 

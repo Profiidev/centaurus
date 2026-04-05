@@ -6,7 +6,7 @@ use crate::{
   backend::{
     BackendRouter,
     auth::{
-      jwt_auth::{JwtInvalidState, JwtState},
+      jwt_state::{JwtInvalidState, JwtState},
       oidc::OidcState,
       pw_state::init_pw_state,
       settings::AuthConfig,
@@ -20,9 +20,9 @@ use crate::{
 pub mod config;
 pub mod jwt;
 #[cfg(feature = "sea-orm")]
-pub mod jwt_auth;
-#[cfg(feature = "sea-orm")]
 pub mod jwt_state;
+#[cfg(feature = "sea-orm")]
+pub mod jwt_auth;
 #[cfg(feature = "sea-orm")]
 pub mod logout;
 #[cfg(feature = "sea-orm")]

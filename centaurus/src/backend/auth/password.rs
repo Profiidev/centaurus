@@ -6,7 +6,7 @@ use tracing::debug;
 use uuid::Uuid;
 
 use crate::backend::BackendRouter;
-use crate::backend::auth::jwt_auth::JwtState;
+use crate::backend::auth::jwt_state::JwtState;
 use crate::backend::auth::pw_state::PasswordState;
 use crate::backend::middleware::rate_limiter::RateLimiter;
 use crate::backend::res::TokenRes;
