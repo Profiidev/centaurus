@@ -27,7 +27,7 @@ impl MigrationTrait for Migration {
 }
 
 #[derive(DeriveIden)]
-enum InvalidJwt {
+pub enum InvalidJwt {
   Table,
   Id,
   Token,

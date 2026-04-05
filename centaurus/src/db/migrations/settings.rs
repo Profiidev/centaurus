@@ -26,7 +26,7 @@ impl MigrationTrait for Migration {
 }
 
 #[derive(DeriveIden)]
-enum Settings {
+pub enum Settings {
   Table,
   Id,
   Content,
