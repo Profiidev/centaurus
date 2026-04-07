@@ -8,18 +8,23 @@
   "packageRules": [
     {
       "groupName": "{{manager}}",
-      "matchPackageNames": [
-        "*"
-      ]
+      "matchPackageNames": ["*"]
     },
     {
-      "matchPackageNames": [
-        "/tracing-subscriber/"
-      ],
+      "matchPackageNames": ["/tracing-subscriber/"],
       "enabled": false
     }
   ],
   "semanticCommitType": "chore",
   "automerge": true,
-  "automergeStrategy": "merge-commit"
+  "automergeStrategy": "merge-commit",
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "vulnerabilityFixStrategy": "highest"
+  },
+  "osvVulnerabilityAlerts": true,
+  "dependencyDashboardOSVVulnerabilitySummary": "unresolved",
+  "lockFileMaintenance": {
+    "enabled": true
+  }
 }
