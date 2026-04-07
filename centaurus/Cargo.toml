@@ -84,6 +84,7 @@ sea-orm = [
   "chrono",
   "uuid/v4",
   "uuid",
+  "serde_json"
 ]
 auth = [
   "argon2",
