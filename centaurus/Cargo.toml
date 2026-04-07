@@ -136,7 +136,7 @@ axum-extra = { version = "0.12.5", optional = true, features = [
   "cookie",
 ] }
 tracing = { version = "0.1.44", optional = true, features = ["std"] }
-tracing-subscriber = { version = "=0.3.19", optional = true }
+tracing-subscriber = { version = "=0.3.23", optional = true }
 eyre = { version = "0.6.12", optional = true }
 hmac = { version = "0.13.0", optional = true }
 chrono = { version = "0.4.44", optional = true, features = ["serde"] }
