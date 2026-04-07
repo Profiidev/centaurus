@@ -9,10 +9,6 @@
     {
       "groupName": "{{manager}}",
       "matchPackageNames": ["*"]
-    },
-    {
-      "matchPackageNames": ["/tracing-subscriber/"],
-      "enabled": false
     }
   ],
   "semanticCommitType": "chore",
@@ -26,5 +22,6 @@
   "dependencyDashboardOSVVulnerabilitySummary": "unresolved",
   "lockFileMaintenance": {
     "enabled": true
-  }
+  },
+  "ignoreDeps": ["tracing-subscriber"]
 }
