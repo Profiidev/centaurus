@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-04-07
+
+### 🚀 Features
+
+- Added option to serve metrics over a different port
+
+### 🐛 Bug Fixes
+
+- Feature flags
+- Wrong derive
+- Metrics middleware panic
+- Metrics extraction
+
+### ⚙️ Miscellaneous Tasks
+
+- Enabled renovate lock file maintenance
+
+
+
 ## [0.7.0] - 2026-04-05
 
 ### 🐛 Bug Fixes
