@@ -32,9 +32,20 @@ where
   let mut sub_router = api_router.merge(health::router());
 
   #[cfg(feature = "metrics")]
+  let mut metrics_router = None;
+  #[cfg(feature = "metrics")]
   {
     use crate::backend::middleware::metrics::metrics_route;
-    sub_router = metrics_route(sub_router);
+    if metrics_config.metrics_enabled {
+      if let Some(port) = metrics_config.metrics_port {
+        use crate::backend::init::listener_setup;
+
+        let listener = listener_setup(port).await;
+        metrics_router = Some((metrics_route(BackendRouter::new(), "/"), listener));
+      } else {
+        sub_router = metrics_route(sub_router, "/metrics");
+      }
+    }
   }
 
   router = router.nest("/api", sub_router).layer(
@@ -58,12 +69,35 @@ where
   {
     use crate::backend::middleware::metrics::metrics;
 
-    router = metrics(
-      router,
-      metrics_config.metrics_name.clone(),
-      handle,
-      metrics_config.extra_labels.clone(),
-    );
+    if metrics_config.metrics_enabled {
+      if let Some((mut metrics_router, listener)) = metrics_router {
+        use crate::backend::middleware::metrics::metrics_middleware;
+        router = metrics_middleware(
+          router,
+          metrics_config.metrics_name.clone(),
+          metrics_config.extra_labels.clone(),
+        );
+
+        metrics_router = metrics(metrics_router, metrics_config.metrics_name.clone(), handle);
+
+        tokio::spawn(async move {
+          use crate::backend::init::run_app;
+          use tracing::info;
+
+          info!("Starting metrics server.");
+          run_app(listener, metrics_router).await;
+        });
+      } else {
+        use crate::backend::middleware::metrics::metrics_middleware;
+
+        router = metrics_middleware(
+          router,
+          metrics_config.metrics_name.clone(),
+          metrics_config.extra_labels.clone(),
+        );
+        router = metrics(router, metrics_config.metrics_name.clone(), handle);
+      }
+    }
   }
 
   #[cfg(feature = "config_site")]

@@ -42,11 +42,8 @@ pub fn init_metrics(service_name: String) -> MetricsHandle {
   }
 }
 
-pub fn metrics_route(router: BackendRouter) -> BackendRouter {
-  router.route(
-    "/metrics",
-    get(async |handle: MetricsHandle| handle.render()),
-  )
+pub fn metrics_route(router: BackendRouter, path: &str) -> BackendRouter {
+  router.route(path, get(async |handle: MetricsHandle| handle.render()))
 }
 
 #[derive(Clone, FromRequestParts)]
@@ -58,13 +55,19 @@ pub fn metrics(
   router: BackendRouter,
   metrics_prefix: String,
   handle: MetricsHandle,
-  extra_labels: Vec<(String, String)>,
 ) -> BackendRouter {
   describe_metrics(&metrics_prefix);
+  router.layer(Extension(handle))
+}
+
+pub fn metrics_middleware(
+  router: BackendRouter,
+  metrics_prefix: String,
+  extra_labels: Vec<(String, String)>,
+) -> BackendRouter {
   router
     .layer(from_fn(request_metrics))
     .layer(Extension(MetricsPrefix(metrics_prefix, extra_labels)))
-    .layer(Extension(handle))
 }
 
 fn describe_metrics(prefix: &str) {

@@ -1,6 +1,5 @@
 use std::{ops::Deref, time::Duration};
 
-use axum::{Extension, extract::FromRequestParts};
 use sea_orm::{
   ConnectOptions, ConnectionTrait, Database, DatabaseBackend, DatabaseConnection, Statement,
 };
@@ -9,9 +8,10 @@ use tracing::instrument;
 
 use crate::db::config::DBConfig;
 
-#[derive(FromRequestParts, Clone)]
+#[derive(Clone)]
 #[cfg_attr(feature = "openapi", derive(aide::OperationIo))]
-#[from_request(via(Extension))]
+#[cfg_attr(feature = "axum", derive(axum::extract::FromRequestParts))]
+#[cfg_attr(feature = "axum", from_request(via(axum::Extension)))]
 pub struct Connection(pub DatabaseConnection);
 
 impl Deref for Connection {
