@@ -89,6 +89,9 @@ where
           run_app(listener, metrics_router).await;
         });
       } else {
+        use crate::backend::middleware::metrics::metrics_middleware;
+
+        router = metrics_middleware(router);
         router = metrics(
           router,
           metrics_config.metrics_name.clone(),

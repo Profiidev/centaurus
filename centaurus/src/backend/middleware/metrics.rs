@@ -59,7 +59,6 @@ pub fn metrics(
 ) -> BackendRouter {
   describe_metrics(&metrics_prefix);
   router
-    .layer(from_fn(request_metrics))
     .layer(Extension(MetricsPrefix(metrics_prefix, extra_labels)))
     .layer(Extension(handle))
 }
