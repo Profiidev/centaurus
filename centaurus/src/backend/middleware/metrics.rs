@@ -55,16 +55,19 @@ pub fn metrics(
   router: BackendRouter,
   metrics_prefix: String,
   handle: MetricsHandle,
-  extra_labels: Vec<(String, String)>,
 ) -> BackendRouter {
   describe_metrics(&metrics_prefix);
-  router
-    .layer(Extension(MetricsPrefix(metrics_prefix, extra_labels)))
-    .layer(Extension(handle))
+  router.layer(Extension(handle))
 }
 
-pub fn metrics_middleware(router: BackendRouter) -> BackendRouter {
-  router.layer(from_fn(request_metrics))
+pub fn metrics_middleware(
+  router: BackendRouter,
+  metrics_prefix: String,
+  extra_labels: Vec<(String, String)>,
+) -> BackendRouter {
+  router
+    .layer(from_fn(request_metrics))
+    .layer(Extension(MetricsPrefix(metrics_prefix, extra_labels)))
 }
 
 fn describe_metrics(prefix: &str) {

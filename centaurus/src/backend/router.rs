@@ -72,14 +72,13 @@ where
     if metrics_config.metrics_enabled {
       if let Some((mut metrics_router, listener)) = metrics_router {
         use crate::backend::middleware::metrics::metrics_middleware;
-        router = metrics_middleware(router);
-
-        metrics_router = metrics(
-          metrics_router,
+        router = metrics_middleware(
+          router,
           metrics_config.metrics_name.clone(),
-          handle,
           metrics_config.extra_labels.clone(),
         );
+
+        metrics_router = metrics(metrics_router, metrics_config.metrics_name.clone(), handle);
 
         tokio::spawn(async move {
           use crate::backend::init::run_app;
@@ -91,13 +90,12 @@ where
       } else {
         use crate::backend::middleware::metrics::metrics_middleware;
 
-        router = metrics_middleware(router);
-        router = metrics(
+        router = metrics_middleware(
           router,
           metrics_config.metrics_name.clone(),
-          handle,
           metrics_config.extra_labels.clone(),
         );
+        router = metrics(router, metrics_config.metrics_name.clone(), handle);
       }
     }
   }
