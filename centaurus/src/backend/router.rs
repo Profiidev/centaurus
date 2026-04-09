@@ -1,3 +1,6 @@
+#[cfg(feature = "openapi")]
+use std::sync::Arc;
+
 use axum::{Extension, Router};
 use tower::ServiceBuilder;
 
@@ -117,7 +120,7 @@ where
       )
       .route("/openapi.json", axum::routing::get(api_spec))
       .finish_api(&mut api)
-      .layer(Extension(api))
+      .layer(Extension(Arc::new(api)))
   }
 
   #[cfg(not(feature = "openapi"))]
@@ -126,7 +129,7 @@ where
 
 #[cfg(feature = "openapi")]
 async fn api_spec(
-  Extension(api): Extension<aide::openapi::OpenApi>,
+  Extension(api): Extension<Arc<aide::openapi::OpenApi>>,
 ) -> axum::Json<aide::openapi::OpenApi> {
-  axum::Json(api)
+  axum::Json((*api).clone())
 }
