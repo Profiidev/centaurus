@@ -26,6 +26,7 @@ pub struct DetailUserInfo {
   pub uuid: Uuid,
   pub name: String,
   pub email: String,
+  pub avatar: Option<String>,
   pub groups: Vec<SimpleGroupInfo>,
   pub permissions: Vec<String>,
 }
@@ -189,6 +190,7 @@ impl<'db> UserTable<'db> {
       uuid: user.id,
       name: user.name,
       email: user.email,
+      avatar: user.avatar,
       groups,
       permissions,
     }))
