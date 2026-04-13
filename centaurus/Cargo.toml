@@ -107,6 +107,7 @@ proxy = ["axum", "dep:hyper-util"]
 gravatar = ["dep:md5", "reqwest", "base64"]
 lettre = ["dep:lettre", "serde", "error", "http"]
 config_site = ["centaurus-derive/site"]
+http3 = ["reqwest/http3"]
 
 argon2 = ["dep:argon2"]
 base64 = ["dep:base64"]
