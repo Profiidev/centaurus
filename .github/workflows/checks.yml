@@ -29,5 +29,5 @@ jobs:
         with:
           rustfmt: true
           clippy: true
-          clippy_args: "--all-features"
+          clippy_args: "--all-features --cfg reqwest_unstable"
           auto_fix: true
