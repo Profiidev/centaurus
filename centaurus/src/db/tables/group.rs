@@ -197,8 +197,8 @@ impl<'db> GroupTable<'db> {
 
     let result = groups
       .into_iter()
-      .zip(group_user.into_iter())
-      .zip(group_permissions.into_iter())
+      .zip(group_user)
+      .zip(group_permissions)
       .map(|((group, users), permissions)| GroupInfo {
         id: group.id,
         name: group.name,
