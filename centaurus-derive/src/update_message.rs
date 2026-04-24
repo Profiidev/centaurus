@@ -69,7 +69,7 @@ pub fn update_message(input: TokenStream) -> TokenStream {
 
   let path = centaurus_path();
   quote! {
-      impl #path::backend::websocket::state::UpdateMessage for #name {
+      impl #path::backend::endpoints::websocket::state::UpdateMessage for #name {
           fn settings() -> Self { #settings }
           fn group(uuid: uuid::Uuid) -> Self { #group }
           fn user(uuid: uuid::Uuid) -> Self { #user }
