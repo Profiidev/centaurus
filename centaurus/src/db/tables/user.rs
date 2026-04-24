@@ -1,9 +1,13 @@
+use eyre::ContextCompat;
 use sea_orm::{Set, prelude::*};
 use serde::{Deserialize, Serialize};
 
-use crate::db::{
-  entities::{group, group_user, user},
-  tables::group::{GroupTable, SimpleUserInfo},
+use crate::{
+  db::{
+    entities::{group, group_user, user},
+    tables::group::{GroupTable, SimpleUserInfo},
+  },
+  error::Result,
 };
 
 pub struct UserTable<'db> {
@@ -51,7 +55,7 @@ impl<'db> UserTable<'db> {
     email: String,
     password: String,
     salt: String,
-  ) -> crate::error::Result<Uuid> {
+  ) -> Result<Uuid> {
     use sea_orm::IntoActiveModel;
 
     #[cfg(feature = "avatar")]
@@ -100,34 +104,34 @@ impl<'db> UserTable<'db> {
     Ok(ret.id)
   }
 
-  pub async fn try_get_user_by_email(&self, email: &str) -> Result<Option<user::Model>, DbErr> {
-    user::Entity::find()
-      .filter(user::Column::Email.eq(email.to_string()))
-      .one(self.db)
-      .await
+  pub async fn try_get_user_by_email(&self, email: &str) -> Result<Option<user::Model>> {
+    Ok(
+      user::Entity::find()
+        .filter(user::Column::Email.eq(email.to_string()))
+        .one(self.db)
+        .await?,
+    )
   }
 
-  pub async fn get_user_by_email(&self, email: &str) -> Result<user::Model, DbErr> {
-    self
-      .try_get_user_by_email(email)
-      .await?
-      .ok_or(DbErr::RecordNotFound(format!(
-        "User with email {} not found",
-        email
-      )))
+  pub async fn get_user_by_email(&self, email: &str) -> Result<user::Model> {
+    Ok(
+      self
+        .try_get_user_by_email(email)
+        .await?
+        .context(format!("User with email {} not found", email))?,
+    )
   }
 
-  pub async fn get_user_by_id(&self, id: Uuid) -> Result<user::Model, DbErr> {
-    user::Entity::find_by_id(id)
-      .one(self.db)
-      .await?
-      .ok_or(DbErr::RecordNotFound(format!(
-        "User with id {} not found",
-        id
-      )))
+  pub async fn get_user_by_id(&self, id: Uuid) -> Result<user::Model> {
+    Ok(
+      user::Entity::find_by_id(id)
+        .one(self.db)
+        .await?
+        .context(format!("User with id {} not found", id))?,
+    )
   }
 
-  pub async fn update_user_password(&self, id: Uuid, new_password: String) -> Result<(), DbErr> {
+  pub async fn update_user_password(&self, id: Uuid, new_password: String) -> Result<()> {
     let mut user: user::ActiveModel = self.get_user_by_id(id).await?.into();
 
     user.password = Set(new_password);
@@ -137,7 +141,7 @@ impl<'db> UserTable<'db> {
     Ok(())
   }
 
-  pub async fn update_user_name(&self, id: Uuid, new_name: String) -> Result<(), DbErr> {
+  pub async fn update_user_name(&self, id: Uuid, new_name: String) -> Result<()> {
     let mut user: user::ActiveModel = self.get_user_by_id(id).await?.into();
 
     user.name = Set(new_name);
@@ -147,7 +151,7 @@ impl<'db> UserTable<'db> {
     Ok(())
   }
 
-  pub async fn list_users_simple(&self) -> Result<Vec<SimpleUserInfo>, DbErr> {
+  pub async fn list_users_simple(&self) -> Result<Vec<SimpleUserInfo>> {
     let users = user::Entity::find().all(self.db).await?;
 
     Ok(
@@ -161,7 +165,7 @@ impl<'db> UserTable<'db> {
     )
   }
 
-  pub async fn get_user_groups(&self, user_id: Uuid) -> Result<Vec<SimpleGroupInfo>, DbErr> {
+  pub async fn get_user_groups(&self, user_id: Uuid) -> Result<Vec<SimpleGroupInfo>> {
     let groups = group_user::Entity::find()
       .filter(group_user::Column::UserId.eq(user_id))
       .find_also_related(group::Entity)
@@ -179,7 +183,7 @@ impl<'db> UserTable<'db> {
     Ok(groups)
   }
 
-  pub async fn user_info(&self, user_id: Uuid) -> Result<Option<DetailUserInfo>, DbErr> {
+  pub async fn user_info(&self, user_id: Uuid) -> Result<Option<DetailUserInfo>> {
     let user = user::Entity::find_by_id(user_id).one(self.db).await?;
     let Some(user) = user else {
       return Ok(None);
@@ -201,7 +205,7 @@ impl<'db> UserTable<'db> {
     }))
   }
 
-  pub async fn delete_user(&self, user_id: Uuid) -> Result<(), DbErr> {
+  pub async fn delete_user(&self, user_id: Uuid) -> Result<()> {
     user::Entity::delete_by_id(user_id).exec(self.db).await?;
     Ok(())
   }
@@ -211,7 +215,7 @@ impl<'db> UserTable<'db> {
     user_id: Uuid,
     new_name: String,
     new_groups: Vec<Uuid>,
-  ) -> Result<(), DbErr> {
+  ) -> Result<()> {
     let mut user: user::ActiveModel = self.get_user_by_id(user_id).await?.into();
 
     user.name = Set(new_name);
@@ -234,7 +238,7 @@ impl<'db> UserTable<'db> {
   }
 
   #[cfg(feature = "avatar")]
-  pub async fn update_user_avatar(&self, id: Uuid, new_avatar: String) -> Result<(), DbErr> {
+  pub async fn update_user_avatar(&self, id: Uuid, new_avatar: String) -> Result<()> {
     let mut user: user::ActiveModel = self.get_user_by_id(id).await?.into();
 
     user.avatar = Set(Some(new_avatar));
@@ -245,7 +249,7 @@ impl<'db> UserTable<'db> {
   }
 
   #[cfg(feature = "avatar")]
-  pub async fn reset_avatar(&self, user_id: Uuid) -> Result<(), DbErr> {
+  pub async fn reset_avatar(&self, user_id: Uuid) -> Result<()> {
     let mut user: user::ActiveModel = self.get_user_by_id(user_id).await?.into();
 
     user.avatar = Set(None);
@@ -255,7 +259,7 @@ impl<'db> UserTable<'db> {
     Ok(())
   }
 
-  pub async fn list_users(&self) -> Result<Vec<UserListInfo>, DbErr> {
+  pub async fn list_users(&self) -> Result<Vec<UserListInfo>> {
     let users = user::Entity::find().all(self.db).await?;
     let group_user = users
       .load_many_to_many(group::Entity, group_user::Entity, self.db)

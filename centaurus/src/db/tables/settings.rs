@@ -2,7 +2,7 @@ use sea_orm::{IntoActiveModel, Set, prelude::*};
 
 use crate::{
   db::{entities::settings, settings::Settings},
-  error::ErrorReport,
+  error::Result,
 };
 
 pub struct SettingsTable<'db> {
@@ -14,7 +14,7 @@ impl<'db> SettingsTable<'db> {
     Self { db }
   }
 
-  pub async fn get_settings<S: Settings>(&self) -> Result<S, ErrorReport> {
+  pub async fn get_settings<S: Settings>(&self) -> Result<S> {
     let res = settings::Entity::find_by_id(S::id()).one(self.db).await?;
     let Some(model) = res else {
       return Ok(S::default());
@@ -23,7 +23,7 @@ impl<'db> SettingsTable<'db> {
     Ok(serde_json::from_str(&model.content)?)
   }
 
-  pub async fn save_settings<S: Settings>(&self, settings: &S) -> Result<(), ErrorReport> {
+  pub async fn save_settings<S: Settings>(&self, settings: &S) -> Result<()> {
     let content = serde_json::to_string(settings)?;
 
     match settings::Entity::find_by_id(S::id()).one(self.db).await? {
