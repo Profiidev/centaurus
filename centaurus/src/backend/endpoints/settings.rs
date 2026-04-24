@@ -1,25 +1,36 @@
-use aide::axum::ApiRouter;
 use aide::axum::routing::{ApiMethodRouter, get_with, post_with};
 use axum::Json;
 use http::StatusCode;
 
+use crate::backend::BackendRouter;
 use crate::backend::auth::jwt_auth::JwtAuth;
 use crate::backend::auth::oidc::OidcState;
 use crate::backend::auth::permission::{SettingsEdit, SettingsView};
 use crate::backend::auth::settings::UserSettings;
-use crate::backend::websocket::state::{UpdateMessage, Updater};
+use crate::backend::endpoints::websocket::state::{UpdateMessage, Updater};
 use crate::db::init::Connection;
 use crate::db::settings::Settings;
 use crate::db::tables::ConnectionExt;
 use crate::error::{ErrorReportStatusExt, Result};
+#[cfg(feature = "mail")]
 use crate::mail::{MailSettings, Mailer};
 
-pub fn router<T: UpdateMessage>() -> ApiRouter {
-  ApiRouter::new()
+pub fn router<T: UpdateMessage>() -> BackendRouter {
+  let router = BackendRouter::new()
     .api_route("/user", get_user_settings_route())
-    .api_route("/user", save_user_settings_route::<T>())
-    .api_route("/mail", get_mail_settings_route())
-    .api_route("/mail", save_mail_settings_route::<T>())
+    .api_route("/user", save_user_settings_route::<T>());
+
+  #[cfg(feature = "mail")]
+  {
+    router
+      .api_route("/mail", get_mail_settings_route())
+      .api_route("/mail", save_mail_settings_route::<T>())
+  }
+
+  #[cfg(not(feature = "mail"))]
+  {
+    router
+  }
 }
 
 pub fn get_user_settings_route() -> ApiMethodRouter<()> {
@@ -30,10 +41,12 @@ pub fn save_user_settings_route<T: UpdateMessage>() -> ApiMethodRouter<()> {
   post_with(save_user_settings::<T>, |op| op.id("saveUserSettings"))
 }
 
+#[cfg(feature = "mail")]
 pub fn get_mail_settings_route() -> ApiMethodRouter<()> {
   get_with(get_settings::<MailSettings>, |op| op.id("getMailSettings"))
 }
 
+#[cfg(feature = "mail")]
 pub fn save_mail_settings_route<T: UpdateMessage>() -> ApiMethodRouter<()> {
   post_with(save_mail_settings::<T>, |op| op.id("saveMailSettings"))
 }
@@ -79,6 +92,7 @@ async fn save_user_settings<T: UpdateMessage>(
   Ok(())
 }
 
+#[cfg(feature = "mail")]
 async fn save_mail_settings<T: UpdateMessage>(
   _auth: JwtAuth<SettingsEdit>,
   db: Connection,

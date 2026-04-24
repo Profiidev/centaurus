@@ -11,7 +11,7 @@ keywords = []
 readme = "README.md"
 
 [features]
-default = ["backend", "db"]
+default = ["endpoints"]
 
 db = [
   "serde",
@@ -26,10 +26,10 @@ db = [
 ]
 
 openapi = ["dep:aide", "dep:schemars", "schemars/uuid1", "schemars/url2", "backend"]
-
 backend = ["error", "tokio", "http", "serde", "serde_json", "dep:axum", "dep:axum-extra", "dep:tower", "dep:tower-http", "dep:tracing", "dep:dashmap", "dep:governor", "dep:tower_governor", "dep:async-trait", "dep:tower-service", "dep:url", "dep:addr"]
-
 auth = ["base64", "rsa", "argon2", "url/serde"]
+endpoints = ["backend", "openapi", "auth", "db", "config_site", "mail", "dep:futures-util", "dep:rand"]
+
 logging = [
   "dep:color-eyre",
   "dep:tracing-error",

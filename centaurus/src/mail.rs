@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
 use eyre::Context;
+#[cfg(feature = "http")]
+use http::StatusCode;
 use lettre::{
   AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
   message::{Mailbox, header::ContentType},
@@ -35,8 +37,8 @@ pub struct SmtpSettings {
 
 #[derive(Clone)]
 #[cfg_attr(feature = "openapi", derive(aide::OperationIo))]
-#[cfg_attr(feature = "axum", derive(axum::extract::FromRequestParts))]
-#[cfg_attr(feature = "axum", from_request(via(axum::extract::Extension)))]
+#[cfg_attr(feature = "backend", derive(axum::extract::FromRequestParts))]
+#[cfg_attr(feature = "backend", from_request(via(axum::extract::Extension)))]
 pub struct Mailer(Arc<Mutex<Option<MailConfig>>>);
 
 struct MailConfig {

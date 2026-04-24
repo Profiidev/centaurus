@@ -1,5 +1,5 @@
 use crate::{
-  backend::{mail::state::ResetPasswordState, middleware::rate_limiter::RateLimiter},
+  backend::{endpoints::mail::state::ResetPasswordState, middleware::rate_limiter::RateLimiter},
   db::{init::Connection, tables::ConnectionExt},
   mail::{MailSettings, Mailer},
 };

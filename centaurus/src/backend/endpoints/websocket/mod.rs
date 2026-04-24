@@ -2,7 +2,7 @@ use axum::Extension;
 
 use crate::backend::{
   BackendRouter,
-  websocket::state::{UpdateMessage, UpdateState},
+  endpoints::websocket::state::{UpdateMessage, UpdateState},
 };
 
 pub mod state;

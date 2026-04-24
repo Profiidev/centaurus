@@ -10,6 +10,7 @@ impl MigrationTrait for Migration {
   async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
     manager
       .create_table({
+        #[allow(unused_mut)]
         let mut table = Table::create()
           .table(User::Table)
           .if_not_exists()

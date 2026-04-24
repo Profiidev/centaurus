@@ -10,7 +10,7 @@ use crate::{
 use aide::axum::routing::post_with;
 use aide::axum::{ApiRouter, routing::ApiMethodRouter};
 
-use crate::backend::mail::template;
+use crate::backend::endpoints::mail::template;
 
 pub fn router() -> ApiRouter {
   ApiRouter::new().api_route("/", test_mail_route())
