@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-04-24
+
+### 🚀 Features
+
+- Added http3 feature
+
+### 🐛 Bug Fixes
+
+- Image feature flags
+- File names
+- Update message derive
+
+### 🚜 Refactor
+
+- Migration numbering
+- Db feature flags
+- Backend req + middleware
+- Endpoints
+- Auth feature flags
+- Deps order
+- Use error report
+
+### ⚙️ Miscellaneous Tasks
+
+- Fix code style issues with clippy
+- Added feature test
+- Fix code style issues with rustfmt
+
+
+
 ## [0.9.1] - 2026-04-09
 
 ### 🐛 Bug Fixes
