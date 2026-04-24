@@ -23,10 +23,12 @@ pub mod mail;
 #[cfg(feature = "serde")]
 pub mod serde;
 
+#[cfg(feature = "backend")]
+pub use centaurus_derive::Config;
 #[cfg(feature = "db")]
 pub use centaurus_derive::Settings;
-#[cfg(feature = "backend")]
-pub use centaurus_derive::{Config, UpdateMessage};
+#[cfg(feature = "endpoints")]
+pub use centaurus_derive::UpdateMessage;
 
 // Used for re-reports required by macros
 #[doc(hidden)]
