@@ -11,6 +11,7 @@ pub use http;
 pub mod backend;
 #[cfg(feature = "db")]
 pub mod db;
+#[cfg(feature = "error")]
 pub mod error;
 pub mod file;
 #[cfg(feature = "gravatar")]

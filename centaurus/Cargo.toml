@@ -189,7 +189,7 @@ logging = [
   "dep:tracing-subscriber",
   "serde",
 ]
-mail = ["dep:lettre", "error", "tokio"]
+mail = ["dep:lettre", "error", "serde", "tokio"]
 
 config_site = ["centaurus-derive/site", "url"]
 error = ["dep:eyre"]

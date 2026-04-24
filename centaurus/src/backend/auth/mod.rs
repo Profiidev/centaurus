@@ -1,18 +1,18 @@
-#[cfg(feature = "db")]
+#[cfg(feature = "endpoints")]
 use axum::Extension;
-#[cfg(feature = "db")]
+#[cfg(feature = "endpoints")]
 use rsa::{
   RsaPrivateKey,
   pkcs1::{DecodeRsaPrivateKey, EncodeRsaPrivateKey},
   pkcs8::LineEnding,
   rand_core::OsRng,
 };
-#[cfg(feature = "db")]
+#[cfg(feature = "endpoints")]
 use tracing::info;
-#[cfg(feature = "db")]
+#[cfg(feature = "endpoints")]
 use uuid::Uuid;
 
-#[cfg(feature = "db")]
+#[cfg(feature = "endpoints")]
 use crate::{
   backend::{
     BackendRouter,
@@ -26,27 +26,27 @@ use crate::{
   db::{init::Connection, tables::ConnectionExt},
 };
 
-#[cfg(feature = "db")]
+#[cfg(feature = "endpoints")]
 pub mod config;
 pub mod jwt;
-#[cfg(feature = "db")]
+#[cfg(feature = "endpoints")]
 pub mod jwt_auth;
-#[cfg(feature = "db")]
+#[cfg(feature = "endpoints")]
 pub mod jwt_state;
-#[cfg(feature = "db")]
+#[cfg(feature = "endpoints")]
 pub mod logout;
-#[cfg(feature = "db")]
+#[cfg(feature = "endpoints")]
 pub mod oidc;
-#[cfg(feature = "db")]
+#[cfg(feature = "endpoints")]
 pub mod password;
-#[cfg(feature = "db")]
+#[cfg(feature = "endpoints")]
 pub mod permission;
 pub mod pw_state;
 pub mod settings;
-#[cfg(feature = "db")]
+#[cfg(feature = "endpoints")]
 pub mod test_token;
 
-#[cfg(feature = "db")]
+#[cfg(feature = "endpoints")]
 pub fn router(rate_limiter: &mut RateLimiter) -> BackendRouter {
   let router = BackendRouter::new()
     .nest("/password", password::router(rate_limiter))
@@ -63,7 +63,7 @@ pub fn router(rate_limiter: &mut RateLimiter) -> BackendRouter {
   router
 }
 
-#[cfg(feature = "db")]
+#[cfg(feature = "endpoints")]
 pub async fn state(router: BackendRouter, config: &AuthConfig, db: &Connection) -> BackendRouter {
   #[cfg(feature = "avatar")]
   use crate::backend::auth::oidc::OidcState;
@@ -86,7 +86,7 @@ pub async fn state(router: BackendRouter, config: &AuthConfig, db: &Connection) 
   router
 }
 
-#[cfg(feature = "db")]
+#[cfg(feature = "endpoints")]
 pub async fn init_pw_state(config: &AuthConfig, db: &Connection) -> PasswordState {
   let key = if let Ok(key) = db.key().get_key_by_name("password".into()).await {
     RsaPrivateKey::from_pkcs1_pem(&key.private_key).expect("Failed to parse private password key")
