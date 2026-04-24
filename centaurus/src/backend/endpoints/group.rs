@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::backend::auth::jwt_auth::JwtAuth;
 use crate::backend::auth::permission::{GroupEdit, GroupView};
-use crate::backend::websocket::state::{UpdateMessage, Updater};
+use crate::backend::endpoints::websocket::state::{UpdateMessage, Updater};
 use crate::bail;
 use crate::db::init::Connection;
 use crate::db::tables::ConnectionExt;

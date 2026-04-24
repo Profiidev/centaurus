@@ -12,6 +12,15 @@ pub struct Manifest {
   crate_name: String,
 }
 
+impl Manifest {
+  pub fn crate_name(crate_name: &str) -> Self {
+    Self {
+      crate_name: crate_name.to_string(),
+      ..Default::default()
+    }
+  }
+}
+
 impl Default for Manifest {
   fn default() -> Self {
     Self {

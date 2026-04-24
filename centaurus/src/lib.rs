@@ -1,15 +1,15 @@
-#[cfg(feature = "axum")]
+#[cfg(feature = "backend")]
 pub use axum;
-#[cfg(feature = "axum")]
+#[cfg(feature = "backend")]
 pub use axum_extra;
 #[cfg(feature = "error")]
 pub use eyre;
 #[cfg(feature = "http")]
 pub use http;
 
-#[cfg(feature = "axum")]
+#[cfg(feature = "backend")]
 pub mod backend;
-#[cfg(feature = "sea-orm")]
+#[cfg(feature = "db")]
 pub mod db;
 #[cfg(feature = "error")]
 pub mod error;
@@ -18,19 +18,15 @@ pub mod file;
 pub mod gravatar;
 #[cfg(feature = "logging")]
 pub mod logging;
-#[cfg(feature = "lettre")]
+#[cfg(feature = "mail")]
 pub mod mail;
-pub mod req;
 #[cfg(feature = "serde")]
 pub mod serde;
-pub mod state;
 
-#[cfg(feature = "axum")]
-pub use centaurus_derive::Config;
-#[cfg(feature = "sea-orm")]
+#[cfg(feature = "db")]
 pub use centaurus_derive::Settings;
-#[cfg(all(feature = "auth", feature = "axum"))]
-pub use centaurus_derive::UpdateMessage;
+#[cfg(feature = "backend")]
+pub use centaurus_derive::{Config, UpdateMessage};
 
 // Used for re-reports required by macros
 #[doc(hidden)]

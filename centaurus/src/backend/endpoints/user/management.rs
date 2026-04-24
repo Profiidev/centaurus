@@ -14,8 +14,8 @@ use crate::backend::auth::jwt_auth::JwtAuth;
 use crate::backend::auth::permission::{UserEdit, UserView};
 use crate::backend::auth::pw_state::PasswordState;
 use crate::backend::config::SiteConfig;
-use crate::backend::user::template;
-use crate::backend::websocket::state::{UpdateMessage, Updater};
+use crate::backend::endpoints::user::template;
+use crate::backend::endpoints::websocket::state::{UpdateMessage, Updater};
 use crate::bail;
 use crate::db::init::Connection;
 use crate::db::tables::ConnectionExt;
@@ -26,7 +26,12 @@ use crate::mail::Mailer;
 const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789)(*&^%$#@!~";
 
 pub fn router<T: UpdateMessage>() -> ApiRouter {
-  ApiRouter::new()
+  #[cfg(feature = "avatar")]
+  let router = ApiRouter::new().api_route("/avatar", reset_user_avatar_route::<T>());
+  #[cfg(not(feature = "avatar"))]
+  let router = ApiRouter::new();
+
+  router
     .api_route("/", list_users_route())
     .api_route("/", create_user_route::<T>())
     .api_route("/", delete_user_route::<T>())
@@ -34,7 +39,6 @@ pub fn router<T: UpdateMessage>() -> ApiRouter {
     .api_route("/{uuid}", user_info_route())
     .api_route("/mail", mail_active_route())
     .api_route("/groups", list_groups_simple_route())
-    .api_route("/avatar", reset_user_avatar_route::<T>())
     .api_route("/password", reset_user_password_route())
 }
 
@@ -66,6 +70,7 @@ pub fn list_groups_simple_route() -> ApiMethodRouter<()> {
   get_with(list_groups_simple, |op| op.id("listGroupsSimple"))
 }
 
+#[cfg(feature = "avatar")]
 pub fn reset_user_avatar_route<T: UpdateMessage>() -> ApiMethodRouter<()> {
   delete_with(reset_user_avatar::<T>, |op| op.id("resetUserAvatar"))
 }
@@ -278,11 +283,13 @@ async fn edit_user<T: UpdateMessage>(
   Ok(())
 }
 
+#[cfg(feature = "avatar")]
 #[derive(Deserialize, JsonSchema)]
 struct UserAvatarResetRequest {
   uuid: Uuid,
 }
 
+#[cfg(feature = "avatar")]
 async fn reset_user_avatar<T: UpdateMessage>(
   _auth: JwtAuth<UserEdit>,
   db: Connection,

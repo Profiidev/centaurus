@@ -1,0 +1,41 @@
+name: Feature Check
+on:
+  pull_request:
+
+jobs:
+  linters:
+    name: Run linters
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      contents: write
+    strategy:
+      matrix:
+        feature:
+          - mail
+          - logging
+          - backend
+          - db
+          - auth
+          - error
+          - backend,auth
+          - backend,db,auth
+          - backend,db,auth,frontend
+          - endpoints
+          - endpoints,frontend
+          - endpoints,frontend,avatar
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          components: rustfmt,clippy
+
+      - name: Cache cargo and rust files
+        id: rust_cache
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          cache-on-failure: true
+          shared-key: "linter_cache-${{ matrix.feature }}"
+
+      - name: Run Clippy
+        run: cargo clippy --features "${{ matrix.feature }}" --no-default-features -- -D warnings

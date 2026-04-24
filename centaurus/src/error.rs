@@ -3,7 +3,7 @@ use std::{
   num::ParseIntError,
 };
 
-#[cfg(feature = "axum")]
+#[cfg(feature = "backend")]
 use axum::{
   extract::{
     multipart::{MultipartError, MultipartRejection},
@@ -11,7 +11,7 @@ use axum::{
   },
   response::{IntoResponse, Response},
 };
-#[cfg(feature = "axum")]
+#[cfg(feature = "backend")]
 use axum_extra::typed_header::TypedHeaderRejection;
 #[cfg(feature = "hmac")]
 use hmac::digest::InvalidLength;
@@ -20,6 +20,7 @@ use http::StatusCode;
 
 pub type Result<T> = std::result::Result<T, ErrorReport>;
 
+#[cfg(feature = "http")]
 #[macro_export]
 macro_rules! anyhow {
   ($status:ident, $msg:literal) => {
@@ -42,6 +43,21 @@ macro_rules! anyhow {
   };
 }
 
+#[cfg(not(feature = "http"))]
+#[macro_export]
+macro_rules! anyhow {
+  ($msg:literal) => {
+    $crate::error::ErrorReport::new($crate::eyre::eyre!($msg))
+  };
+  ($err:expr) => {
+    $crate::error::ErrorReport::new($crate::eyre::eyre!($err))
+  };
+  ($fmt:expr, $($arg:tt)*) => {
+    $crate::error::ErrorReport::new($crate::eyre::eyre!($fmt, $($arg)*))
+  };
+}
+
+#[cfg(feature = "http")]
 #[macro_export]
 macro_rules! bail {
   ($status:ident, $msg:literal) => {
@@ -58,6 +74,20 @@ macro_rules! bail {
   };
   ($status:ident, $fmt:expr, $($arg:tt)*) => {
     return $crate::private::Err($crate::anyhow!($status, $fmt, $($arg)*));
+  };
+  ($fmt:expr, $($arg:tt)*) => {
+    return $crate::private::Err($crate::anyhow!($fmt, $($arg)*));
+  };
+}
+
+#[cfg(not(feature = "http"))]
+#[macro_export]
+macro_rules! bail {
+  ($msg:literal) => {
+    return $crate::private::Err($crate::anyhow!($msg));
+  };
+  ($err:expr) => {
+    return $crate::private::Err($crate::anyhow!($err));
   };
   ($fmt:expr, $($arg:tt)*) => {
     return $crate::private::Err($crate::anyhow!($fmt, $($arg)*));
@@ -139,7 +169,7 @@ impl_from_error!(
 );
 #[cfg(feature = "jsonwebtoken")]
 impl_from_error!(jsonwebtoken::errors::Error, StatusCode::BAD_REQUEST);
-#[cfg(feature = "sea-orm")]
+#[cfg(feature = "db")]
 impl_from_error!(sea_orm::DbErr, StatusCode::INTERNAL_SERVER_ERROR);
 #[cfg(feature = "serde_xml")]
 impl_from_error!(serde_xml_rs::Error, StatusCode::BAD_REQUEST);
@@ -148,19 +178,19 @@ impl_from_error!(serde_json::Error, StatusCode::BAD_REQUEST);
 
 #[cfg(feature = "http")]
 impl_from_error!(http::header::InvalidHeaderValue, StatusCode::BAD_REQUEST);
-#[cfg(feature = "axum")]
+#[cfg(feature = "backend")]
 impl_from_error!(TypedHeaderRejection, StatusCode::BAD_REQUEST);
-#[cfg(feature = "axum")]
+#[cfg(feature = "backend")]
 impl_from_error!(BytesRejection, StatusCode::BAD_REQUEST);
 #[cfg(feature = "hmac")]
 impl_from_error!(InvalidLength, StatusCode::INTERNAL_SERVER_ERROR);
-#[cfg(feature = "axum")]
+#[cfg(feature = "backend")]
 impl_from_error!(MultipartRejection, StatusCode::BAD_REQUEST);
-#[cfg(feature = "axum")]
+#[cfg(feature = "backend")]
 impl_from_error!(MultipartError, StatusCode::BAD_REQUEST);
 #[cfg(feature = "reqwest")]
 impl_from_error!(reqwest::Error, StatusCode::INTERNAL_SERVER_ERROR);
-#[cfg(feature = "lettre")]
+#[cfg(feature = "mail")]
 impl_from_error!(lettre::error::Error, StatusCode::INTERNAL_SERVER_ERROR);
 #[cfg(feature = "k8s")]
 impl_from_error!(kube::Error, StatusCode::INTERNAL_SERVER_ERROR);
@@ -263,7 +293,7 @@ impl<T, E: Into<ErrorReport>> ErrorReportExt<T> for std::result::Result<T, E> {
   }
 }
 
-#[cfg(feature = "axum")]
+#[cfg(feature = "backend")]
 impl IntoResponse for ErrorReport {
   fn into_response(self) -> Response {
     #[cfg(feature = "logging")]

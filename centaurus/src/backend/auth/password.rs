@@ -10,7 +10,7 @@ use crate::backend::BackendRouter;
 use crate::backend::auth::jwt_state::JwtState;
 use crate::backend::auth::pw_state::PasswordState;
 use crate::backend::middleware::rate_limiter::RateLimiter;
-use crate::backend::res::TokenRes;
+use crate::backend::request::response::TokenRes;
 use crate::bail;
 use crate::db::init::Connection;
 use crate::db::tables::ConnectionExt;

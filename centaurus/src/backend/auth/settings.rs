@@ -3,8 +3,8 @@ use url::Url;
 
 #[derive(Serialize, Deserialize, Debug)]
 #[cfg_attr(feature = "openapi", derive(schemars::JsonSchema))]
-#[cfg_attr(feature = "sea-orm", derive(crate::Settings))]
-#[cfg_attr(feature = "sea-orm", settings(id = 2))]
+#[cfg_attr(feature = "db", derive(crate::Settings))]
+#[cfg_attr(feature = "db", settings(id = 2))]
 pub struct UserSettings {
   pub oidc: Option<OidcSettings>,
   pub sso_instant_redirect: bool,

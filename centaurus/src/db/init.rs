@@ -10,8 +10,8 @@ use crate::db::config::DBConfig;
 
 #[derive(Clone)]
 #[cfg_attr(feature = "openapi", derive(aide::OperationIo))]
-#[cfg_attr(feature = "axum", derive(axum::extract::FromRequestParts))]
-#[cfg_attr(feature = "axum", from_request(via(axum::Extension)))]
+#[cfg_attr(feature = "backend", derive(axum::extract::FromRequestParts))]
+#[cfg_attr(feature = "backend", from_request(via(axum::Extension)))]
 pub struct Connection(pub DatabaseConnection);
 
 impl Deref for Connection {

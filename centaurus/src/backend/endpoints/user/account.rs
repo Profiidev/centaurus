@@ -1,9 +1,12 @@
 use aide::axum::routing::{ApiMethodRouter, post_with};
+#[cfg(feature = "avatar")]
 use image::{ImageFormat, imageops::FilterType};
+#[cfg(feature = "avatar")]
 use std::io::Cursor;
 
 use aide::axum::ApiRouter;
 use axum::Json;
+#[cfg(feature = "avatar")]
 use base64::prelude::*;
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -12,8 +15,8 @@ use tower_governor::GovernorLayer;
 use crate::{
   backend::{
     auth::{jwt_auth::JwtAuth, pw_state::PasswordState},
+    endpoints::websocket::state::{UpdateMessage, Updater},
     middleware::rate_limiter::RateLimiter,
-    websocket::state::{UpdateMessage, Updater},
   },
   bail,
   db::{init::Connection, tables::ConnectionExt},
@@ -21,13 +24,18 @@ use crate::{
 };
 
 pub fn router<T: UpdateMessage>(rate_limiter: &mut RateLimiter) -> ApiRouter {
-  ApiRouter::new()
-    .api_route("/avatar", update_avatar_route::<T>())
+  #[cfg(feature = "avatar")]
+  let router = ApiRouter::new().api_route("/avatar", update_avatar_route::<T>());
+  #[cfg(not(feature = "avatar"))]
+  let router = ApiRouter::new();
+
+  router
     .api_route("/password", update_password_route())
     .layer(GovernorLayer::new(rate_limiter.create_limiter()))
     .api_route("/update", update_account_route::<T>())
 }
 
+#[cfg(feature = "avatar")]
 pub fn update_avatar_route<T: UpdateMessage>() -> ApiMethodRouter<()> {
   post_with(update_avatar::<T>, |op| op.id("updateAvatar"))
 }
@@ -62,11 +70,13 @@ async fn update_account<T: UpdateMessage>(
   Ok(())
 }
 
+#[cfg(feature = "avatar")]
 #[derive(Deserialize, JsonSchema)]
 struct AvatarUpdate {
   avatar: String,
 }
 
+#[cfg(feature = "avatar")]
 async fn update_avatar<T: UpdateMessage>(
   auth: JwtAuth,
   db: Connection,

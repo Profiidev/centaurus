@@ -1,4 +1,6 @@
-use crate::backend::{middleware::rate_limiter::RateLimiter, websocket::state::UpdateMessage};
+use crate::backend::{
+  endpoints::websocket::state::UpdateMessage, middleware::rate_limiter::RateLimiter,
+};
 use aide::axum::ApiRouter;
 
 pub mod account;

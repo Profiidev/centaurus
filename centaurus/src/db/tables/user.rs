@@ -16,6 +16,7 @@ pub struct UserListInfo {
   pub uuid: Uuid,
   pub name: String,
   pub email: String,
+  #[cfg(feature = "avatar")]
   pub avatar: Option<String>,
   pub groups: Vec<SimpleGroupInfo>,
 }
@@ -26,6 +27,7 @@ pub struct DetailUserInfo {
   pub uuid: Uuid,
   pub name: String,
   pub email: String,
+  #[cfg(feature = "avatar")]
   pub avatar: Option<String>,
   pub groups: Vec<SimpleGroupInfo>,
   pub permissions: Vec<String>,
@@ -43,7 +45,6 @@ impl<'db> UserTable<'db> {
     Self { db }
   }
 
-  #[cfg(all(feature = "image", feature = "gravatar"))]
   pub async fn create_user(
     &self,
     username: String,
@@ -53,7 +54,9 @@ impl<'db> UserTable<'db> {
   ) -> crate::error::Result<Uuid> {
     use sea_orm::IntoActiveModel;
 
+    #[cfg(feature = "avatar")]
     let url = crate::gravatar::get_gravatar_url(&email);
+    #[cfg(feature = "avatar")]
     let data = match reqwest::get(&url).await {
       Ok(response) => {
         if response.status().is_success() {
@@ -87,6 +90,7 @@ impl<'db> UserTable<'db> {
       email,
       password,
       salt,
+      #[cfg(feature = "avatar")]
       avatar: data,
     }
     .into_active_model();
@@ -190,6 +194,7 @@ impl<'db> UserTable<'db> {
       uuid: user.id,
       name: user.name,
       email: user.email,
+      #[cfg(feature = "avatar")]
       avatar: user.avatar,
       groups,
       permissions,
@@ -228,6 +233,7 @@ impl<'db> UserTable<'db> {
     Ok(())
   }
 
+  #[cfg(feature = "avatar")]
   pub async fn update_user_avatar(&self, id: Uuid, new_avatar: String) -> Result<(), DbErr> {
     let mut user: user::ActiveModel = self.get_user_by_id(id).await?.into();
 
@@ -238,6 +244,7 @@ impl<'db> UserTable<'db> {
     Ok(())
   }
 
+  #[cfg(feature = "avatar")]
   pub async fn reset_avatar(&self, user_id: Uuid) -> Result<(), DbErr> {
     let mut user: user::ActiveModel = self.get_user_by_id(user_id).await?.into();
 
@@ -261,6 +268,7 @@ impl<'db> UserTable<'db> {
         uuid: user.id,
         name: user.name,
         email: user.email,
+        #[cfg(feature = "avatar")]
         avatar: user.avatar,
         groups: groups
           .into_iter()

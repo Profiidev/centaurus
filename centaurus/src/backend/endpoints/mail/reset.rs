@@ -2,7 +2,7 @@ use crate::{
   backend::{
     auth::pw_state::PasswordState,
     config::SiteConfig,
-    mail::{state::ResetPasswordState, template},
+    endpoints::mail::{state::ResetPasswordState, template},
   },
   db::{init::Connection, tables::ConnectionExt},
   mail::Mailer,

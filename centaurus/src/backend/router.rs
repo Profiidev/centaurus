@@ -6,9 +6,8 @@ use tower::ServiceBuilder;
 
 #[cfg(feature = "metrics")]
 use crate::backend::middleware::metrics::init_metrics;
-use crate::{
-  backend::{BackendRouter, config::Config, middleware::rate_limiter::RateLimiter},
-  req::health,
+use crate::backend::{
+  BackendRouter, config::Config, endpoints::health, middleware::rate_limiter::RateLimiter,
 };
 
 pub async fn build_router<R, S, C, F>(router: R, state: S, config: C) -> Router

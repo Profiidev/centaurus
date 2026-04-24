@@ -13,11 +13,11 @@ use crate::{
     },
     config::SiteConfig,
     middleware::rate_limiter::RateLimiter,
+    request::redirect::Redirect,
   },
   bail,
   db::{init::Connection, tables::ConnectionExt},
   error::{ErrorReportStatusExt, Result},
-  req::redirect::Redirect,
 };
 use aide::OperationIo;
 use argon2::password_hash::SaltString;

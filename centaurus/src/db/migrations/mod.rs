@@ -1,6 +1,6 @@
-pub mod groups;
-pub mod invalid_jwt;
-pub mod key;
-pub mod settings;
-pub mod setup;
-pub mod user;
+pub mod m0_key;
+pub mod m1_invalid_jwt;
+pub mod m2_settings;
+pub mod m3_user;
+pub mod m4_groups;
+pub mod m5_setup;

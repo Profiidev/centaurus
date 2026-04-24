@@ -13,7 +13,7 @@ use uuid::Uuid;
 use crate::backend::{
   BackendRouter,
   auth::jwt_auth::JwtAuth,
-  websocket::state::{UpdateMessage, UpdateState},
+  endpoints::websocket::state::{UpdateMessage, UpdateState},
 };
 
 pub fn router<T: UpdateMessage>() -> BackendRouter {

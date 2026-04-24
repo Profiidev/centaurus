@@ -2,13 +2,13 @@
 name = "centaurus-macro-utils"
 version = "0.1.0"
 edition = "2024"
-license = "MIT OR Apache-2.0"
 description = "Macro utilities for the centaurus"
+readme = "README.md"
 repository = "https://github.com/Profiidev/centaurus"
+license = "MIT OR Apache-2.0"
+keywords = []
 categories = []
 exclude = ["CHANGELOG.md"]
-keywords = []
-readme = "README.md"
 
 [dependencies]
 syn = { version = "2.0.117", features = ["full"] }
