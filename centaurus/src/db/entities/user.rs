@@ -9,6 +9,7 @@ pub struct Model {
   pub email: String,
   pub password: String,
   pub salt: String,
+  #[cfg(feature = "avatar")]
   pub avatar: Option<String>,
 }
 

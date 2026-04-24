@@ -11,29 +11,23 @@ keywords = []
 readme = "README.md"
 
 [features]
-default = ["axum", "logging", "metrics", "frontend"]
-all = [
-  "logging",
-  "axum",
-  "argon2",
-  "base64",
-  "chrono",
-  "hmac",
-  "http",
-  "jsonwebtoken",
-  "rsa",
-  "sea-orm",
-  "tokio",
-  "uuid",
-  "reqwest",
-  "metrics",
+default = ["db", "avatar", "mail", "logging"]
+
+db = [
+  "serde",
+  "serde_json",
   "error",
-  "auth",
-  "k8s",
-  "docker",
-  "frontend",
-  "url",
+  "chrono",
+  "uuid",
+  "uuid/v4",
+  "dep:sea-orm",
+  "dep:sea-orm-migration",
+  "dep:tracing",
 ]
+
+openapi = ["dep:aide", "dep:schemars", "schemars/uuid1", "schemars/url2", "backend"]
+
+backend = []
 
 logging = [
   "dep:color-eyre",
@@ -42,88 +36,67 @@ logging = [
   "dep:tracing",
   "serde",
 ]
-axum = [
-  "http",
-  "tokio",
-  "dep:axum",
-  "dep:tower-http",
-  "dep:tower",
-  "dep:axum-extra",
-  "error",
-  "serde_json",
-  "serde_xml",
-  "serde",
-  "dep:thiserror",
-  "dep:async-trait",
-  "dep:governor",
-  "dep:tower_governor",
-  "dep:dashmap",
-  "dep:tower-service",
-  "dep:addr",
-  "dep:url",
-  "dep:futures-util",
-  "config_site",
-  "url/serde",
-  "uuid",
-  "uuid/v4",
-  "openapi",
-]
-openapi = ["dep:aide", "dep:schemars", "schemars/uuid1", "schemars/url2"]
-metrics = [
-  "dep:metrics",
-  "dep:metrics-exporter-prometheus",
-  "centaurus-derive/metrics",
-]
-error = ["dep:eyre"]
-sea-orm = [
-  "dep:sea-orm",
-  "dep:tracing",
-  "dep:sea-orm-migration",
-  "serde",
-  "error",
-  "chrono",
-  "uuid/v4",
-  "uuid",
-  "serde_json"
-]
-auth = [
-  "argon2",
+avatar = [
+  "db",
   "base64",
-  "error",
-  "rsa",
-  "serde",
-  "url",
-  "url/serde",
-  "jsonwebtoken",
   "reqwest",
-  "dep:time",
-  "rand",
+  "image",
+  "gravatar",
 ]
-serde = ["dep:serde"]
-k8s = ["dep:k8s-openapi", "dep:kube"]
-docker = ["dep:bollard"]
-frontend = ["proxy"]
-proxy = ["axum", "dep:hyper-util"]
-gravatar = ["dep:md5", "reqwest", "base64"]
-lettre = ["dep:lettre", "serde", "error", "http"]
-config_site = ["centaurus-derive/site"]
-http3 = ["reqwest/http3"]
+mail = ["dep:lettre", "error", "tokio"]
 
-argon2 = ["dep:argon2"]
-base64 = ["dep:base64"]
+error = ["dep:eyre"]
+http3 = ["reqwest/http3"]
+gravatar = ["dep:md5"]
+tokio = ["dep:tokio"]
+
+# separate features for error impl
+serde = ["dep:serde"]
+serde_json = ["dep:serde_json"]
 chrono = ["dep:chrono"]
+uuid = ["dep:uuid"]
 hmac = ["dep:hmac"]
 http = ["dep:http"]
-jsonwebtoken = ["dep:jsonwebtoken"]
-rsa = ["dep:rsa"]
-tokio = ["dep:tokio"]
-uuid = ["dep:uuid"]
-reqwest = ["dep:reqwest"]
-webauthn = ["dep:webauthn-rs-core"]
-image = ["dep:image"]
 url = ["dep:url"]
-serde_json = ["dep:serde_json"]
+docker = ["dep:bollard"]
+image = ["dep:image"]
+webauthn = ["dep:webauthn-rs-core"]
+base64 = ["dep:base64"]
+rsa = ["dep:rsa"]
+argon2 = ["dep:argon2"]
+jsonwebtoken = ["dep:jsonwebtoken"]
 serde_xml = ["dep:serde-xml-rs"]
+reqwest = ["dep:reqwest"]
+k8s = ["dep:k8s-openapi", "dep:kube"]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+frontend = ["proxy"]
+proxy = ["axum", "dep:hyper-util"]
+config_site = ["centaurus-derive/site"]
+
+
 
 [dependencies]
 centaurus-derive = { workspace = true }

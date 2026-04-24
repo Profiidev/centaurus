@@ -9,8 +9,8 @@ const EMAIL_INDEX_NAME: &str = "user.user_email";
 impl MigrationTrait for Migration {
   async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
     manager
-      .create_table(
-        Table::create()
+      .create_table({
+        let mut table = Table::create()
           .table(User::Table)
           .if_not_exists()
           .col(pk_uuid(User::Id))
@@ -18,9 +18,15 @@ impl MigrationTrait for Migration {
           .col(string(User::Email))
           .col(string(User::Password))
           .col(string(User::Salt))
-          .col(string_null(User::Avatar))
-          .to_owned(),
-      )
+          .to_owned();
+
+        #[cfg(feature = "avatar")]
+        {
+          table = table.col(string_null(User::Avatar)).to_owned();
+        }
+
+        table
+      })
       .await?;
 
     manager
@@ -55,5 +61,6 @@ pub enum User {
   Email,
   Password,
   Salt,
+  #[cfg(feature = "avatar")]
   Avatar,
 }
