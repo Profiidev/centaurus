@@ -11,7 +11,7 @@ keywords = []
 readme = "README.md"
 
 [features]
-default = ["db", "avatar", "mail", "logging"]
+default = ["backend", "db"]
 
 db = [
   "serde",
@@ -27,8 +27,9 @@ db = [
 
 openapi = ["dep:aide", "dep:schemars", "schemars/uuid1", "schemars/url2", "backend"]
 
-backend = []
+backend = ["error", "tokio", "http", "serde", "serde_json", "dep:axum", "dep:axum-extra", "dep:tower", "dep:tower-http", "dep:tracing", "dep:dashmap", "dep:governor", "dep:tower_governor", "dep:async-trait", "dep:tower-service", "dep:url", "dep:addr"]
 
+auth = ["base64", "rsa", "argon2", "url/serde"]
 logging = [
   "dep:color-eyre",
   "dep:tracing-error",
@@ -45,10 +46,14 @@ avatar = [
 ]
 mail = ["dep:lettre", "error", "tokio"]
 
+proxy = ["backend", "dep:hyper-util"]
+req_xml = ["serde_xml", "dep:thiserror"]
+config_site = ["centaurus-derive/site", "url"]
 error = ["dep:eyre"]
 http3 = ["reqwest/http3"]
 gravatar = ["dep:md5"]
 tokio = ["dep:tokio"]
+frontend = ["proxy"]
 
 # separate features for error impl
 serde = ["dep:serde"]
@@ -92,9 +97,6 @@ k8s = ["dep:k8s-openapi", "dep:kube"]
 
 
 
-frontend = ["proxy"]
-proxy = ["axum", "dep:hyper-util"]
-config_site = ["centaurus-derive/site"]
 
 
 

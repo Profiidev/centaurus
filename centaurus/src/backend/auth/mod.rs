@@ -1,18 +1,18 @@
-#[cfg(feature = "sea-orm")]
+#[cfg(feature = "db")]
 use axum::Extension;
-#[cfg(feature = "sea-orm")]
+#[cfg(feature = "db")]
 use rsa::{
   RsaPrivateKey,
   pkcs1::{DecodeRsaPrivateKey, EncodeRsaPrivateKey},
   pkcs8::LineEnding,
   rand_core::OsRng,
 };
-#[cfg(feature = "sea-orm")]
+#[cfg(feature = "db")]
 use tracing::info;
-#[cfg(feature = "sea-orm")]
+#[cfg(feature = "db")]
 use uuid::Uuid;
 
-#[cfg(feature = "sea-orm")]
+#[cfg(feature = "db")]
 use crate::{
   backend::{
     BackendRouter,
@@ -26,27 +26,27 @@ use crate::{
   db::{init::Connection, tables::ConnectionExt},
 };
 
-#[cfg(all(feature = "sea-orm", feature = "image", feature = "gravatar"))]
+#[cfg(feature = "db")]
 pub mod config;
 pub mod jwt;
-#[cfg(feature = "sea-orm")]
+#[cfg(feature = "db")]
 pub mod jwt_auth;
-#[cfg(feature = "sea-orm")]
+#[cfg(feature = "db")]
 pub mod jwt_state;
-#[cfg(feature = "sea-orm")]
+#[cfg(feature = "db")]
 pub mod logout;
-#[cfg(all(feature = "sea-orm", feature = "image", feature = "gravatar"))]
+#[cfg(feature = "db")]
 pub mod oidc;
-#[cfg(feature = "sea-orm")]
+#[cfg(feature = "db")]
 pub mod password;
-#[cfg(feature = "sea-orm")]
+#[cfg(feature = "db")]
 pub mod permission;
 pub mod pw_state;
 pub mod settings;
-#[cfg(feature = "sea-orm")]
+#[cfg(feature = "db")]
 pub mod test_token;
 
-#[cfg(feature = "sea-orm")]
+#[cfg(feature = "db")]
 pub fn router(rate_limiter: &mut RateLimiter) -> BackendRouter {
   let router = BackendRouter::new()
     .nest("/password", password::router(rate_limiter))
@@ -63,7 +63,7 @@ pub fn router(rate_limiter: &mut RateLimiter) -> BackendRouter {
   router
 }
 
-#[cfg(feature = "sea-orm")]
+#[cfg(feature = "db")]
 pub async fn state(router: BackendRouter, config: &AuthConfig, db: &Connection) -> BackendRouter {
   #[cfg(all(feature = "image", feature = "gravatar"))]
   use crate::backend::auth::oidc::OidcState;
@@ -86,7 +86,7 @@ pub async fn state(router: BackendRouter, config: &AuthConfig, db: &Connection) 
   router
 }
 
-#[cfg(feature = "sea-orm")]
+#[cfg(feature = "db")]
 pub async fn init_pw_state(config: &AuthConfig, db: &Connection) -> PasswordState {
   let key = if let Ok(key) = db.key().get_key_by_name("password".into()).await {
     RsaPrivateKey::from_pkcs1_pem(&key.private_key).expect("Failed to parse private password key")

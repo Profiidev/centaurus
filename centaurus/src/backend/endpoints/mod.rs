@@ -1,0 +1,13 @@
+#[cfg(feature = "db")]
+pub mod group;
+pub mod health;
+#[cfg(feature = "db")]
+pub mod mail;
+#[cfg(feature = "db")]
+pub mod settings;
+#[cfg(feature = "db")]
+pub mod setup;
+#[cfg(feature = "db")]
+pub mod user;
+#[cfg(feature = "db")]
+pub mod websocket;
