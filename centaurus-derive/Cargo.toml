@@ -2,23 +2,23 @@
 name = "centaurus-derive"
 version = "0.1.2"
 edition = "2024"
-license = "MIT OR Apache-2.0"
 description = "A utility library for various use cases."
+readme = "README.md"
 repository = "https://github.com/Profiidev/centaurus"
+license = "MIT OR Apache-2.0"
+keywords = []
 categories = []
 exclude = ["CHANGELOG.md"]
-keywords = []
-readme = "README.md"
+
+[lib]
+path = "src/lib.rs"
+proc-macro = true
 
 [dependencies]
+centaurus-macro-utils = { workspace = true }
 quote = "1.0.45"
 syn = { version = "2.0.117", features = ["full"] }
-centaurus-macro-utils = { workspace = true }
 
 [features]
 metrics = []
 site = []
-
-[lib]
-proc-macro = true
-path = "src/lib.rs"

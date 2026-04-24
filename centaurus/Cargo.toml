@@ -2,174 +2,219 @@
 name = "centaurus"
 version = "0.9.1"
 edition = "2024"
-license = "MIT OR Apache-2.0"
 description = "A utility library for various use cases."
+readme = "README.md"
 repository = "https://github.com/Profiidev/centaurus"
+license = "MIT OR Apache-2.0"
+keywords = []
 categories = []
 exclude = ["CHANGELOG.md"]
-keywords = []
-readme = "README.md"
 
-[features]
-default = ["endpoints"]
-
-db = [
-  "serde",
-  "serde_json",
-  "error",
-  "chrono",
-  "uuid",
-  "uuid/v4",
-  "dep:sea-orm",
-  "dep:sea-orm-migration",
-  "dep:tracing",
-]
-
-openapi = ["dep:aide", "dep:schemars", "schemars/uuid1", "schemars/url2", "backend"]
-backend = ["error", "tokio", "http", "serde", "serde_json", "dep:axum", "dep:axum-extra", "dep:tower", "dep:tower-http", "dep:tracing", "dep:dashmap", "dep:governor", "dep:tower_governor", "dep:async-trait", "dep:tower-service", "dep:url", "dep:addr"]
-auth = ["base64", "rsa", "argon2", "url/serde", "jsonwebtoken", "reqwest", "dep:time"]
-endpoints = ["backend", "openapi", "auth", "db", "config_site", "mail", "dep:futures-util", "dep:rand"]
-
-logging = [
-  "dep:color-eyre",
-  "dep:tracing-error",
-  "dep:tracing-subscriber",
-  "dep:tracing",
-  "serde",
-]
-avatar = [
-  "db",
-  "base64",
-  "reqwest",
-  "image",
-  "gravatar",
-]
-mail = ["dep:lettre", "error", "tokio"]
-
-proxy = ["backend", "dep:hyper-util"]
-req_xml = ["serde_xml", "dep:thiserror"]
-config_site = ["centaurus-derive/site", "url"]
-error = ["dep:eyre"]
-http3 = ["reqwest/http3"]
-gravatar = ["dep:md5"]
-tokio = ["dep:tokio"]
-frontend = ["proxy"]
-
-# separate features for error impl
-serde = ["dep:serde"]
-serde_json = ["dep:serde_json"]
-chrono = ["dep:chrono"]
-uuid = ["dep:uuid"]
-hmac = ["dep:hmac"]
-http = ["dep:http"]
-url = ["dep:url"]
-docker = ["dep:bollard"]
-image = ["dep:image"]
-webauthn = ["dep:webauthn-rs-core"]
-base64 = ["dep:base64"]
-rsa = ["dep:rsa"]
-argon2 = ["dep:argon2"]
-jsonwebtoken = ["dep:jsonwebtoken"]
-serde_xml = ["dep:serde-xml-rs"]
-reqwest = ["dep:reqwest"]
-k8s = ["dep:k8s-openapi", "dep:kube"]
+[lib]
+path = "src/lib.rs"
 
 [dependencies]
-centaurus-derive = { workspace = true }
-axum = { version = "0.8.8", optional = true, features = [
-  "multipart",
+addr = { version = "0.15.6", optional = true }
+aide = { version = "0.16.0-alpha.3", features = [
+  "axum",
+  "axum-extra",
+  "axum-extra-cookie",
+  "axum-extra-headers",
+  "axum-json",
+  "axum-query",
+  "axum-tokio",
+  "axum-ws",
   "macros",
-  "ws",
-  "tracing",
-] }
-axum-extra = { version = "0.12.5", optional = true, features = [
-  "typed-header",
-  "cookie",
-] }
-tracing = { version = "0.1.44", optional = true, features = ["std"] }
-tracing-subscriber = { version = "=0.3.19", optional = true }
-eyre = { version = "0.6.12", optional = true }
-hmac = { version = "0.13.0", optional = true }
-chrono = { version = "0.4.44", optional = true, features = ["serde"] }
-serde-xml-rs = { version = "0.8.2", optional = true }
-http = { version = "1.4.0", optional = true }
-argon2 = { version = "0.5.3", optional = true, features = ["std"] }
-base64 = { version = "0.22.1", optional = true }
-jsonwebtoken = { version = "10.3.0", optional = true, features = [
-  "rust_crypto",
-] }
-rsa = { version = "0.9.10", optional = true }
-sea-orm = { version = "1.1.20", optional = true, features = [
-  "sqlx-postgres",
-  "runtime-tokio-rustls",
-] }
-color-eyre = { version = "0.6.5", optional = true }
-tracing-error = { version = "0.2.1", optional = true }
-tower-http = { version = "0.6.8", optional = true, features = [
-  "trace",
-  "cors",
-] }
-tokio = { version = "1.51.0", features = ["full"], optional = true }
-tower = { version = "0.5.3", optional = true }
-thiserror = { version = "2.0.18", optional = true }
-serde = { version = "1.0.228", features = ["derive"], optional = true }
-serde_json = { version = "1.0.149", optional = true }
-uuid = { version = "1.23.0", optional = true }
-reqwest = { version = "0.13.2", optional = true, features = [
-  "http2",
-  "system-proxy",
-  "charset",
-  "json",
-  "form",
-], default-features = false }
-metrics-exporter-prometheus = { version = "0.18.1", optional = true, default-features = false }
-metrics = { version = "0.24.3", optional = true }
-sea-orm-migration = { version = "1.1.20", optional = true }
-lettre = { version = "0.11.21", default-features = false, features = [
-  "smtp-transport",
-  "rustls",
-  "builder",
-  "rustls-native-certs",
-  "ring",
-  "tokio1-rustls",
+  "swagger",
 ], optional = true }
-webauthn-rs-core = { version = "0.5.4", default-features = false, optional = true }
-image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "webp"], optional = true }
-kube = { version = "3.1.0", features = ["runtime", "derive"], optional = true }
+argon2 = { version = "0.5.3", features = ["std"], optional = true }
+async-trait = { version = "0.1.89", optional = true }
+axum = { version = "0.8.9", features = [
+  "macros",
+  "multipart",
+  "tracing",
+  "ws",
+], optional = true }
+axum-extra = { version = "0.12.6", features = [
+  "cookie",
+  "typed-header",
+], optional = true }
+base64 = { version = "0.22.1", optional = true }
+bollard = { version = "0.20.2", default-features = false, optional = true }
+centaurus-derive = { workspace = true }
+chrono = { version = "0.4.44", features = ["serde"], optional = true }
+color-eyre = { version = "0.6.5", optional = true }
+dashmap = { version = "6.1.0", optional = true }
+eyre = { version = "0.6.12", optional = true }
+futures-util = { version = "0.3.32", optional = true }
+governor = { version = "0.10.4", optional = true }
+hmac = { version = "0.13.0", optional = true }
+http = { version = "1.4.0", optional = true }
+hyper-util = { version = "0.1.20", features = [
+  "client-legacy",
+], optional = true }
+image = { version = "0.25.10", default-features = false, features = [
+  "jpeg",
+  "png",
+  "webp"
+], optional = true }
+jsonwebtoken = { version = "10.3.0", features = [
+  "rust_crypto",
+], optional = true }
 k8s-openapi = { version = "0.27.1", features = [
   "latest",
   "schemars",
 ], optional = true }
-async-trait = { version = "0.1.89", optional = true }
-bollard = { version = "0.20.2", optional = true, default-features = false }
-hyper-util = { version = "0.1.20", features = [
-  "client-legacy",
+kube = { version = "3.1.0", features = ["derive", "runtime"], optional = true }
+lettre = { version = "0.11.21", default-features = false, features = [
+  "builder",
+  "ring",
+  "rustls",
+  "rustls-native-certs",
+  "smtp-transport",
+  "tokio1-rustls",
 ], optional = true }
-url = { version = "2.5.8", optional = true }
-aide = { version = "0.16.0-alpha.3", features = [
-  "axum",
-  "axum-json",
-  "axum-tokio",
-  "axum-query",
-  "axum-ws",
-  "axum-extra",
-  "axum-extra-cookie",
-  "axum-extra-headers",
-  "macros",
-  "swagger",
-], optional = true }
-tower_governor = { version = "0.8.0", features = [
-  "axum",
-], default-features = false, optional = true }
-governor = { version = "0.10.4", optional = true }
-dashmap = { version = "6.1.0", optional = true }
-tower-service = { version = "0.3.3", optional = true }
-addr = { version = "0.15.6", optional = true }
 md5 = { version = "0.8.0", optional = true }
+metrics = { version = "0.24.3", optional = true }
+metrics-exporter-prometheus = { version = "0.18.1", default-features = false, optional = true }
+rand = { version = "0.10.1", optional = true }
+reqwest = { version = "0.13.2", default-features = false, features = [
+  "charset",
+  "form",
+  "http2",
+  "json",
+  "system-proxy",
+], optional = true }
+rsa = { version = "0.9.10", optional = true }
 schemars = { version = "1.2.1", optional = true }
-futures-util = { version = "0.3.32", optional = true }
+sea-orm = { version = "1.1.20", features = [
+  "runtime-tokio-rustls",
+  "sqlx-postgres",
+], optional = true }
+sea-orm-migration = { version = "1.1.20", optional = true }
+serde = { version = "1.0.228", features = ["derive"], optional = true }
+serde_json = { version = "1.0.149", optional = true }
+serde-xml-rs = { version = "0.8.2", optional = true }
+thiserror = { version = "2.0.18", optional = true }
 time = { version = "0.3.47", optional = true }
-rand = { version = "0.10.0", optional = true }
+tokio = { version = "1.52.1", features = ["full"], optional = true }
+tower = { version = "0.5.3", optional = true }
+tower_governor = { version = "0.8.0", default-features = false, features = [
+  "axum",
+], optional = true }
+tower-http = { version = "0.6.8", features = [
+  "cors",
+  "trace",
+], optional = true }
+tower-service = { version = "0.3.3", optional = true }
+tracing = { version = "0.1.44", features = ["std"], optional = true }
+tracing-error = { version = "0.2.1", optional = true }
+tracing-subscriber = { version = "=0.3.19", optional = true }
+url = { version = "2.5.8", optional = true }
+uuid = { version = "1.23.1", optional = true }
+webauthn-rs-core = { version = "0.5.4", default-features = false, optional = true }
 
-[lib]
-path = "src/lib.rs"
+[features]
+default = []
+
+db = [
+  "chrono",
+  "dep:sea-orm",
+  "dep:sea-orm-migration",
+  "dep:tracing",
+  "error",
+  "serde",
+  "serde_json",
+  "uuid",
+  "uuid/v4",
+]
+
+auth = [
+  "argon2",
+  "base64",
+  "dep:time",
+  "jsonwebtoken",
+  "reqwest",
+  "rsa",
+  "url/serde"
+]
+backend = [
+  "dep:addr",
+  "dep:async-trait",
+  "dep:axum",
+  "dep:axum-extra",
+  "dep:dashmap",
+  "dep:governor",
+  "dep:tower",
+  "dep:tower_governor",
+  "dep:tower-http",
+  "dep:tower-service",
+  "dep:tracing",
+  "dep:url",
+  "error",
+  "http",
+  "serde",
+  "serde_json",
+  "tokio"
+]
+endpoints = [
+  "auth",
+  "backend",
+  "config_site",
+  "db",
+  "dep:futures-util",
+  "dep:rand",
+  "mail",
+  "openapi"
+]
+openapi = [
+  "backend",
+  "dep:aide",
+  "dep:schemars",
+  "schemars/url2",
+  "schemars/uuid1"
+]
+
+avatar = [
+  "base64",
+  "db",
+  "gravatar",
+  "image",
+  "reqwest",
+]
+logging = [
+  "dep:color-eyre",
+  "dep:tracing",
+  "dep:tracing-error",
+  "dep:tracing-subscriber",
+  "serde",
+]
+mail = ["dep:lettre", "error", "tokio"]
+
+config_site = ["centaurus-derive/site", "url"]
+error = ["dep:eyre"]
+frontend = ["proxy"]
+gravatar = ["dep:md5"]
+http3 = ["reqwest/http3"]
+proxy = ["backend", "dep:hyper-util"]
+req_xml = ["dep:thiserror", "serde_xml"]
+tokio = ["dep:tokio"]
+
+argon2 = ["dep:argon2"]
+base64 = ["dep:base64"]
+chrono = ["dep:chrono"]
+docker = ["dep:bollard"]
+hmac = ["dep:hmac"]
+http = ["dep:http"]
+image = ["dep:image"]
+jsonwebtoken = ["dep:jsonwebtoken"]
+k8s = ["dep:k8s-openapi", "dep:kube"]
+reqwest = ["dep:reqwest"]
+rsa = ["dep:rsa"]
+# separate features for error impl
+serde = ["dep:serde"]
+serde_json = ["dep:serde_json"]
+serde_xml = ["dep:serde-xml-rs"]
+url = ["dep:url"]
+uuid = ["dep:uuid"]
+webauthn = ["dep:webauthn-rs-core"]
