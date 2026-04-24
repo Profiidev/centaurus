@@ -283,6 +283,7 @@ async fn edit_user<T: UpdateMessage>(
   Ok(())
 }
 
+#[cfg(feature = "avatar")]
 #[derive(Deserialize, JsonSchema)]
 struct UserAvatarResetRequest {
   uuid: Uuid,

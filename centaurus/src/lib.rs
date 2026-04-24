@@ -34,9 +34,3 @@ pub mod private {
 }
 
 pub const VERSION_HEADER_NAME: &str = "X-Api-Version";
-
-/*
-
-
-pub mod state;
-*/

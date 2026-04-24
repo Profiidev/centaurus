@@ -27,7 +27,7 @@ db = [
 
 openapi = ["dep:aide", "dep:schemars", "schemars/uuid1", "schemars/url2", "backend"]
 backend = ["error", "tokio", "http", "serde", "serde_json", "dep:axum", "dep:axum-extra", "dep:tower", "dep:tower-http", "dep:tracing", "dep:dashmap", "dep:governor", "dep:tower_governor", "dep:async-trait", "dep:tower-service", "dep:url", "dep:addr"]
-auth = ["base64", "rsa", "argon2", "url/serde"]
+auth = ["base64", "rsa", "argon2", "url/serde", "jsonwebtoken", "reqwest", "dep:time"]
 endpoints = ["backend", "openapi", "auth", "db", "config_site", "mail", "dep:futures-util", "dep:rand"]
 
 logging = [
@@ -73,32 +73,6 @@ jsonwebtoken = ["dep:jsonwebtoken"]
 serde_xml = ["dep:serde-xml-rs"]
 reqwest = ["dep:reqwest"]
 k8s = ["dep:k8s-openapi", "dep:kube"]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 [dependencies]
 centaurus-derive = { workspace = true }

@@ -7,7 +7,7 @@ use tracing::debug;
 
 use crate::backend::auth::jwt_auth::JwtAuth;
 use crate::backend::auth::jwt_state::{JWT_COOKIE_NAME, JwtInvalidState, JwtState};
-use crate::backend::res::TokenRes;
+use crate::backend::request::response::TokenRes;
 use crate::db::init::Connection;
 use crate::db::tables::ConnectionExt;
 use crate::error::{ErrorReportStatusExt, Result};

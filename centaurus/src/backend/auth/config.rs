@@ -30,13 +30,13 @@ enum SSOType {
 struct AuthConfig {
   sso_type: SSOType,
   instant_redirect: bool,
-  #[cfg(feature = "lettre")]
+  #[cfg(feature = "mail")]
   mail_enabled: bool,
 }
 
 async fn config(
   oidc: OidcState,
-  #[cfg(feature = "lettre")] mailer: crate::mail::Mailer,
+  #[cfg(feature = "mail")] mailer: crate::mail::Mailer,
   db: Connection,
 ) -> Result<Json<AuthConfig>> {
   let sso_type = if oidc.is_enabled().await {
@@ -46,13 +46,13 @@ async fn config(
   };
 
   let user_settings = db.settings().get_settings::<UserSettings>().await?;
-  #[cfg(feature = "lettre")]
+  #[cfg(feature = "mail")]
   let mail_enabled = mailer.is_active().await;
 
   Ok(Json(AuthConfig {
     sso_type,
     instant_redirect: user_settings.sso_instant_redirect,
-    #[cfg(feature = "lettre")]
+    #[cfg(feature = "mail")]
     mail_enabled,
   }))
 }

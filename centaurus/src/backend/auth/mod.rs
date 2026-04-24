@@ -53,24 +53,24 @@ pub fn router(rate_limiter: &mut RateLimiter) -> BackendRouter {
     .nest("/logout", logout::router())
     .nest("/test_token", test_token::router());
 
-  #[cfg(all(feature = "image", feature = "gravatar"))]
+  #[cfg(feature = "avatar")]
   {
     router
       .nest("/oidc", oidc::router(rate_limiter))
       .nest("/config", config::router())
   }
-  #[cfg(not(all(feature = "image", feature = "gravatar")))]
+  #[cfg(not(feature = "avatar"))]
   router
 }
 
 #[cfg(feature = "db")]
 pub async fn state(router: BackendRouter, config: &AuthConfig, db: &Connection) -> BackendRouter {
-  #[cfg(all(feature = "image", feature = "gravatar"))]
+  #[cfg(feature = "avatar")]
   use crate::backend::auth::oidc::OidcState;
 
   let pw_state = init_pw_state(config, db).await;
   let jwt_state = JwtState::init(config, db).await;
-  #[cfg(all(feature = "image", feature = "gravatar"))]
+  #[cfg(feature = "avatar")]
   let oidc_state = OidcState::new(db).await;
 
   let router = router
@@ -78,11 +78,11 @@ pub async fn state(router: BackendRouter, config: &AuthConfig, db: &Connection) 
     .layer(Extension(jwt_state))
     .layer(Extension(JwtInvalidState::default()));
 
-  #[cfg(all(feature = "image", feature = "gravatar"))]
+  #[cfg(feature = "avatar")]
   {
     router.layer(Extension(oidc_state))
   }
-  #[cfg(not(all(feature = "image", feature = "gravatar")))]
+  #[cfg(not(feature = "avatar"))]
   router
 }
 

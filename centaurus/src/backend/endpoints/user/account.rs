@@ -70,6 +70,7 @@ async fn update_account<T: UpdateMessage>(
   Ok(())
 }
 
+#[cfg(feature = "avatar")]
 #[derive(Deserialize, JsonSchema)]
 struct AvatarUpdate {
   avatar: String,
