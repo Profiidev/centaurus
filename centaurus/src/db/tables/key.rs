@@ -1,6 +1,7 @@
+use eyre::ContextCompat;
 use sea_orm::{ActiveValue::Set, prelude::*};
 
-use crate::db::entities::key;
+use crate::{db::entities::key, error::Result};
 
 pub struct KeyTable<'db> {
   db: &'db DatabaseConnection,
@@ -11,16 +12,16 @@ impl<'db> KeyTable<'db> {
     Self { db }
   }
 
-  pub async fn get_key_by_name(&self, name: String) -> Result<key::Model, DbErr> {
+  pub async fn get_key_by_name(&self, name: String) -> Result<key::Model> {
     let res = key::Entity::find()
-      .filter(key::Column::Name.eq(name))
+      .filter(key::Column::Name.eq(&name))
       .one(self.db)
       .await?;
 
-    res.ok_or(DbErr::RecordNotFound("Not Found".into()))
+    Ok(res.context(format!("Key with name {} not found", name))?)
   }
 
-  pub async fn create_key(&self, name: String, key: String, id: Uuid) -> Result<(), DbErr> {
+  pub async fn create_key(&self, name: String, key: String, id: Uuid) -> Result<()> {
     let model = key::ActiveModel {
       name: Set(name),
       private_key: Set(key),

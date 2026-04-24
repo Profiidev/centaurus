@@ -7,7 +7,7 @@ use chrono::{DateTime, Utc};
 use sea_orm::{ActiveValue::Set, prelude::*};
 use tracing::instrument;
 
-use crate::db::entities::invalid_jwt;
+use crate::{db::entities::invalid_jwt, error::Result};
 
 pub struct InvalidJwtTable<'db> {
   db: &'db DatabaseConnection,
@@ -24,7 +24,7 @@ impl<'db> InvalidJwtTable<'db> {
     token: String,
     exp: DateTime<Utc>,
     invalid_count: Arc<AtomicI32>,
-  ) -> Result<(), DbErr> {
+  ) -> Result<()> {
     let model = invalid_jwt::ActiveModel {
       token: Set(token),
       exp: Set(exp.naive_utc()),
@@ -43,7 +43,7 @@ impl<'db> InvalidJwtTable<'db> {
   }
 
   #[instrument(skip(self))]
-  pub async fn is_token_valid(&self, token: &str) -> Result<bool, DbErr> {
+  pub async fn is_token_valid(&self, token: &str) -> Result<bool> {
     let res = invalid_jwt::Entity::find()
       .filter(invalid_jwt::Column::Token.eq(token))
       .one(self.db)
@@ -53,7 +53,7 @@ impl<'db> InvalidJwtTable<'db> {
   }
 
   #[instrument(skip(self))]
-  pub async fn remove_expired(&self) -> Result<(), DbErr> {
+  pub async fn remove_expired(&self) -> Result<()> {
     invalid_jwt::Entity::delete_many()
       .filter(invalid_jwt::Column::Exp.lt(Utc::now().naive_utc()))
       .exec(self.db)

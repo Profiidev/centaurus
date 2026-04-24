@@ -1,9 +1,12 @@
 use sea_orm::{IntoActiveModel, JoinType, QuerySelect, Set, prelude::*};
 use serde::{Deserialize, Serialize};
 
-use crate::db::{
-  entities::{group, group_permission, group_user, user},
-  tables::user::SimpleGroupInfo,
+use crate::{
+  db::{
+    entities::{group, group_permission, group_user, user},
+    tables::user::SimpleGroupInfo,
+  },
+  error::Result,
 };
 
 pub struct GroupTable<'db> {
@@ -40,7 +43,7 @@ impl<'db> GroupTable<'db> {
     Self { db }
   }
 
-  pub async fn create_group(&self, name: String) -> Result<Uuid, DbErr> {
+  pub async fn create_group(&self, name: String) -> Result<Uuid> {
     let group_id = Uuid::new_v4();
     let model = group::Model { id: group_id, name }.into_active_model();
 
@@ -53,7 +56,7 @@ impl<'db> GroupTable<'db> {
     &self,
     group_id: Uuid,
     permissions: Vec<String>,
-  ) -> Result<(), DbErr> {
+  ) -> Result<()> {
     let mut models = Vec::new();
 
     for permission in permissions {
@@ -76,7 +79,7 @@ impl<'db> GroupTable<'db> {
     Ok(())
   }
 
-  pub async fn get_group_permissions(&self, group_id: Uuid) -> Result<Vec<String>, DbErr> {
+  pub async fn get_group_permissions(&self, group_id: Uuid) -> Result<Vec<String>> {
     let permissions = group_permission::Entity::find()
       .filter(group_permission::Column::GroupId.eq(group_id))
       .all(self.db)
@@ -88,7 +91,7 @@ impl<'db> GroupTable<'db> {
     Ok(permissions)
   }
 
-  pub async fn get_group_users(&self, group_id: Uuid) -> Result<Vec<SimpleUserInfo>, DbErr> {
+  pub async fn get_group_users(&self, group_id: Uuid) -> Result<Vec<SimpleUserInfo>> {
     let users = group_user::Entity::find()
       .filter(group_user::Column::GroupId.eq(group_id))
       .find_also_related(user::Entity)
@@ -106,7 +109,7 @@ impl<'db> GroupTable<'db> {
     Ok(users)
   }
 
-  pub async fn get_group_users_ids(&self, group_id: Uuid) -> Result<Vec<Uuid>, DbErr> {
+  pub async fn get_group_users_ids(&self, group_id: Uuid) -> Result<Vec<Uuid>> {
     let user_ids = group_user::Entity::find()
       .filter(group_user::Column::GroupId.eq(group_id))
       .all(self.db)
@@ -118,7 +121,7 @@ impl<'db> GroupTable<'db> {
     Ok(user_ids)
   }
 
-  pub async fn add_user_to_groups(&self, user_id: Uuid, group_ids: Vec<Uuid>) -> Result<(), DbErr> {
+  pub async fn add_user_to_groups(&self, user_id: Uuid, group_ids: Vec<Uuid>) -> Result<()> {
     let mut models = Vec::new();
 
     for group_id in group_ids {
@@ -137,7 +140,7 @@ impl<'db> GroupTable<'db> {
     Ok(())
   }
 
-  pub async fn add_users_to_group(&self, group_id: Uuid, user_ids: Vec<Uuid>) -> Result<(), DbErr> {
+  pub async fn add_users_to_group(&self, group_id: Uuid, user_ids: Vec<Uuid>) -> Result<()> {
     let mut models = Vec::new();
 
     for user_id in user_ids {
@@ -156,11 +159,7 @@ impl<'db> GroupTable<'db> {
     Ok(())
   }
 
-  pub async fn user_hash_permissions(
-    &self,
-    user_id: Uuid,
-    permission: &str,
-  ) -> Result<bool, DbErr> {
+  pub async fn user_hash_permissions(&self, user_id: Uuid, permission: &str) -> Result<bool> {
     let res = group_user::Entity::find()
       .join(JoinType::InnerJoin, group_user::Relation::Group.def())
       .join(JoinType::InnerJoin, group::Relation::GroupPermission.def())
@@ -172,7 +171,7 @@ impl<'db> GroupTable<'db> {
     Ok(!res.is_empty())
   }
 
-  pub async fn get_user_permissions(&self, user_id: Uuid) -> Result<Vec<String>, DbErr> {
+  pub async fn get_user_permissions(&self, user_id: Uuid) -> Result<Vec<String>> {
     let group_permissions = group_permission::Entity::find()
       .join(JoinType::InnerJoin, group_permission::Relation::Group.def())
       .join(JoinType::InnerJoin, group::Relation::GroupUser.def())
@@ -188,7 +187,7 @@ impl<'db> GroupTable<'db> {
     Ok(permissions)
   }
 
-  pub async fn list_groups(&self) -> Result<Vec<GroupInfo>, DbErr> {
+  pub async fn list_groups(&self) -> Result<Vec<GroupInfo>> {
     let groups = group::Entity::find().all(self.db).await?;
     let group_user = groups
       .load_many_to_many(user::Entity, group_user::Entity, self.db)
@@ -216,7 +215,7 @@ impl<'db> GroupTable<'db> {
     Ok(result)
   }
 
-  pub async fn group_info(&self, group_id: Uuid) -> Result<Option<GroupDetails>, DbErr> {
+  pub async fn group_info(&self, group_id: Uuid) -> Result<Option<GroupDetails>> {
     let group = group::Entity::find_by_id(group_id).one(self.db).await?;
     let Some(group) = group else {
       return Ok(None);
@@ -233,7 +232,7 @@ impl<'db> GroupTable<'db> {
     }))
   }
 
-  pub async fn delete_group(&self, group_id: Uuid) -> Result<group::Model, DbErr> {
+  pub async fn delete_group(&self, group_id: Uuid) -> Result<group::Model> {
     let group = group::Entity::find_by_id(group_id)
       .one(self.db)
       .await?
@@ -244,7 +243,7 @@ impl<'db> GroupTable<'db> {
     Ok(group)
   }
 
-  pub async fn find_group_by_name(&self, name: &str) -> Result<Option<Uuid>, DbErr> {
+  pub async fn find_group_by_name(&self, name: &str) -> Result<Option<Uuid>> {
     let group = group::Entity::find()
       .filter(group::Column::Name.eq(name))
       .one(self.db)
@@ -259,7 +258,7 @@ impl<'db> GroupTable<'db> {
     name: String,
     permissions: Vec<String>,
     users: Vec<Uuid>,
-  ) -> Result<(), DbErr> {
+  ) -> Result<()> {
     // Update group name
     let mut group_model = group::Entity::find_by_id(uuid)
       .one(self.db)
@@ -290,7 +289,7 @@ impl<'db> GroupTable<'db> {
     Ok(())
   }
 
-  pub async fn list_groups_simple(&self) -> Result<Vec<SimpleGroupInfo>, DbErr> {
+  pub async fn list_groups_simple(&self) -> Result<Vec<SimpleGroupInfo>> {
     let groups = group::Entity::find()
       .all(self.db)
       .await?
@@ -304,7 +303,7 @@ impl<'db> GroupTable<'db> {
     Ok(groups)
   }
 
-  pub async fn is_last_admin(&self, admin_group: Uuid, user_id: Uuid) -> Result<bool, DbErr> {
+  pub async fn is_last_admin(&self, admin_group: Uuid, user_id: Uuid) -> Result<bool> {
     let admin_users = group_user::Entity::find()
       .filter(group_user::Column::GroupId.eq(admin_group))
       .all(self.db)
@@ -317,7 +316,7 @@ impl<'db> GroupTable<'db> {
     }
   }
 
-  pub async fn is_in_group(&self, admin_group: Uuid, user_id: Uuid) -> Result<bool, DbErr> {
+  pub async fn is_in_group(&self, admin_group: Uuid, user_id: Uuid) -> Result<bool> {
     let admin_users = group_user::Entity::find()
       .filter(group_user::Column::GroupId.eq(admin_group))
       .filter(group_user::Column::UserId.eq(user_id))
@@ -327,7 +326,7 @@ impl<'db> GroupTable<'db> {
     Ok(admin_users.iter().any(|au| au.user_id == user_id))
   }
 
-  pub async fn get_groups_permissions(&self, group_ids: Vec<Uuid>) -> Result<Vec<String>, DbErr> {
+  pub async fn get_groups_permissions(&self, group_ids: Vec<Uuid>) -> Result<Vec<String>> {
     let group_permissions = group_permission::Entity::find()
       .filter(group_permission::Column::GroupId.is_in(group_ids))
       .all(self.db)
