@@ -177,6 +177,7 @@ openapi = [
 metrics = [
   "dep:metrics",
   "dep:metrics-exporter-prometheus",
+  "centaurus-derive/metrics",
 ]
 
 avatar = [
