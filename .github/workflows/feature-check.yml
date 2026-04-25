@@ -22,6 +22,8 @@ jobs:
           - backend,db,auth
           - backend,db,auth,frontend
           - endpoints
+          - endpoints,metrics
+          - endpoints,metrics,frontend
           - endpoints,frontend
           - endpoints,frontend,avatar
     steps:
