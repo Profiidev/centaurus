@@ -93,11 +93,12 @@ async fn migrate_to_centaurus_migrations(conn: &DatabaseConnection) -> Result<()
     "
     UPDATE seaql_migrations
     SET version = CASE
-        WHEN version = 'm20250301_215149_create_key_table' THEN 'key'
-        WHEN version = 'm20260123_144736_invalid_jwt'      THEN 'invalid_jwt'
-        WHEN version = 'm20260123_144752_user'             THEN 'user'
-        WHEN version = 'm20260126_155842_group'            THEN 'groups'
-        WHEN version = 'm20260126_160754_setup'            THEN 'setup'
+        WHEN version = 'm20250301_215149_create_key_table' THEN 'm0_key'
+        WHEN version = 'm20260123_144736_invalid_jwt'      THEN 'm1_invalid_jwt'
+        WHEN version = 'm20260127_211643_settings'         THEN 'm2_settings'
+        WHEN version = 'm20260123_144752_user'             THEN 'm3_user'
+        WHEN version = 'm20260126_155842_group'            THEN 'm4_groups'
+        WHEN version = 'm20260126_160754_setup'            THEN 'm5_setup'
         ELSE version
     END
     WHERE version LIKE 'm20%';
