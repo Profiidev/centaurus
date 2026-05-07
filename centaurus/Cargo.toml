@@ -204,6 +204,7 @@ http3 = ["reqwest/http3"]
 proxy = ["backend", "dep:hyper-util"]
 req_xml = ["dep:thiserror", "serde_xml"]
 tokio = ["dep:tokio"]
+fix-migrations = []
 
 argon2 = ["dep:argon2"]
 base64 = ["dep:base64"]

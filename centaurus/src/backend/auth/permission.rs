@@ -1,5 +1,33 @@
+use http::request::Parts;
+use uuid::Uuid;
+
+use crate::{
+  bail,
+  db::{init::Connection, tables::ConnectionExt},
+  error::Result,
+};
+
 pub trait Permission {
-  fn name() -> &'static str;
+  fn name() -> &'static str {
+    ""
+  }
+
+  fn check(db: &Connection, user: Uuid, _parts: &Parts) -> impl Future<Output = Result<()>> + Send {
+    async move {
+      // Empty permission means no permission required
+      if !Self::name().is_empty() {
+        // This check automatically checks if the user exists, because if the user doesn't exist, they won't have any permissions
+        if !db.group().user_hash_permissions(user, Self::name()).await? {
+          bail!(FORBIDDEN, "insufficient permissions");
+        }
+      } else if db.user().get_user_by_id(user).await.is_err() {
+        // If no permission is required, just check if the user exists
+        bail!(FORBIDDEN, "user does not exist");
+      }
+
+      Ok(())
+    }
+  }
 }
 
 pub fn permissions() -> Vec<&'static str> {

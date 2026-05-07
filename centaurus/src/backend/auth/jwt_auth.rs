@@ -34,7 +34,7 @@ impl<S: Sync, P: Permission> FromRequestParts<S> for JwtAuth<P> {
 
     let db = parts.extract_state::<Connection>().await;
     let claims = check_jwt(&db, parts, token).await?;
-    check_user::<P>(&db, claims.sub).await?;
+    P::check(&db, claims.sub, parts).await?;
 
     Ok(JwtAuth {
       user_id: claims.sub,
@@ -80,6 +80,7 @@ pub async fn check_jwt(
   Ok(claims)
 }
 
+#[deprecated]
 pub async fn check_user<P: Permission>(db: &Connection, user: Uuid) -> Result<(), ErrorReport> {
   // Empty permission means no permission required
   if !P::name().is_empty() {
