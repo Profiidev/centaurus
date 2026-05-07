@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.2] - 2026-05-07
+
+### 🚀 Features
+
+- Added more options for implementing permissions checks
+- Added migration from old migrations to centaurus migrations
+
+### 🐛 Bug Fixes
+
+- Migration skip
+- Migration names
+- Delete old avatar migration
+- Move delete migration to separate stmt
+
+
+
 ## [0.11.1] - 2026-04-25
 
 ### 🐛 Bug Fixes
