@@ -102,8 +102,13 @@ async fn migrate_to_centaurus_migrations(conn: &DatabaseConnection) -> Result<()
         ELSE version
     END
     WHERE version LIKE 'm20%';
-    DELETE FROM seaql_migrations WHERE version = 'm20260129_154755_user_avatar';
   ",
+  );
+  conn.execute(stmt).await?;
+
+  let stmt = Statement::from_string(
+    backend,
+    "DELETE FROM seaql_migrations WHERE version = 'm20260129_154755_user_avatar';",
   );
   conn.execute(stmt).await?;
 
