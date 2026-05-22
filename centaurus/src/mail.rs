@@ -26,6 +26,7 @@ use crate::{bail, error::Result};
 #[cfg_attr(feature = "db", derive(crate::Settings))]
 #[cfg_attr(feature = "db", settings(id = 3))]
 pub struct MailSettings {
+  #[serde(default)]
   pub smtp_enabled: bool,
   pub smtp_server: Option<String>,
   pub smtp_port: Option<u16>,
