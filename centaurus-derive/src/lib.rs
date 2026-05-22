@@ -11,7 +11,7 @@ pub(crate) fn centaurus_path() -> syn::Path {
   Manifest::default().get_path("centaurus")
 }
 
-#[proc_macro_derive(Config, attributes(base, metrics, site))]
+#[proc_macro_derive(Config, attributes(base, metrics, site, auth, oidc, mail))]
 pub fn derive_config(input: TokenStream) -> TokenStream {
   config(input)
 }

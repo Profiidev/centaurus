@@ -18,6 +18,7 @@ use crate::{
   bail,
   db::{init::Connection, tables::ConnectionExt},
   error::{ErrorReportStatusExt, Result},
+  overwrite_with_env_config,
 };
 use aide::OperationIo;
 use argon2::password_hash::SaltString;
@@ -83,10 +84,20 @@ struct OidcConfiguration {
 }
 
 impl OidcState {
-  pub async fn new(db: &Connection) -> Self {
+  pub async fn new(db: &Connection, oidc: Option<&UserSettings>) -> Self {
     let state = Self(Arc::new(Mutex::new(None)));
-    let settings: UserSettings = db.settings().get_settings().await.unwrap_or_default();
-    if let Some(oidc_settings) = &settings.oidc {
+    let mut settings: UserSettings = db.settings().get_settings().await.unwrap_or_default();
+    overwrite_with_env_config!(
+      settings,
+      oidc,
+      oidc_issuer,
+      oidc_client_id,
+      oidc_client_secret,
+      oidc_scopes,,
+      oidc_enabled
+    );
+
+    if let Some(oidc_settings) = &settings.oidc_settings() {
       let _ = state.try_init(oidc_settings).await;
     }
 

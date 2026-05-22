@@ -107,6 +107,20 @@ where
     router = router.layer(Extension(config.site().clone()));
   }
 
+  #[cfg(feature = "auth")]
+  {
+    if let Some(oidc_settings) = config.oidc() {
+      router = router.layer(Extension(oidc_settings.clone()));
+    }
+  }
+
+  #[cfg(feature = "mail")]
+  {
+    if let Some(mail_settings) = config.mail() {
+      router = router.layer(Extension(mail_settings.clone()));
+    }
+  }
+
   router = state(router, config.clone()).await.layer(Extension(config));
 
   #[cfg(feature = "openapi")]

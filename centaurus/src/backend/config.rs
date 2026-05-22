@@ -3,6 +3,10 @@ use axum::{Extension, extract::FromRequestParts};
 use serde::{Deserialize, Serialize};
 use tracing::level_filters::LevelFilter;
 
+#[cfg(feature = "auth")]
+use crate::backend::auth::settings::{AuthConfig, UserSettings};
+#[cfg(feature = "mail")]
+use crate::mail::MailSettings;
 use crate::serde::{de_str, se_str};
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -40,6 +44,16 @@ pub trait Config: Clone + Send + Sync + 'static {
   fn metrics(&self) -> &MetricsConfig;
   #[cfg(feature = "config_site")]
   fn site(&self) -> &SiteConfig;
+  #[cfg(feature = "auth")]
+  fn auth(&self) -> &AuthConfig;
+  #[cfg(feature = "auth")]
+  fn oidc(&self) -> Option<&UserSettings> {
+    None
+  }
+  #[cfg(feature = "mail")]
+  fn mail(&self) -> Option<&MailSettings> {
+    None
+  }
 }
 
 #[cfg(feature = "config_site")]

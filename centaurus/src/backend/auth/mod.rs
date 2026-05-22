@@ -21,6 +21,7 @@ use crate::{
       pw_state::PasswordState,
       settings::AuthConfig,
     },
+    config::Config,
     middleware::rate_limiter::RateLimiter,
   },
   db::{init::Connection, tables::ConnectionExt},
@@ -64,14 +65,14 @@ pub fn router(rate_limiter: &mut RateLimiter) -> BackendRouter {
 }
 
 #[cfg(feature = "endpoints")]
-pub async fn state(router: BackendRouter, config: &AuthConfig, db: &Connection) -> BackendRouter {
+pub async fn state<C: Config>(router: BackendRouter, config: &C, db: &Connection) -> BackendRouter {
   #[cfg(feature = "avatar")]
   use crate::backend::auth::oidc::OidcState;
 
-  let pw_state = init_pw_state(config, db).await;
-  let jwt_state = JwtState::init(config, db).await;
+  let pw_state = init_pw_state(config.auth(), db).await;
+  let jwt_state = JwtState::init(config.auth(), db).await;
   #[cfg(feature = "avatar")]
-  let oidc_state = OidcState::new(db).await;
+  let oidc_state = OidcState::new(db, config.oidc()).await;
 
   let router = router
     .layer(Extension(pw_state))
