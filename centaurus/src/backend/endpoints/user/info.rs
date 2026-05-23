@@ -3,6 +3,8 @@ use aide::axum::routing::{ApiMethodRouter, get_with};
 use axum::Json;
 #[cfg(feature = "avatar")]
 use axum::extract::Path;
+#[cfg(feature = "avatar")]
+use http::StatusCode;
 use schemars::JsonSchema;
 #[cfg(feature = "avatar")]
 use serde::Deserialize;
@@ -19,9 +21,7 @@ pub fn router() -> ApiRouter {
 
   #[cfg(feature = "avatar")]
   {
-    router
-      .api_route("/avatar", self_avatar_route())
-      .api_route("/avatar/{uuid}", avatar_route())
+    router.api_route("/avatar/{uuid}", avatar_route())
   }
 
   #[cfg(not(feature = "avatar"))]
@@ -30,11 +30,6 @@ pub fn router() -> ApiRouter {
 
 pub fn info_route() -> ApiMethodRouter<()> {
   get_with(info, |op| op.id("info"))
-}
-
-#[cfg(feature = "avatar")]
-pub fn self_avatar_route() -> ApiMethodRouter<()> {
-  get_with(self_avatar, |op| op.id("avatar"))
 }
 
 #[cfg(feature = "avatar")]
@@ -63,25 +58,19 @@ async fn info(auth: JwtAuth, db: Connection) -> Result<Json<UserInfo>> {
 }
 
 #[cfg(feature = "avatar")]
-async fn self_avatar(auth: JwtAuth, db: Connection) -> Result<Vec<u8>> {
-  let Some(data) = db.user().get_user_avatar(auth.user_id).await? else {
-    use crate::bail;
-    bail!(NOT_FOUND, "Avatar not found");
-  };
-  Ok(data)
-}
-
-#[cfg(feature = "avatar")]
 #[derive(Deserialize, JsonSchema)]
 struct AvatarPath {
   uuid: Uuid,
 }
 
 #[cfg(feature = "avatar")]
-async fn avatar(_auth: JwtAuth, Path(path): Path<AvatarPath>, db: Connection) -> Result<Vec<u8>> {
+async fn avatar(
+  _auth: JwtAuth,
+  Path(path): Path<AvatarPath>,
+  db: Connection,
+) -> Result<std::result::Result<Vec<u8>, StatusCode>> {
   let Some(data) = db.user().get_user_avatar(path.uuid).await? else {
-    use crate::bail;
-    bail!(NOT_FOUND, "Avatar not found");
+    return Ok(Err(StatusCode::NOT_FOUND));
   };
-  Ok(data)
+  Ok(Ok(data))
 }
