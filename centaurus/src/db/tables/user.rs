@@ -97,7 +97,7 @@ impl<'db> UserTable<'db> {
     if let Some(data) = data {
       crate::db::entities::user_avatar::Model {
         user_id: ret.id,
-        data: String::from_utf8(data).unwrap(),
+        data,
       }
       .into_active_model()
       .insert(self.db)
@@ -239,7 +239,7 @@ impl<'db> UserTable<'db> {
   }
 
   #[cfg(feature = "avatar")]
-  pub async fn update_user_avatar(&self, id: Uuid, new_avatar: String) -> Result<()> {
+  pub async fn update_user_avatar(&self, id: Uuid, new_avatar: Vec<u8>) -> Result<()> {
     use crate::db::entities::user_avatar;
 
     if let Some(avatar_model) = user_avatar::Entity::find_by_id(id).one(self.db).await? {
@@ -273,7 +273,7 @@ impl<'db> UserTable<'db> {
   }
 
   #[cfg(feature = "avatar")]
-  pub async fn get_user_avatar(&self, user_id: Uuid) -> Result<Option<String>> {
+  pub async fn get_user_avatar(&self, user_id: Uuid) -> Result<Option<Vec<u8>>> {
     use crate::db::entities::user_avatar;
 
     let avatar = user_avatar::Entity::find_by_id(user_id)

@@ -1,7 +1,11 @@
 use aide::axum::ApiRouter;
 use aide::axum::routing::{ApiMethodRouter, get_with};
 use axum::Json;
+#[cfg(feature = "avatar")]
+use axum::extract::Path;
 use schemars::JsonSchema;
+#[cfg(feature = "avatar")]
+use serde::Deserialize;
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -11,7 +15,17 @@ use crate::db::tables::ConnectionExt;
 use crate::error::Result;
 
 pub fn router() -> ApiRouter {
-  ApiRouter::new().api_route("/", info_route())
+  let router = ApiRouter::new().api_route("/", info_route());
+
+  #[cfg(feature = "avatar")]
+  {
+    router
+      .api_route("/avatar", self_avatar_route())
+      .api_route("/avatar/{uuid}", avatar_route())
+  }
+
+  #[cfg(not(feature = "avatar"))]
+  router
 }
 
 pub fn info_route() -> ApiMethodRouter<()> {
@@ -19,8 +33,13 @@ pub fn info_route() -> ApiMethodRouter<()> {
 }
 
 #[cfg(feature = "avatar")]
+pub fn self_avatar_route() -> ApiMethodRouter<()> {
+  get_with(self_avatar, |op| op.id("avatar"))
+}
+
+#[cfg(feature = "avatar")]
 pub fn avatar_route() -> ApiMethodRouter<()> {
-  get_with(avatar, |op| op.id("avatar"))
+  get_with(avatar, |op| op.id("avatarById"))
 }
 
 #[derive(Serialize, JsonSchema)]
@@ -44,7 +63,25 @@ async fn info(auth: JwtAuth, db: Connection) -> Result<Json<UserInfo>> {
 }
 
 #[cfg(feature = "avatar")]
-async fn avatar(auth: JwtAuth, db: Connection) -> Result<Json<Option<String>>> {
-  let data = db.user().get_user_avatar(auth.user_id).await?;
-  Ok(Json(data))
+async fn self_avatar(auth: JwtAuth, db: Connection) -> Result<Vec<u8>> {
+  let Some(data) = db.user().get_user_avatar(auth.user_id).await? else {
+    use crate::bail;
+    bail!(NOT_FOUND, "Avatar not found");
+  };
+  Ok(data)
+}
+
+#[cfg(feature = "avatar")]
+#[derive(Deserialize, JsonSchema)]
+struct AvatarPath {
+  uuid: Uuid,
+}
+
+#[cfg(feature = "avatar")]
+async fn avatar(_auth: JwtAuth, Path(path): Path<AvatarPath>, db: Connection) -> Result<Vec<u8>> {
+  let Some(data) = db.user().get_user_avatar(path.uuid).await? else {
+    use crate::bail;
+    bail!(NOT_FOUND, "Avatar not found");
+  };
+  Ok(data)
 }

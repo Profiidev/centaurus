@@ -93,9 +93,10 @@ async fn update_avatar<T: UpdateMessage>(
 
   let mut buf = Cursor::new(Vec::new());
   img.write_to(&mut buf, ImageFormat::WebP)?;
-  let avatar = BASE64_STANDARD.encode(buf.into_inner());
 
-  db.user().update_user_avatar(auth.user_id, avatar).await?;
+  db.user()
+    .update_user_avatar(auth.user_id, buf.into_inner())
+    .await?;
   updater.broadcast(T::user(auth.user_id)).await;
   Ok(())
 }
