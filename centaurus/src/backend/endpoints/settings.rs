@@ -80,7 +80,7 @@ macro_rules! each_field_from_env {
         )*
 
         $type {
-          settings: $env_config,
+          settings: $config,
           from_env,
         }
       } else {
