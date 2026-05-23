@@ -29,7 +29,7 @@ impl MigrationTrait for Migration {
           .table(UserAvatar::Table)
           .if_not_exists()
           .col(pk_uuid(UserAvatar::UserId))
-          .col(string(UserAvatar::Data))
+          .col(blob(UserAvatar::Data))
           .foreign_key(
             ForeignKey::create()
               .from(UserAvatar::Table, UserAvatar::UserId)

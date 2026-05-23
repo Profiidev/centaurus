@@ -18,14 +18,17 @@ pub fn info_route() -> ApiMethodRouter<()> {
   get_with(info, |op| op.id("info"))
 }
 
+#[cfg(feature = "avatar")]
+pub fn avatar_route() -> ApiMethodRouter<()> {
+  get_with(avatar, |op| op.id("avatar"))
+}
+
 #[derive(Serialize, JsonSchema)]
 struct UserInfo {
   uuid: Uuid,
   name: String,
   email: String,
   permissions: Vec<String>,
-  #[cfg(feature = "avatar")]
-  avatar: Option<String>,
 }
 
 async fn info(auth: JwtAuth, db: Connection) -> Result<Json<UserInfo>> {
@@ -37,7 +40,11 @@ async fn info(auth: JwtAuth, db: Connection) -> Result<Json<UserInfo>> {
     name: user.name,
     email: user.email,
     permissions,
-    #[cfg(feature = "avatar")]
-    avatar: user.avatar,
   }))
+}
+
+#[cfg(feature = "avatar")]
+async fn avatar(auth: JwtAuth, db: Connection) -> Result<Json<Option<String>>> {
+  let data = db.user().get_user_avatar(auth.user_id).await?;
+  Ok(Json(data))
 }

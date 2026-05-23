@@ -20,8 +20,6 @@ pub struct UserListInfo {
   pub uuid: Uuid,
   pub name: String,
   pub email: String,
-  #[cfg(feature = "avatar")]
-  pub avatar: Option<String>,
   pub groups: Vec<SimpleGroupInfo>,
 }
 
@@ -31,8 +29,6 @@ pub struct DetailUserInfo {
   pub uuid: Uuid,
   pub name: String,
   pub email: String,
-  #[cfg(feature = "avatar")]
-  pub avatar: Option<String>,
   pub groups: Vec<SimpleGroupInfo>,
   pub permissions: Vec<String>,
 }
@@ -68,7 +64,6 @@ impl<'db> UserTable<'db> {
             Ok(bytes) => {
               use std::io::Cursor;
 
-              use base64::{Engine, prelude::BASE64_STANDARD};
               use image::{ImageFormat, imageops::FilterType};
 
               let img = image::load_from_memory(&bytes)?;
@@ -76,8 +71,7 @@ impl<'db> UserTable<'db> {
 
               let mut buf = Cursor::new(Vec::new());
               img.write_to(&mut buf, ImageFormat::WebP)?;
-              let avatar = BASE64_STANDARD.encode(buf.into_inner());
-              Some(avatar)
+              Some(buf.into_inner())
             }
             Err(_) => None,
           }
@@ -94,12 +88,21 @@ impl<'db> UserTable<'db> {
       email,
       password,
       salt,
-      #[cfg(feature = "avatar")]
-      avatar: data,
     }
     .into_active_model();
 
     let ret = model.insert(self.db).await?;
+
+    #[cfg(feature = "avatar")]
+    if let Some(data) = data {
+      crate::db::entities::user_avatar::Model {
+        user_id: ret.id,
+        data: String::from_utf8(data).unwrap(),
+      }
+      .into_active_model()
+      .insert(self.db)
+      .await?;
+    }
 
     Ok(ret.id)
   }
@@ -198,8 +201,6 @@ impl<'db> UserTable<'db> {
       uuid: user.id,
       name: user.name,
       email: user.email,
-      #[cfg(feature = "avatar")]
-      avatar: user.avatar,
       groups,
       permissions,
     }))
@@ -239,24 +240,47 @@ impl<'db> UserTable<'db> {
 
   #[cfg(feature = "avatar")]
   pub async fn update_user_avatar(&self, id: Uuid, new_avatar: String) -> Result<()> {
-    let mut user: user::ActiveModel = self.get_user_by_id(id).await?.into();
+    use crate::db::entities::user_avatar;
 
-    user.avatar = Set(Some(new_avatar));
+    if let Some(avatar_model) = user_avatar::Entity::find_by_id(id).one(self.db).await? {
+      let mut avatar_active: user_avatar::ActiveModel = avatar_model.into();
+      avatar_active.data = Set(new_avatar);
+      avatar_active.update(self.db).await?;
+      return Ok(());
+    } else {
+      use sea_orm::IntoActiveModel;
 
-    user.update(self.db).await?;
+      crate::db::entities::user_avatar::Model {
+        user_id: id,
+        data: new_avatar.clone(),
+      }
+      .into_active_model()
+      .insert(self.db)
+      .await?;
+    }
 
     Ok(())
   }
 
   #[cfg(feature = "avatar")]
   pub async fn reset_avatar(&self, user_id: Uuid) -> Result<()> {
-    let mut user: user::ActiveModel = self.get_user_by_id(user_id).await?.into();
+    use crate::db::entities::user_avatar;
 
-    user.avatar = Set(None);
-
-    user.update(self.db).await?;
-
+    user_avatar::Entity::delete_by_id(user_id)
+      .exec(self.db)
+      .await?;
     Ok(())
+  }
+
+  #[cfg(feature = "avatar")]
+  pub async fn get_user_avatar(&self, user_id: Uuid) -> Result<Option<String>> {
+    use crate::db::entities::user_avatar;
+
+    let avatar = user_avatar::Entity::find_by_id(user_id)
+      .one(self.db)
+      .await?;
+
+    Ok(avatar.map(|a| a.data))
   }
 
   pub async fn list_users(&self) -> Result<Vec<UserListInfo>> {
@@ -272,8 +296,6 @@ impl<'db> UserTable<'db> {
         uuid: user.id,
         name: user.name,
         email: user.email,
-        #[cfg(feature = "avatar")]
-        avatar: user.avatar,
         groups: groups
           .into_iter()
           .map(|group| SimpleGroupInfo {
