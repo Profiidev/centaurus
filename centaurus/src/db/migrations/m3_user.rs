@@ -9,9 +9,8 @@ const EMAIL_INDEX_NAME: &str = "user.user_email";
 impl MigrationTrait for Migration {
   async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
     manager
-      .create_table({
-        #[allow(unused_mut)]
-        let mut table = Table::create()
+      .create_table(
+        Table::create()
           .table(User::Table)
           .if_not_exists()
           .col(pk_uuid(User::Id))
@@ -19,15 +18,27 @@ impl MigrationTrait for Migration {
           .col(string(User::Email))
           .col(string(User::Password))
           .col(string(User::Salt))
-          .to_owned();
+          .to_owned(),
+      )
+      .await?;
 
-        #[cfg(feature = "avatar")]
-        {
-          table = table.col(string_null(User::Avatar)).to_owned();
-        }
-
-        table
-      })
+    #[cfg(feature = "avatar")]
+    manager
+      .create_table(
+        Table::create()
+          .table(UserAvatar::Table)
+          .if_not_exists()
+          .col(pk_uuid(UserAvatar::UserId))
+          .col(string(UserAvatar::Data))
+          .foreign_key(
+            ForeignKey::create()
+              .from(UserAvatar::Table, UserAvatar::UserId)
+              .to(User::Table, User::Id)
+              .on_delete(ForeignKeyAction::Cascade)
+              .on_update(ForeignKeyAction::Cascade),
+          )
+          .to_owned(),
+      )
       .await?;
 
     manager
@@ -48,6 +59,11 @@ impl MigrationTrait for Migration {
       .drop_index(Index::drop().name(EMAIL_INDEX_NAME).to_owned())
       .await?;
 
+    #[cfg(feature = "avatar")]
+    manager
+      .drop_table(Table::drop().table(UserAvatar::Table).to_owned())
+      .await?;
+
     manager
       .drop_table(Table::drop().table(User::Table).to_owned())
       .await
@@ -62,6 +78,12 @@ pub enum User {
   Email,
   Password,
   Salt,
-  #[cfg(feature = "avatar")]
-  Avatar,
+}
+
+#[cfg(feature = "avatar")]
+#[derive(DeriveIden)]
+pub enum UserAvatar {
+  Table,
+  UserId,
+  Data,
 }
