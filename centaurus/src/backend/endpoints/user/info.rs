@@ -1,7 +1,13 @@
 use aide::axum::ApiRouter;
 use aide::axum::routing::{ApiMethodRouter, get_with};
 use axum::Json;
+#[cfg(feature = "avatar")]
+use axum::extract::Path;
+#[cfg(feature = "avatar")]
+use http::StatusCode;
 use schemars::JsonSchema;
+#[cfg(feature = "avatar")]
+use serde::Deserialize;
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -11,11 +17,24 @@ use crate::db::tables::ConnectionExt;
 use crate::error::Result;
 
 pub fn router() -> ApiRouter {
-  ApiRouter::new().api_route("/", info_route())
+  let router = ApiRouter::new().api_route("/", info_route());
+
+  #[cfg(feature = "avatar")]
+  {
+    router.api_route("/avatar/{uuid}", avatar_route())
+  }
+
+  #[cfg(not(feature = "avatar"))]
+  router
 }
 
 pub fn info_route() -> ApiMethodRouter<()> {
   get_with(info, |op| op.id("info"))
+}
+
+#[cfg(feature = "avatar")]
+pub fn avatar_route() -> ApiMethodRouter<()> {
+  get_with(avatar, |op| op.id("avatarById"))
 }
 
 #[derive(Serialize, JsonSchema)]
@@ -24,8 +43,6 @@ struct UserInfo {
   name: String,
   email: String,
   permissions: Vec<String>,
-  #[cfg(feature = "avatar")]
-  avatar: Option<String>,
 }
 
 async fn info(auth: JwtAuth, db: Connection) -> Result<Json<UserInfo>> {
@@ -37,7 +54,23 @@ async fn info(auth: JwtAuth, db: Connection) -> Result<Json<UserInfo>> {
     name: user.name,
     email: user.email,
     permissions,
-    #[cfg(feature = "avatar")]
-    avatar: user.avatar,
   }))
+}
+
+#[cfg(feature = "avatar")]
+#[derive(Deserialize, JsonSchema)]
+struct AvatarPath {
+  uuid: Uuid,
+}
+
+#[cfg(feature = "avatar")]
+async fn avatar(
+  _auth: JwtAuth,
+  Path(path): Path<AvatarPath>,
+  db: Connection,
+) -> Result<std::result::Result<Vec<u8>, StatusCode>> {
+  let Some(data) = db.user().get_user_avatar(path.uuid).await? else {
+    return Ok(Err(StatusCode::NOT_FOUND));
+  };
+  Ok(Ok(data))
 }

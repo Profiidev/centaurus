@@ -69,16 +69,30 @@ struct GroupViewPath {
   uuid: Uuid,
 }
 
+#[derive(Serialize, JsonSchema)]
+struct GroupDetailsResponse {
+  group: GroupDetails,
+  admin_group: Uuid,
+}
+
 async fn group_info(
   _auth: JwtAuth<GroupView>,
   db: Connection,
   Path(path): Path<GroupViewPath>,
-) -> Result<Json<GroupDetails>> {
+) -> Result<Json<GroupDetailsResponse>> {
   let info = db.group().group_info(path.uuid).await?;
   let Some(info) = info else {
     bail!(NOT_FOUND, "Group not found");
   };
-  Ok(Json(info))
+
+  let Some(admin_group) = db.setup().get_admin_group_id().await? else {
+    bail!(INTERNAL_SERVER_ERROR, "Admin group not configured");
+  };
+
+  Ok(Json(GroupDetailsResponse {
+    group: info,
+    admin_group,
+  }))
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -157,12 +171,6 @@ async fn edit_group<T: UpdateMessage>(
     bail!(BAD_REQUEST, "Group name cannot be empty");
   }
 
-  if let Some(admin_group) = db.setup().get_admin_group_id().await?
-    && admin_group == data.uuid
-  {
-    bail!(BAD_REQUEST, "Cannot edit the admin group");
-  }
-
   if let Some(existing_group) = db.group().find_group_by_name(&data.name).await?
     && existing_group != data.uuid
   {
@@ -193,6 +201,20 @@ async fn edit_group<T: UpdateMessage>(
       FORBIDDEN,
       "Cannot assign permissions you do not have to a group"
     );
+  }
+
+  if let Some(admin_group) = db.setup().get_admin_group_id().await?
+    && admin_group == data.uuid
+  {
+    if group
+      .permissions
+      .iter()
+      .any(|p| !data.permissions.contains(p))
+    {
+      bail!(BAD_REQUEST, "Cannot change permissions of the admin group");
+    } else if data.users.is_empty() {
+      bail!(NOT_ACCEPTABLE, "Admin group must have at least one user");
+    }
   }
 
   let old_users = db.group().get_group_users_ids(data.uuid).await?;

@@ -1,7 +1,11 @@
 use crate::{
-  backend::{endpoints::mail::state::ResetPasswordState, middleware::rate_limiter::RateLimiter},
+  backend::{
+    config::Config, endpoints::mail::state::ResetPasswordState,
+    middleware::rate_limiter::RateLimiter,
+  },
   db::{init::Connection, tables::ConnectionExt},
   mail::{MailSettings, Mailer},
+  overwrite_with_env_config,
 };
 use aide::axum::ApiRouter;
 use axum::Extension;
@@ -19,8 +23,23 @@ pub fn router(rate_limiter: &mut RateLimiter) -> ApiRouter {
     .layer(GovernorLayer::new(rate_limiter.create_limiter()))
 }
 
-pub async fn state(router: ApiRouter, db: &Connection) -> ApiRouter {
-  let settings: MailSettings = db.settings().get_settings().await.unwrap_or_default();
+pub async fn state<C: Config>(router: ApiRouter, db: &Connection, config: &C) -> ApiRouter {
+  let mut settings: MailSettings = db.settings().get_settings().await.unwrap_or_default();
+  let mail = config.mail();
+
+  overwrite_with_env_config!(
+    settings,
+    mail,
+    smtp_server,
+    smtp_port,
+    smtp_username,
+    smtp_password,
+    smtp_from_address,
+    smtp_from_name,
+    smtp_use_tls,,
+    smtp_enabled
+  );
+
   let mailer = Mailer::new(settings).await;
   let password_reset_state = ResetPasswordState::default();
 

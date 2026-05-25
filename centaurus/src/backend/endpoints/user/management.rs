@@ -14,6 +14,7 @@ use crate::backend::auth::jwt_auth::JwtAuth;
 use crate::backend::auth::permission::{UserEdit, UserView};
 use crate::backend::auth::pw_state::PasswordState;
 use crate::backend::config::SiteConfig;
+use crate::backend::endpoints::user::email::change_email_route;
 use crate::backend::endpoints::user::template;
 use crate::backend::endpoints::websocket::state::{UpdateMessage, Updater};
 use crate::bail;
@@ -40,6 +41,7 @@ pub fn router<T: UpdateMessage>() -> ApiRouter {
     .api_route("/mail", mail_active_route())
     .api_route("/groups", list_groups_simple_route())
     .api_route("/password", reset_user_password_route())
+    .api_route("/email", change_email_route::<T>())
 }
 
 pub fn list_users_route() -> ApiMethodRouter<()> {
@@ -168,7 +170,13 @@ async fn create_user<T: UpdateMessage>(
 
   let user_id = db
     .user()
-    .create_user(req.name.clone(), req.email.clone(), password_hash, salt)
+    .create_user(
+      req.name.clone(),
+      req.email.clone(),
+      password_hash,
+      salt,
+      false,
+    )
     .await?;
   if mailer.is_active().await {
     let subject = "Your new account";

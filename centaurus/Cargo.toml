@@ -29,16 +29,8 @@ aide = { version = "0.16.0-alpha.3", features = [
 ], optional = true }
 argon2 = { version = "0.5.3", features = ["std"], optional = true }
 async-trait = { version = "0.1.89", optional = true }
-axum = { version = "0.8.9", features = [
-  "macros",
-  "multipart",
-  "tracing",
-  "ws",
-], optional = true }
-axum-extra = { version = "0.12.6", features = [
-  "cookie",
-  "typed-header",
-], optional = true }
+axum = { version = "0.8.9", features = ["macros", "multipart", "tracing", "ws"], optional = true }
+axum-extra = { version = "0.12.6", features = ["cookie", "typed-header"], optional = true }
 base64 = { version = "0.22.1", optional = true }
 bollard = { version = "0.20.2", default-features = false, optional = true }
 centaurus-derive = { workspace = true }
@@ -50,21 +42,14 @@ futures-util = { version = "0.3.32", optional = true }
 governor = { version = "0.10.4", optional = true }
 hmac = { version = "0.13.0", optional = true }
 http = { version = "1.4.0", optional = true }
-hyper-util = { version = "0.1.20", features = [
-  "client-legacy",
-], optional = true }
+hyper-util = { version = "0.1.20", features = ["client-legacy"], optional = true }
 image = { version = "0.25.10", default-features = false, features = [
   "jpeg",
   "png",
-  "webp"
+  "webp",
 ], optional = true }
-jsonwebtoken = { version = "10.3.0", features = [
-  "rust_crypto",
-], optional = true }
-k8s-openapi = { version = "0.27.1", features = [
-  "latest",
-  "schemars",
-], optional = true }
+jsonwebtoken = { version = "10.3.0", features = ["rust_crypto"], optional = true }
+k8s-openapi = { version = "0.27.1", features = ["latest", "schemars"], optional = true }
 kube = { version = "3.1.0", features = ["derive", "runtime"], optional = true }
 lettre = { version = "0.11.21", default-features = false, features = [
   "builder",
@@ -102,10 +87,7 @@ tower = { version = "0.5.3", optional = true }
 tower_governor = { version = "0.8.0", default-features = false, features = [
   "axum",
 ], optional = true }
-tower-http = { version = "0.6.8", features = [
-  "cors",
-  "trace",
-], optional = true }
+tower-http = { version = "0.6.8", features = ["cors", "trace"], optional = true }
 tower-service = { version = "0.3.3", optional = true }
 tracing = { version = "0.1.44", features = ["std"], optional = true }
 tracing-error = { version = "0.2.1", optional = true }
@@ -113,6 +95,9 @@ tracing-subscriber = { version = "=0.3.19", optional = true }
 url = { version = "2.5.8", optional = true }
 uuid = { version = "1.23.1", optional = true }
 webauthn-rs-core = { version = "0.5.4", default-features = false, optional = true }
+aws-config = { version = "1.8.15", features = ["behavior-version-latest"], optional = true }
+aws-sdk-s3 = { version = "1.129.0", features = ["behavior-version-latest"], optional = true }
+tokio-util = { version = "0.7.18", features = ["io"], optional = true }
 
 [features]
 default = ["avatar", "endpoints", "logging", "frontend", "metrics"]
@@ -136,7 +121,8 @@ auth = [
   "jsonwebtoken",
   "reqwest",
   "rsa",
-  "url/serde"
+  "url/serde",
+  "centaurus-derive/auth",
 ]
 backend = [
   "dep:addr",
@@ -155,7 +141,7 @@ backend = [
   "http",
   "serde",
   "serde_json",
-  "tokio"
+  "tokio",
 ]
 endpoints = [
   "auth",
@@ -165,36 +151,25 @@ endpoints = [
   "dep:futures-util",
   "dep:rand",
   "mail",
-  "openapi"
+  "openapi",
 ]
-openapi = [
-  "backend",
-  "dep:aide",
-  "dep:schemars",
-  "schemars/url2",
-  "schemars/uuid1"
-]
-metrics = [
-  "dep:metrics",
-  "dep:metrics-exporter-prometheus",
-  "centaurus-derive/metrics",
-]
+openapi = ["backend", "dep:aide", "dep:schemars", "schemars/url2", "schemars/uuid1"]
+metrics = ["dep:metrics", "dep:metrics-exporter-prometheus", "centaurus-derive/metrics"]
 
-avatar = [
-  "base64",
-  "db",
-  "gravatar",
-  "image",
-  "reqwest",
-]
-logging = [
-  "dep:color-eyre",
-  "dep:tracing",
-  "dep:tracing-error",
-  "dep:tracing-subscriber",
+avatar = ["base64", "db", "gravatar", "image", "reqwest"]
+logging = ["dep:color-eyre", "dep:tracing", "dep:tracing-error", "dep:tracing-subscriber", "serde"]
+mail = ["dep:lettre", "error", "serde", "tokio", "centaurus-derive/mail"]
+storage = [
+  "dep:aws-config",
+  "dep:aws-sdk-s3",
+  "logging",
   "serde",
+  "dep:tokio",
+  "error",
+  "http",
+  "dep:tokio-util",
+  "dep:axum",
 ]
-mail = ["dep:lettre", "error", "serde", "tokio"]
 
 config_site = ["centaurus-derive/site", "url"]
 error = ["dep:eyre"]

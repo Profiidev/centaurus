@@ -15,7 +15,10 @@ use tower_governor::GovernorLayer;
 use crate::{
   backend::{
     auth::{jwt_auth::JwtAuth, pw_state::PasswordState},
-    endpoints::websocket::state::{UpdateMessage, Updater},
+    endpoints::{
+      user::email::{confirm_email_change_route, start_email_change_route},
+      websocket::state::{UpdateMessage, Updater},
+    },
     middleware::rate_limiter::RateLimiter,
   },
   bail,
@@ -24,15 +27,21 @@ use crate::{
 };
 
 pub fn router<T: UpdateMessage>(rate_limiter: &mut RateLimiter) -> ApiRouter {
-  #[cfg(feature = "avatar")]
-  let router = ApiRouter::new().api_route("/avatar", update_avatar_route::<T>());
-  #[cfg(not(feature = "avatar"))]
-  let router = ApiRouter::new();
-
-  router
+  let router = ApiRouter::new()
     .api_route("/password", update_password_route())
+    .api_route("/email_change_start", start_email_change_route())
     .layer(GovernorLayer::new(rate_limiter.create_limiter()))
     .api_route("/update", update_account_route::<T>())
+    .api_route("/email_change_confirm", confirm_email_change_route::<T>());
+
+  #[cfg(feature = "avatar")]
+  {
+    router.api_route("/avatar", update_avatar_route::<T>())
+  }
+  #[cfg(not(feature = "avatar"))]
+  {
+    router
+  }
 }
 
 #[cfg(feature = "avatar")]
@@ -93,9 +102,10 @@ async fn update_avatar<T: UpdateMessage>(
 
   let mut buf = Cursor::new(Vec::new());
   img.write_to(&mut buf, ImageFormat::WebP)?;
-  let avatar = BASE64_STANDARD.encode(buf.into_inner());
 
-  db.user().update_user_avatar(auth.user_id, avatar).await?;
+  db.user()
+    .update_user_avatar(auth.user_id, buf.into_inner())
+    .await?;
   updater.broadcast(T::user(auth.user_id)).await;
   Ok(())
 }
@@ -113,6 +123,10 @@ async fn update_password(
   Json(data): Json<PasswordUpdate>,
 ) -> Result<()> {
   let user = db.user().get_user_by_id(auth.user_id).await?;
+
+  if user.oidc_user {
+    bail!(NOT_ACCEPTABLE, "OIDC users cannot change their password");
+  }
 
   let old_hash = state.pw_hash(&user.salt, &data.old_password)?;
   if old_hash != user.password {

@@ -84,7 +84,7 @@ async fn migrate_to_centaurus_migrations(conn: &DatabaseConnection) -> Result<()
     .collect::<Vec<String>>();
 
   if !tables.contains(&"seaql_migrations".to_string()) {
-    tracing::warn!("No 'seaql_migrations' table found, skipping migration table rename");
+    tracing::info!("No 'seaql_migrations' table found, skipping migration table rename");
     return Ok(());
   }
 

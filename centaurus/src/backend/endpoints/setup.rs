@@ -113,7 +113,13 @@ async fn complete_setup(
 
   let admin = db
     .user()
-    .create_user(payload.admin_username, payload.admin_email, hash, salt)
+    .create_user(
+      payload.admin_username,
+      payload.admin_email,
+      hash,
+      salt,
+      false,
+    )
     .await?;
   db.group()
     .add_user_to_groups(admin, vec![admin_group_id])
@@ -133,9 +139,14 @@ async fn complete_setup(
 struct IsSetupResponse {
   is_setup: bool,
   db_backend: String,
+  #[cfg(feature = "storage")]
+  storage_backend: String,
 }
 
-async fn is_setup(db: Connection) -> Result<Json<IsSetupResponse>> {
+async fn is_setup(
+  db: Connection,
+  #[cfg(feature = "storage")] storage: crate::storage::FileStorage,
+) -> Result<Json<IsSetupResponse>> {
   let db_backend = match db.0.get_database_backend() {
     sea_orm::DatabaseBackend::Postgres => "PostgreSQL",
     sea_orm::DatabaseBackend::MySql => "MySQL",
@@ -146,5 +157,7 @@ async fn is_setup(db: Connection) -> Result<Json<IsSetupResponse>> {
   Ok(Json(IsSetupResponse {
     is_setup: db.setup().is_setup().await?,
     db_backend,
+    #[cfg(feature = "storage")]
+    storage_backend: storage.name().to_string(),
   }))
 }

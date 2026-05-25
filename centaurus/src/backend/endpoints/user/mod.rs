@@ -1,9 +1,12 @@
 use crate::backend::{
-  endpoints::websocket::state::UpdateMessage, middleware::rate_limiter::RateLimiter,
+  endpoints::{user::email::EmailChangeState, websocket::state::UpdateMessage},
+  middleware::rate_limiter::RateLimiter,
 };
 use aide::axum::ApiRouter;
+use axum::Extension;
 
 pub mod account;
+pub mod email;
 pub mod info;
 pub mod management;
 pub mod template;
@@ -13,4 +16,8 @@ pub fn router<T: UpdateMessage>(rate_limiter: &mut RateLimiter) -> ApiRouter {
     .nest("/account", account::router::<T>(rate_limiter))
     .nest("/info", info::router())
     .nest("/management", management::router::<T>())
+}
+
+pub fn state(router: ApiRouter) -> ApiRouter {
+  router.layer(Extension(EmailChangeState::init()))
 }

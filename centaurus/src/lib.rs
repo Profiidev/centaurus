@@ -22,6 +22,8 @@ pub mod logging;
 pub mod mail;
 #[cfg(feature = "serde")]
 pub mod serde;
+#[cfg(feature = "storage")]
+pub mod storage;
 
 #[cfg(feature = "backend")]
 pub use centaurus_derive::Config;

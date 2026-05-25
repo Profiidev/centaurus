@@ -6,3 +6,5 @@ pub mod key;
 pub mod settings;
 pub mod setup;
 pub mod user;
+#[cfg(feature = "avatar")]
+pub mod user_avatar;

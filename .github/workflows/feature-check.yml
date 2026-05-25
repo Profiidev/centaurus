@@ -18,14 +18,17 @@ jobs:
           - db
           - auth
           - error
+          - storage
           - backend,auth
           - backend,db,auth
           - backend,db,auth,frontend
           - endpoints
+          - endpoints,storage
           - endpoints,metrics
           - endpoints,metrics,frontend
           - endpoints,frontend
           - endpoints,frontend,avatar
+          - endpoints,frontend,avatar,storage
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable

@@ -33,6 +33,9 @@ pub fn config(input: TokenStream) -> TokenStream {
   let mut base_field: Option<Ident> = None;
   let mut metrics_field: Option<Ident> = None;
   let mut site_field: Option<Ident> = None;
+  let mut auth_field: Option<Ident> = None;
+  let mut oidc_field: Option<Ident> = None;
+  let mut mail_field: Option<Ident> = None;
 
   for field in files {
     for attr in &field.attrs {
@@ -66,6 +69,36 @@ pub fn config(input: TokenStream) -> TokenStream {
           .into();
         }
         site_field = field.ident.clone();
+      } else if attr.path().is_ident("oidc") {
+        if oidc_field.is_some() {
+          return syn::Error::new_spanned(
+            &field.ident,
+            "Multiple fields with #[oidc] attribute found",
+          )
+          .to_compile_error()
+          .into();
+        }
+        oidc_field = field.ident.clone();
+      } else if attr.path().is_ident("mail") {
+        if mail_field.is_some() {
+          return syn::Error::new_spanned(
+            &field.ident,
+            "Multiple fields with #[mail] attribute found",
+          )
+          .to_compile_error()
+          .into();
+        }
+        mail_field = field.ident.clone();
+      } else if attr.path().is_ident("auth") {
+        if auth_field.is_some() {
+          return syn::Error::new_spanned(
+            &field.ident,
+            "Multiple fields with #[auth] attribute found",
+          )
+          .to_compile_error()
+          .into();
+        }
+        auth_field = field.ident.clone();
       }
     }
   }
@@ -107,6 +140,41 @@ pub fn config(input: TokenStream) -> TokenStream {
     quote! {}
   };
 
+  let auth_impl = if cfg!(feature = "auth") {
+    let Some(auth_field) = auth_field else {
+      return syn::Error::new_spanned(&input, "No field with #[auth] attribute found")
+        .to_compile_error()
+        .into();
+    };
+    quote! {
+      fn auth(&self) -> &#path::backend::auth::settings::AuthConfig {
+        &self.#auth_field
+      }
+    }
+  } else {
+    quote! {}
+  };
+
+  let oidc_impl = if let Some(oidc_field) = oidc_field {
+    quote! {
+      fn oidc(&self) -> Option<&#path::backend::auth::settings::UserSettings> {
+        Some(&self.#oidc_field)
+      }
+    }
+  } else {
+    quote! {}
+  };
+
+  let mail_impl = if let Some(mail_field) = mail_field {
+    quote! {
+      fn mail(&self) -> Option<&#path::mail::MailSettings> {
+        Some(&self.#mail_field)
+      }
+    }
+  } else {
+    quote! {}
+  };
+
   quote! {
     impl #path::backend::config::Config for #name {
       fn base(&self) -> &#path::backend::config::BaseConfig {
@@ -116,6 +184,12 @@ pub fn config(input: TokenStream) -> TokenStream {
       #metrics_impl
 
       #site_impl
+
+      #auth_impl
+
+      #oidc_impl
+
+      #mail_impl
     }
   }
   .into()
