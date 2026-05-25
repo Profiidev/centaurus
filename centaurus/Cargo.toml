@@ -100,7 +100,7 @@ aws-sdk-s3 = { version = "1.129.0", features = ["behavior-version-latest"], opti
 tokio-util = { version = "0.7.18", features = ["io"], optional = true }
 
 [features]
-default = ["avatar", "endpoints", "logging", "frontend", "metrics", "storage"]
+default = ["avatar", "endpoints", "logging", "frontend", "metrics"]
 
 db = [
   "chrono",
