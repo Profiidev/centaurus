@@ -4,6 +4,7 @@ use crate::backend::{
 use aide::axum::ApiRouter;
 
 pub mod account;
+pub mod email;
 pub mod info;
 pub mod management;
 pub mod template;

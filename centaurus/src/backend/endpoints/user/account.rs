@@ -115,6 +115,10 @@ async fn update_password(
 ) -> Result<()> {
   let user = db.user().get_user_by_id(auth.user_id).await?;
 
+  if user.oidc_user {
+    bail!(NOT_ACCEPTABLE, "OIDC users cannot change their password");
+  }
+
   let old_hash = state.pw_hash(&user.salt, &data.old_password)?;
   if old_hash != user.password {
     bail!(FORBIDDEN, "Old password is incorrect");
