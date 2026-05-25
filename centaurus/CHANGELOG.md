@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-05-25
+
+### 🚀 Features
+
+- Allow chaning name and users of admin group
+- Added settings loading from env
+- Moved user avatar to seperate table
+- Added new user avatar endpoints
+- Added oidc flag to user
+- Added field to flag oidc users
+- Added file storage
+- Added user change email endpoint
+- Added self email change endpoints
+- Added email state init
+
+### 🐛 Bug Fixes
+
+- Smtp enabled default
+- Correct config loading
+
+### 🚜 Refactor
+
+- Moved user avatar to seperate table
+- Remove self avatar endpoint
+
+### ⚙️ Miscellaneous Tasks
+
+- Fix code style issues with rustfmt
+
+
+
 ## [0.11.2] - 2026-05-07
 
 ### 🚀 Features
