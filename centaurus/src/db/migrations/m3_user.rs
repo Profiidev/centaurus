@@ -18,6 +18,7 @@ impl MigrationTrait for Migration {
           .col(string(User::Email))
           .col(string(User::Password))
           .col(string(User::Salt))
+          .col(boolean(User::OidcUser))
           .to_owned(),
       )
       .await?;
@@ -78,6 +79,7 @@ pub enum User {
   Email,
   Password,
   Salt,
+  OidcUser,
 }
 
 #[cfg(feature = "avatar")]
