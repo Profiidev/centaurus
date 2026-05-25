@@ -51,6 +51,7 @@ impl<'db> UserTable<'db> {
     email: String,
     password: String,
     salt: String,
+    oidc_user: bool,
   ) -> Result<Uuid> {
     use sea_orm::IntoActiveModel;
 
@@ -88,6 +89,7 @@ impl<'db> UserTable<'db> {
       email,
       password,
       salt,
+      oidc_user,
     }
     .into_active_model();
 

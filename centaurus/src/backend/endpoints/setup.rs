@@ -113,7 +113,13 @@ async fn complete_setup(
 
   let admin = db
     .user()
-    .create_user(payload.admin_username, payload.admin_email, hash, salt)
+    .create_user(
+      payload.admin_username,
+      payload.admin_email,
+      hash,
+      salt,
+      false,
+    )
     .await?;
   db.group()
     .add_user_to_groups(admin, vec![admin_group_id])

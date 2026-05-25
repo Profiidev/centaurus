@@ -429,6 +429,7 @@ async fn check_code(
       res.email,
       String::new(),
       SaltString::generate(OsRng {}).to_string(),
+      true,
     )
     .await?;
 

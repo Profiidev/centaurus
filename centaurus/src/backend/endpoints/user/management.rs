@@ -168,7 +168,13 @@ async fn create_user<T: UpdateMessage>(
 
   let user_id = db
     .user()
-    .create_user(req.name.clone(), req.email.clone(), password_hash, salt)
+    .create_user(
+      req.name.clone(),
+      req.email.clone(),
+      password_hash,
+      salt,
+      false,
+    )
     .await?;
   if mailer.is_active().await {
     let subject = "Your new account";
