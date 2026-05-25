@@ -95,9 +95,12 @@ tracing-subscriber = { version = "=0.3.19", optional = true }
 url = { version = "2.5.8", optional = true }
 uuid = { version = "1.23.1", optional = true }
 webauthn-rs-core = { version = "0.5.4", default-features = false, optional = true }
+aws-config = { version = "1.8.15", features = ["behavior-version-latest"], optional = true }
+aws-sdk-s3 = { version = "1.129.0", features = ["behavior-version-latest"], optional = true }
+tokio-util = { version = "0.7.18", features = ["io"], optional = true }
 
 [features]
-default = ["avatar", "endpoints", "logging", "frontend", "metrics"]
+default = ["avatar", "endpoints", "logging", "frontend", "metrics", "storage"]
 
 db = [
   "chrono",
@@ -156,6 +159,17 @@ metrics = ["dep:metrics", "dep:metrics-exporter-prometheus", "centaurus-derive/m
 avatar = ["base64", "db", "gravatar", "image", "reqwest"]
 logging = ["dep:color-eyre", "dep:tracing", "dep:tracing-error", "dep:tracing-subscriber", "serde"]
 mail = ["dep:lettre", "error", "serde", "tokio", "centaurus-derive/mail"]
+storage = [
+  "dep:aws-config",
+  "dep:aws-sdk-s3",
+  "logging",
+  "serde",
+  "dep:tokio",
+  "error",
+  "http",
+  "dep:tokio-util",
+  "dep:axum",
+]
 
 config_site = ["centaurus-derive/site", "url"]
 error = ["dep:eyre"]
