@@ -94,7 +94,9 @@ impl OidcState {
       oidc_client_id,
       oidc_client_secret,
       oidc_scopes,,
-      oidc_enabled
+      oidc_enabled,
+      sso_create_user,
+      sso_instant_redirect
     );
 
     if let Some(oidc_settings) = &settings.oidc_settings() {

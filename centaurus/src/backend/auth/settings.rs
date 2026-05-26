@@ -18,7 +18,7 @@ pub struct UserSettings {
   pub oidc_issuer: Option<Url>,
   pub oidc_client_id: Option<String>,
   pub oidc_client_secret: Option<String>,
-  pub oidc_scopes: Option<Vec<String>>,
+  pub oidc_scopes: Option<String>,
   pub sso_instant_redirect: bool,
   pub sso_create_user: bool,
 }
@@ -64,6 +64,7 @@ impl UserSettings {
       let scopes = self
         .oidc_scopes
         .clone()
+        .map(|s| s.split(" ").map(|s| s.to_string()).collect())
         .unwrap_or_else(|| vec!["openid".to_string()]);
       Some(OidcSettings {
         issuer: issuer.clone(),
