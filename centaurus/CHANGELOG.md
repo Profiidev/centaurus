@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.2] - 2026-05-26
+
+### 🐛 Bug Fixes
+
+- Oidc scope as string instead of vec
+
+
+
 ## [0.12.1] - 2026-05-26
 
 ### 🚀 Features
