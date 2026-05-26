@@ -26,16 +26,7 @@ impl Deref for Connection {
 
 #[instrument(skip(config))]
 pub async fn init_db<M: MigratorTrait>(config: &DBConfig, connection_url: &str) -> Connection {
-  let mut options = ConnectOptions::new(connection_url);
-  options
-    .max_connections(config.database_max_connections)
-    .min_connections(config.database_min_connections)
-    .connect_timeout(Duration::from_secs(config.database_connect_timeout))
-    .sqlx_logging(config.database_logging);
-
-  let conn = Database::connect(options)
-    .await
-    .expect("Failed to connect to database");
+  let conn = create_connection(config, connection_url).await;
 
   #[cfg(feature = "fix-migrations")]
   migrate_to_centaurus_migrations(&conn)
@@ -46,6 +37,31 @@ pub async fn init_db<M: MigratorTrait>(config: &DBConfig, connection_url: &str) 
     .await
     .expect("Failed to run database migrations");
 
+  sqlite_init(&conn).await;
+
+  Connection(conn)
+}
+
+pub async fn connect_db(config: &DBConfig, connection_url: &str) -> Connection {
+  let conn = create_connection(config, connection_url).await;
+  sqlite_init(&conn).await;
+  Connection(conn)
+}
+
+async fn create_connection(config: &DBConfig, connection_url: &str) -> DatabaseConnection {
+  let mut options = ConnectOptions::new(connection_url);
+  options
+    .max_connections(config.database_max_connections)
+    .min_connections(config.database_min_connections)
+    .connect_timeout(Duration::from_secs(config.database_connect_timeout))
+    .sqlx_logging(config.database_logging);
+
+  Database::connect(options)
+    .await
+    .expect("Failed to connect to database")
+}
+
+async fn sqlite_init(conn: &DatabaseConnection) {
   if conn.get_database_backend() == DatabaseBackend::Sqlite {
     conn
       .execute(Statement::from_string(
@@ -55,8 +71,6 @@ pub async fn init_db<M: MigratorTrait>(config: &DBConfig, connection_url: &str) 
       .await
       .expect("Failed to set SQLite pragmas");
   }
-
-  Connection(conn)
 }
 
 #[cfg(feature = "fix-migrations")]

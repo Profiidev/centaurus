@@ -300,7 +300,7 @@ impl IntoResponse for ErrorReport {
     if self.status.is_server_error() {
       tracing::error!("{:?}", self.error);
     } else {
-      tracing::warn!("{:?}", self.error);
+      tracing::debug!("{:?}", self.error);
     }
     self.status.into_response()
   }
