@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-05-26
+
+### 🚀 Features
+
+- Added init for stderr logging
+- Added method for db connection without migration
+
+### 🚜 Refactor
+
+- Log non fatal errors to debug instead of warning
+
+
+
 ## [0.12.0] - 2026-05-25
 
 ### 🚀 Features
