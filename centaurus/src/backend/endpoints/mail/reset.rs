@@ -49,6 +49,11 @@ async fn send_reset_link(
       return;
     };
 
+    if user.oidc_user {
+      warn!("Password reset requested for OAuth user: {}", email);
+      return;
+    }
+
     let token = state.generate_token(user.email.clone()).await;
 
     let mut reset_link = config.site_url.clone();
