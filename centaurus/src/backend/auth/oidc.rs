@@ -27,6 +27,7 @@ use axum::{
   extract::{FromRequestParts, Query},
 };
 use axum_extra::extract::{CookieJar, cookie::Cookie};
+use dashmap::DashMap;
 use http::{StatusCode, header::LOCATION};
 use jsonwebtoken::{
   DecodingKey, Validation,
@@ -57,12 +58,14 @@ pub fn router(rate_limiter: &mut RateLimiter) -> BackendRouter {
 
 #[derive(Clone, FromRequestParts, Debug, OperationIo)]
 #[from_request(via(Extension))]
-pub struct OidcState(Arc<Mutex<Option<OidcConfig>>>);
+pub struct OidcState {
+  config: Arc<Mutex<Option<OidcConfig>>>,
+  state: Arc<DashMap<Uuid, Instant>>,
+  nonce: Arc<DashMap<Uuid, Instant>>,
+}
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct OidcConfig {
-  state: HashMap<Uuid, Instant>,
-  nonce: HashMap<Uuid, Instant>,
   issuer: String,
   authorization_endpoint: Url,
   token_endpoint: Url,
@@ -88,7 +91,12 @@ struct OidcConfiguration {
 
 impl OidcState {
   pub async fn new(db: &Connection, oidc: Option<&UserSettings>) -> Self {
-    let state = Self(Arc::new(Mutex::new(None)));
+    let state = Self {
+      config: Arc::new(Mutex::new(None)),
+      state: Arc::new(DashMap::new()),
+      nonce: Arc::new(DashMap::new()),
+    };
+
     let mut settings: UserSettings = db.settings().get_settings().await.unwrap_or_default();
     overwrite_with_env_config!(
       settings,
@@ -115,16 +123,13 @@ impl OidcState {
         let expiration_duration = Duration::from_secs(600);
         loop {
           sleep(cleanup_interval).await;
-          let mut lock = state.0.lock().await;
-          if let Some(config) = lock.as_mut() {
-            let now = Instant::now();
-            config
-              .state
-              .retain(|_, &mut instant| now.duration_since(instant) < expiration_duration);
-            config
-              .nonce
-              .retain(|_, &mut instant| now.duration_since(instant) < expiration_duration);
-          }
+          let now = Instant::now();
+          state
+            .nonce
+            .retain(|_, &mut instant| now.duration_since(instant) < expiration_duration);
+          state
+            .state
+            .retain(|_, &mut instant| now.duration_since(instant) < expiration_duration);
         }
       }
     });
@@ -134,18 +139,18 @@ impl OidcState {
 
   pub async fn try_init(&self, settings: &OidcSettings) -> Result<()> {
     let config = OidcConfig::new(settings).await?;
-    let mut lock = self.0.lock().await;
+    let mut lock = self.config.lock().await;
     *lock = Some(config);
     Ok(())
   }
 
   pub async fn deactivate(&self) {
-    let mut lock = self.0.lock().await;
+    let mut lock = self.config.lock().await;
     *lock = None;
   }
 
   pub async fn is_enabled(&self) -> bool {
-    let lock = self.0.lock().await;
+    let lock = self.config.lock().await;
     lock.is_some()
   }
 }
@@ -184,8 +189,6 @@ impl OidcConfig {
     let client = Client::builder().redirect(Policy::none()).build()?;
 
     Ok(Self {
-      state: Default::default(),
-      nonce: Default::default(),
       issuer: config.issuer,
       authorization_endpoint: config.authorization_endpoint,
       token_endpoint: config.token_endpoint,
@@ -203,7 +206,7 @@ impl OidcConfig {
 }
 
 impl OidcConfig {
-  async fn validate_jwk(&mut self, token: &str) -> Result<()> {
+  async fn validate_jwk(&self, token: &str, nonce_map: &DashMap<Uuid, Instant>) -> Result<()> {
     let header = jsonwebtoken::decode_header(token)?;
 
     let Some(kid) = header.kid else {
@@ -243,7 +246,7 @@ impl OidcConfig {
     else {
       bail!(INTERNAL_SERVER_ERROR, "Missing nonce in JWK claims");
     };
-    if self.nonce.remove(&nonce).is_none() {
+    if nonce_map.remove(&nonce).is_none() {
       bail!(INTERNAL_SERVER_ERROR, "Invalid nonce");
     }
 
@@ -262,57 +265,59 @@ async fn oidc_url(
   jwt: JwtState,
   mut cookies: CookieJar,
 ) -> Result<(CookieJar, Json<OidcResponse>)> {
-  if let Some(config) = state.0.lock().await.as_mut() {
-    let state = Uuid::new_v4();
-    let nonce = Uuid::new_v4();
-
-    let mut form = HashMap::new();
-    form.insert("response_type", "code".to_string());
-    form.insert("client_id", config.client_id.clone());
-    form.insert("state", state.to_string());
-    form.insert("nonce", nonce.to_string());
-
-    if !config.scope.is_empty() {
-      form.insert("scope", config.scope.join(" "));
-    }
-
-    let req = config
-      .client
-      .post(config.authorization_endpoint.clone())
-      .form(&form)
-      .build()?;
-
-    let res = config.client.execute(req).await?;
-
-    if !res.status().is_redirection() {
-      let body = res.text().await.unwrap_or_default();
-      bail!(
-        INTERNAL_SERVER_ERROR,
-        "OIDC authorization request failed: {}",
-        body
-      );
-    }
-    let Some(location) = res.headers().get(LOCATION).and_then(|h| h.to_str().ok()) else {
-      bail!(
-        INTERNAL_SERVER_ERROR,
-        "OIDC authorization response missing location header"
-      );
-    };
-
-    config.state.insert(state, Instant::now());
-    cookies = cookies.add(jwt.create_cookie(OIDC_STATE, state.to_string()));
-
-    config.nonce.insert(nonce, Instant::now());
-
-    Ok((
-      cookies,
-      Json(OidcResponse {
-        url: location.to_string(),
-      }),
-    ))
-  } else {
+  let lock = state.config.lock().await;
+  let Some(config) = lock.clone() else {
     bail!(BAD_REQUEST, "OIDC not configured");
+  };
+  drop(lock);
+
+  let state_id = Uuid::new_v4();
+  let nonce = Uuid::new_v4();
+
+  let mut form = HashMap::new();
+  form.insert("response_type", "code".to_string());
+  form.insert("client_id", config.client_id.clone());
+  form.insert("state", state_id.to_string());
+  form.insert("nonce", nonce.to_string());
+
+  if !config.scope.is_empty() {
+    form.insert("scope", config.scope.join(" "));
   }
+
+  let req = config
+    .client
+    .post(config.authorization_endpoint.clone())
+    .form(&form)
+    .build()?;
+
+  let res = config.client.execute(req).await?;
+
+  if !res.status().is_redirection() {
+    let body = res.text().await.unwrap_or_default();
+    bail!(
+      INTERNAL_SERVER_ERROR,
+      "OIDC authorization request failed: {}",
+      body
+    );
+  }
+  let Some(location) = res.headers().get(LOCATION).and_then(|h| h.to_str().ok()) else {
+    bail!(
+      INTERNAL_SERVER_ERROR,
+      "OIDC authorization response missing location header"
+    );
+  };
+
+  state.state.insert(state_id, Instant::now());
+  cookies = cookies.add(jwt.create_cookie(OIDC_STATE, state_id.to_string()));
+
+  state.nonce.insert(nonce, Instant::now());
+
+  Ok((
+    cookies,
+    Json(OidcResponse {
+      url: location.to_string(),
+    }),
+  ))
 }
 
 #[derive(Deserialize, Clone)]
@@ -345,12 +350,13 @@ async fn oidc_callback(
   oidc_config: SiteConfig,
   jwt: JwtState,
 ) -> Result<(CookieJar, Redirect)> {
-  let mut lock = oidc_state.0.lock().await;
-  let Some(config) = lock.as_mut() else {
+  let lock = oidc_state.config.lock().await;
+  let Some(config) = lock.clone() else {
     bail!(BAD_REQUEST, "OIDC not configured");
   };
+  drop(lock);
 
-  if config.state.remove(&state).is_none() {
+  if oidc_state.state.remove(&state).is_none() {
     bail!(BAD_REQUEST, "Invalid OIDC state");
   }
   let Some(cookie) = cookies.get(OIDC_STATE) else {
@@ -360,7 +366,8 @@ async fn oidc_callback(
     bail!(BAD_REQUEST, "OIDC state mismatch");
   }
 
-  let (path, error, mut cookies) = check_code(error, code, config, &db, cookies, &jwt).await?;
+  let (path, error, mut cookies) =
+    check_code(error, code, &config, &db, cookies, &jwt, &oidc_state.nonce).await?;
 
   cookies = cookies.remove(Cookie::from(OIDC_STATE));
 
@@ -374,10 +381,11 @@ async fn oidc_callback(
 async fn check_code(
   error: Option<String>,
   code: Option<String>,
-  config: &mut OidcConfig,
+  config: &OidcConfig,
   db: &Connection,
   mut cookies: CookieJar,
   jwt: &JwtState,
+  nonce_map: &DashMap<Uuid, Instant>,
 ) -> Result<(&'static str, Option<String>, CookieJar)> {
   if let Some(error) = error {
     return Ok(("/login", Some(error), cookies));
@@ -404,7 +412,7 @@ async fn check_code(
   }
 
   let res: TokenRes = res.json().await?;
-  config.validate_jwk(&res.id_token).await?;
+  config.validate_jwk(&res.id_token, nonce_map).await?;
   let token = res.id_token.clone();
 
   let req = config
