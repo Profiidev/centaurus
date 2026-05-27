@@ -344,6 +344,11 @@ async fn reset_user_password(
   }
 
   let user = db.user().get_user_by_id(req.uuid).await?;
+
+  if user.oidc_user {
+    bail!(BAD_REQUEST, "Cannot reset password for an OIDC user");
+  }
+
   let hash = state.pw_hash(&user.salt, &req.new_password)?;
   db.user().update_user_password(req.uuid, hash).await?;
 

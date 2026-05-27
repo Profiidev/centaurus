@@ -31,6 +31,7 @@ pub struct DetailUserInfo {
   pub email: String,
   pub groups: Vec<SimpleGroupInfo>,
   pub permissions: Vec<String>,
+  pub oidc_user: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -205,6 +206,7 @@ impl<'db> UserTable<'db> {
       email: user.email,
       groups,
       permissions,
+      oidc_user: user.oidc_user,
     }))
   }
 
