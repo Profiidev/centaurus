@@ -434,6 +434,7 @@ async fn check_code(
 
   if let Some(user) = db.user().try_get_user_by_email(&res.email).await? {
     sync_groups(user.id, &res, config, db).await?;
+    #[cfg(feature = "avatar")]
     if config.image_sync {
       let _ = sync_image(user.id, res.picture, db, token, &config.client).await;
     }
@@ -460,6 +461,7 @@ async fn check_code(
     )
     .await?;
   sync_groups(user, &res, config, db).await?;
+  #[cfg(feature = "avatar")]
   if config.image_sync {
     let _ = sync_image(user, res.picture, db, token, &config.client).await;
   }
@@ -513,6 +515,7 @@ async fn sync_groups(
   Ok(())
 }
 
+#[cfg(feature = "avatar")]
 async fn sync_image(
   user: Uuid,
   picture: Option<String>,
