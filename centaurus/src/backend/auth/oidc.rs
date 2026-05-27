@@ -77,6 +77,7 @@ struct OidcConfig {
   scope: Vec<String>,
   group_sync: bool,
   group_claim: String,
+  #[allow(unused)]
   image_sync: bool,
 }
 
