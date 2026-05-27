@@ -228,10 +228,7 @@ impl<'db> UserTable<'db> {
     user.update(self.db).await?;
 
     // Update groups
-    group_user::Entity::delete_many()
-      .filter(group_user::Column::UserId.eq(user_id))
-      .exec(self.db)
-      .await?;
+    self.clear_user_groups(user_id).await?;
 
     if !new_groups.is_empty() {
       GroupTable::new(self.db)
@@ -319,6 +316,15 @@ impl<'db> UserTable<'db> {
     user.email = Set(new_email.to_lowercase());
 
     user.update(self.db).await?;
+
+    Ok(())
+  }
+
+  pub async fn clear_user_groups(&self, user_id: Uuid) -> Result<()> {
+    group_user::Entity::delete_many()
+      .filter(group_user::Column::UserId.eq(user_id))
+      .exec(self.db)
+      .await?;
 
     Ok(())
   }

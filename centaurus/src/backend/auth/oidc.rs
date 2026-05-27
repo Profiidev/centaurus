@@ -72,6 +72,8 @@ struct OidcConfig {
   client_secret: String,
   client: Client,
   scope: Vec<String>,
+  group_sync: bool,
+  group_claim: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -95,6 +97,7 @@ impl OidcState {
       oidc_client_secret,
       oidc_scopes,,
       oidc_enabled,
+      oidc_group_sync,
       sso_create_user,
       sso_instant_redirect
     );
@@ -190,6 +193,8 @@ impl OidcConfig {
       client_secret: oidc_settings.client_secret.clone(),
       client,
       scope: oidc_settings.scopes.clone(),
+      group_claim: oidc_settings.group_claim.clone(),
+      group_sync: oidc_settings.group_sync,
     })
   }
 }
@@ -324,6 +329,8 @@ struct TokenRes {
 pub struct AuthInfo {
   pub email: String,
   pub name: String,
+  #[serde(flatten)]
+  pub extra: HashMap<String, serde_json::Value>,
 }
 
 async fn oidc_callback(
@@ -413,6 +420,8 @@ async fn check_code(
   let res: AuthInfo = res.json().await?;
 
   if let Some(user) = db.user().try_get_user_by_email(&res.email).await? {
+    sync_groups(user.id, res, config, db).await?;
+
     debug!("OIDC user authenticated: {}", user.id);
     cookies = cookies.add(jwt.create_token(user.id)?);
 
@@ -427,16 +436,60 @@ async fn check_code(
   let user = db
     .user()
     .create_user(
-      res.name,
-      res.email,
+      res.name.clone(),
+      res.email.clone(),
       String::new(),
       SaltString::generate(OsRng {}).to_string(),
       true,
     )
     .await?;
+  sync_groups(user, res, config, db).await?;
 
   debug!("OIDC user authenticated: {}", user);
   cookies = cookies.add(jwt.create_token(user)?);
 
   Ok(("/", None, cookies))
+}
+
+impl AuthInfo {
+  pub fn groups(&self, group_claim: &str) -> Vec<String> {
+    if let Some(groups) = self.extra.get(group_claim) {
+      if let Some(groups) = groups.as_array() {
+        return groups
+          .iter()
+          .filter_map(|g| g.as_str().map(|s| s.to_string()))
+          .collect();
+      } else if let Some(group) = groups.as_str() {
+        return vec![group.to_string()];
+      }
+    }
+    Vec::new()
+  }
+}
+
+async fn sync_groups(
+  user: Uuid,
+  auth: AuthInfo,
+  config: &OidcConfig,
+  db: &Connection,
+) -> Result<()> {
+  if !config.group_sync {
+    return Ok(());
+  }
+
+  let groups = auth.groups(&config.group_claim);
+  let mut group_ids = db.group().group_ids(&groups).await?;
+
+  let Some(admin_group) = db.setup().get_admin_group_id().await? else {
+    return Ok(());
+  };
+
+  if db.group().is_last_admin(admin_group, user).await? && !group_ids.contains(&admin_group) {
+    group_ids.push(admin_group);
+  }
+
+  db.user().clear_user_groups(user).await?;
+  db.group().add_user_to_groups(user, group_ids).await?;
+
+  Ok(())
 }

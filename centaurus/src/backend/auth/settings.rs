@@ -19,6 +19,8 @@ pub struct UserSettings {
   pub oidc_client_id: Option<String>,
   pub oidc_client_secret: Option<String>,
   pub oidc_scopes: Option<String>,
+  pub oidc_group_sync: bool,
+  pub oidc_group_claim: Option<String>,
   pub sso_instant_redirect: bool,
   pub sso_create_user: bool,
 }
@@ -48,6 +50,8 @@ impl Default for UserSettings {
       oidc_client_id: None,
       oidc_client_secret: None,
       oidc_scopes: None,
+      oidc_group_claim: None,
+      oidc_group_sync: true,
     }
   }
 }
@@ -70,6 +74,11 @@ impl UserSettings {
         issuer: issuer.clone(),
         client_id: client_id.clone(),
         client_secret: client_secret.clone(),
+        group_sync: self.oidc_group_sync,
+        group_claim: self
+          .oidc_group_claim
+          .clone()
+          .unwrap_or_else(|| "groups".to_string()),
         scopes,
       })
     } else {
@@ -83,6 +92,8 @@ pub struct OidcSettings {
   pub client_id: String,
   pub client_secret: String,
   pub scopes: Vec<String>,
+  pub group_sync: bool,
+  pub group_claim: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
