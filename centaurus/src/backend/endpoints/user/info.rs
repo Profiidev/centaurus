@@ -43,6 +43,7 @@ struct UserInfo {
   name: String,
   email: String,
   permissions: Vec<String>,
+  oidc_user: bool,
 }
 
 async fn info(auth: JwtAuth, db: Connection) -> Result<Json<UserInfo>> {
@@ -54,6 +55,7 @@ async fn info(auth: JwtAuth, db: Connection) -> Result<Json<UserInfo>> {
     name: user.name,
     email: user.email,
     permissions,
+    oidc_user: user.oidc_user,
   }))
 }
 

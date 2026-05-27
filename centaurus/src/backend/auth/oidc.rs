@@ -12,6 +12,7 @@ use crate::{
       settings::{OidcSettings, UserSettings},
     },
     config::SiteConfig,
+    endpoints::websocket::state::{UpdateMessage, Updater},
     middleware::rate_limiter::RateLimiter,
     request::redirect::Redirect,
   },
@@ -27,6 +28,7 @@ use axum::{
   extract::{FromRequestParts, Query},
 };
 use axum_extra::extract::{CookieJar, cookie::Cookie};
+use dashmap::DashMap;
 use http::{StatusCode, header::LOCATION};
 use jsonwebtoken::{
   DecodingKey, Validation,
@@ -43,7 +45,7 @@ use uuid::Uuid;
 
 pub const OIDC_STATE: &str = "oidc_state";
 
-pub fn router(rate_limiter: &mut RateLimiter) -> BackendRouter {
+pub fn router<T: UpdateMessage>(rate_limiter: &mut RateLimiter) -> BackendRouter {
   #[cfg(feature = "openapi")]
   use aide::axum::routing::get;
   #[cfg(not(feature = "openapi"))]
@@ -52,17 +54,19 @@ pub fn router(rate_limiter: &mut RateLimiter) -> BackendRouter {
   BackendRouter::new()
     .route("/url", get(oidc_url))
     .layer(GovernorLayer::new(rate_limiter.create_limiter()))
-    .route("/callback", get(oidc_callback))
+    .route("/callback", get(oidc_callback::<T>))
 }
 
 #[derive(Clone, FromRequestParts, Debug, OperationIo)]
 #[from_request(via(Extension))]
-pub struct OidcState(Arc<Mutex<Option<OidcConfig>>>);
+pub struct OidcState {
+  config: Arc<Mutex<Option<OidcConfig>>>,
+  state: Arc<DashMap<Uuid, Instant>>,
+  nonce: Arc<DashMap<Uuid, Instant>>,
+}
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct OidcConfig {
-  state: HashMap<Uuid, Instant>,
-  nonce: HashMap<Uuid, Instant>,
   issuer: String,
   authorization_endpoint: Url,
   token_endpoint: Url,
@@ -72,6 +76,10 @@ struct OidcConfig {
   client_secret: String,
   client: Client,
   scope: Vec<String>,
+  group_sync: bool,
+  group_claim: String,
+  #[allow(unused)]
+  image_sync: bool,
 }
 
 #[derive(Deserialize, Debug)]
@@ -85,7 +93,12 @@ struct OidcConfiguration {
 
 impl OidcState {
   pub async fn new(db: &Connection, oidc: Option<&UserSettings>) -> Self {
-    let state = Self(Arc::new(Mutex::new(None)));
+    let state = Self {
+      config: Arc::new(Mutex::new(None)),
+      state: Arc::new(DashMap::new()),
+      nonce: Arc::new(DashMap::new()),
+    };
+
     let mut settings: UserSettings = db.settings().get_settings().await.unwrap_or_default();
     overwrite_with_env_config!(
       settings,
@@ -95,6 +108,8 @@ impl OidcState {
       oidc_client_secret,
       oidc_scopes,,
       oidc_enabled,
+      oidc_group_sync,
+      oidc_image_sync,
       sso_create_user,
       sso_instant_redirect
     );
@@ -110,16 +125,13 @@ impl OidcState {
         let expiration_duration = Duration::from_secs(600);
         loop {
           sleep(cleanup_interval).await;
-          let mut lock = state.0.lock().await;
-          if let Some(config) = lock.as_mut() {
-            let now = Instant::now();
-            config
-              .state
-              .retain(|_, &mut instant| now.duration_since(instant) < expiration_duration);
-            config
-              .nonce
-              .retain(|_, &mut instant| now.duration_since(instant) < expiration_duration);
-          }
+          let now = Instant::now();
+          state
+            .nonce
+            .retain(|_, &mut instant| now.duration_since(instant) < expiration_duration);
+          state
+            .state
+            .retain(|_, &mut instant| now.duration_since(instant) < expiration_duration);
         }
       }
     });
@@ -129,18 +141,18 @@ impl OidcState {
 
   pub async fn try_init(&self, settings: &OidcSettings) -> Result<()> {
     let config = OidcConfig::new(settings).await?;
-    let mut lock = self.0.lock().await;
+    let mut lock = self.config.lock().await;
     *lock = Some(config);
     Ok(())
   }
 
   pub async fn deactivate(&self) {
-    let mut lock = self.0.lock().await;
+    let mut lock = self.config.lock().await;
     *lock = None;
   }
 
   pub async fn is_enabled(&self) -> bool {
-    let lock = self.0.lock().await;
+    let lock = self.config.lock().await;
     lock.is_some()
   }
 }
@@ -179,8 +191,6 @@ impl OidcConfig {
     let client = Client::builder().redirect(Policy::none()).build()?;
 
     Ok(Self {
-      state: Default::default(),
-      nonce: Default::default(),
       issuer: config.issuer,
       authorization_endpoint: config.authorization_endpoint,
       token_endpoint: config.token_endpoint,
@@ -190,12 +200,15 @@ impl OidcConfig {
       client_secret: oidc_settings.client_secret.clone(),
       client,
       scope: oidc_settings.scopes.clone(),
+      group_claim: oidc_settings.group_claim.clone(),
+      group_sync: oidc_settings.group_sync,
+      image_sync: oidc_settings.image_sync,
     })
   }
 }
 
 impl OidcConfig {
-  async fn validate_jwk(&mut self, token: &str) -> Result<()> {
+  async fn validate_jwk(&self, token: &str, nonce_map: &DashMap<Uuid, Instant>) -> Result<()> {
     let header = jsonwebtoken::decode_header(token)?;
 
     let Some(kid) = header.kid else {
@@ -235,7 +248,7 @@ impl OidcConfig {
     else {
       bail!(INTERNAL_SERVER_ERROR, "Missing nonce in JWK claims");
     };
-    if self.nonce.remove(&nonce).is_none() {
+    if nonce_map.remove(&nonce).is_none() {
       bail!(INTERNAL_SERVER_ERROR, "Invalid nonce");
     }
 
@@ -254,57 +267,59 @@ async fn oidc_url(
   jwt: JwtState,
   mut cookies: CookieJar,
 ) -> Result<(CookieJar, Json<OidcResponse>)> {
-  if let Some(config) = state.0.lock().await.as_mut() {
-    let state = Uuid::new_v4();
-    let nonce = Uuid::new_v4();
-
-    let mut form = HashMap::new();
-    form.insert("response_type", "code".to_string());
-    form.insert("client_id", config.client_id.clone());
-    form.insert("state", state.to_string());
-    form.insert("nonce", nonce.to_string());
-
-    if !config.scope.is_empty() {
-      form.insert("scope", config.scope.join(" "));
-    }
-
-    let req = config
-      .client
-      .post(config.authorization_endpoint.clone())
-      .form(&form)
-      .build()?;
-
-    let res = config.client.execute(req).await?;
-
-    if !res.status().is_redirection() {
-      let body = res.text().await.unwrap_or_default();
-      bail!(
-        INTERNAL_SERVER_ERROR,
-        "OIDC authorization request failed: {}",
-        body
-      );
-    }
-    let Some(location) = res.headers().get(LOCATION).and_then(|h| h.to_str().ok()) else {
-      bail!(
-        INTERNAL_SERVER_ERROR,
-        "OIDC authorization response missing location header"
-      );
-    };
-
-    config.state.insert(state, Instant::now());
-    cookies = cookies.add(jwt.create_cookie(OIDC_STATE, state.to_string()));
-
-    config.nonce.insert(nonce, Instant::now());
-
-    Ok((
-      cookies,
-      Json(OidcResponse {
-        url: location.to_string(),
-      }),
-    ))
-  } else {
+  let lock = state.config.lock().await;
+  let Some(config) = lock.clone() else {
     bail!(BAD_REQUEST, "OIDC not configured");
+  };
+  drop(lock);
+
+  let state_id = Uuid::new_v4();
+  let nonce = Uuid::new_v4();
+
+  let mut form = HashMap::new();
+  form.insert("response_type", "code".to_string());
+  form.insert("client_id", config.client_id.clone());
+  form.insert("state", state_id.to_string());
+  form.insert("nonce", nonce.to_string());
+
+  if !config.scope.is_empty() {
+    form.insert("scope", config.scope.join(" "));
   }
+
+  let req = config
+    .client
+    .post(config.authorization_endpoint.clone())
+    .form(&form)
+    .build()?;
+
+  let res = config.client.execute(req).await?;
+
+  if !res.status().is_redirection() {
+    let body = res.text().await.unwrap_or_default();
+    bail!(
+      INTERNAL_SERVER_ERROR,
+      "OIDC authorization request failed: {}",
+      body
+    );
+  }
+  let Some(location) = res.headers().get(LOCATION).and_then(|h| h.to_str().ok()) else {
+    bail!(
+      INTERNAL_SERVER_ERROR,
+      "OIDC authorization response missing location header"
+    );
+  };
+
+  state.state.insert(state_id, Instant::now());
+  cookies = cookies.add(jwt.create_cookie(OIDC_STATE, state_id.to_string()));
+
+  state.nonce.insert(nonce, Instant::now());
+
+  Ok((
+    cookies,
+    Json(OidcResponse {
+      url: location.to_string(),
+    }),
+  ))
 }
 
 #[derive(Deserialize, Clone)]
@@ -324,22 +339,27 @@ struct TokenRes {
 pub struct AuthInfo {
   pub email: String,
   pub name: String,
+  pub picture: Option<String>,
+  #[serde(flatten)]
+  pub extra: HashMap<String, serde_json::Value>,
 }
 
-async fn oidc_callback(
+async fn oidc_callback<T: UpdateMessage>(
   Query(OidcCallbackQuery { code, state, error }): Query<OidcCallbackQuery>,
   oidc_state: OidcState,
   cookies: CookieJar,
   db: Connection,
   oidc_config: SiteConfig,
   jwt: JwtState,
+  updater: Updater<T>,
 ) -> Result<(CookieJar, Redirect)> {
-  let mut lock = oidc_state.0.lock().await;
-  let Some(config) = lock.as_mut() else {
+  let lock = oidc_state.config.lock().await;
+  let Some(config) = lock.clone() else {
     bail!(BAD_REQUEST, "OIDC not configured");
   };
+  drop(lock);
 
-  if config.state.remove(&state).is_none() {
+  if oidc_state.state.remove(&state).is_none() {
     bail!(BAD_REQUEST, "Invalid OIDC state");
   }
   let Some(cookie) = cookies.get(OIDC_STATE) else {
@@ -349,7 +369,17 @@ async fn oidc_callback(
     bail!(BAD_REQUEST, "OIDC state mismatch");
   }
 
-  let (path, error, mut cookies) = check_code(error, code, config, &db, cookies, &jwt).await?;
+  let (path, error, mut cookies) = check_code(
+    error,
+    code,
+    &config,
+    &db,
+    cookies,
+    &jwt,
+    &oidc_state.nonce,
+    updater,
+  )
+  .await?;
 
   cookies = cookies.remove(Cookie::from(OIDC_STATE));
 
@@ -360,13 +390,16 @@ async fn oidc_callback(
   Ok((cookies, Redirect::found(url.to_string())))
 }
 
-async fn check_code(
+#[allow(clippy::too_many_arguments)]
+async fn check_code<T: UpdateMessage>(
   error: Option<String>,
   code: Option<String>,
-  config: &mut OidcConfig,
+  config: &OidcConfig,
   db: &Connection,
   mut cookies: CookieJar,
   jwt: &JwtState,
+  nonce_map: &DashMap<Uuid, Instant>,
+  updater: Updater<T>,
 ) -> Result<(&'static str, Option<String>, CookieJar)> {
   if let Some(error) = error {
     return Ok(("/login", Some(error), cookies));
@@ -393,12 +426,13 @@ async fn check_code(
   }
 
   let res: TokenRes = res.json().await?;
-  config.validate_jwk(&res.id_token).await?;
+  config.validate_jwk(&res.id_token, nonce_map).await?;
+  let token = res.id_token.clone();
 
   let req = config
     .client
     .get(config.userinfo_endpoint.clone())
-    .bearer_auth(res.id_token)
+    .bearer_auth(&token)
     .build()?;
 
   let res = config.client.execute(req).await?;
@@ -413,6 +447,20 @@ async fn check_code(
   let res: AuthInfo = res.json().await?;
 
   if let Some(user) = db.user().try_get_user_by_email(&res.email).await? {
+    sync_groups(user.id, &res, config, db, updater.clone()).await?;
+    #[cfg(feature = "avatar")]
+    if config.image_sync {
+      sync_image(
+        user.id,
+        res.picture,
+        db.clone(),
+        token,
+        config.client.clone(),
+        updater,
+      )
+      .await;
+    }
+
     debug!("OIDC user authenticated: {}", user.id);
     cookies = cookies.add(jwt.create_token(user.id)?);
 
@@ -427,16 +475,105 @@ async fn check_code(
   let user = db
     .user()
     .create_user(
-      res.name,
-      res.email,
+      res.name.clone(),
+      res.email.clone(),
       String::new(),
       SaltString::generate(OsRng {}).to_string(),
       true,
     )
     .await?;
+  sync_groups(user, &res, config, db, updater.clone()).await?;
+  #[cfg(feature = "avatar")]
+  if config.image_sync {
+    sync_image(
+      user,
+      res.picture,
+      db.clone(),
+      token,
+      config.client.clone(),
+      updater,
+    )
+    .await;
+  }
 
   debug!("OIDC user authenticated: {}", user);
   cookies = cookies.add(jwt.create_token(user)?);
 
   Ok(("/", None, cookies))
+}
+
+impl AuthInfo {
+  pub fn groups(&self, group_claim: &str) -> Vec<String> {
+    if let Some(groups) = self.extra.get(group_claim) {
+      if let Some(groups) = groups.as_array() {
+        return groups
+          .iter()
+          .filter_map(|g| g.as_str().map(|s| s.to_string()))
+          .collect();
+      } else if let Some(group) = groups.as_str() {
+        return vec![group.to_string()];
+      }
+    }
+    Vec::new()
+  }
+}
+
+async fn sync_groups<T: UpdateMessage>(
+  user: Uuid,
+  auth: &AuthInfo,
+  config: &OidcConfig,
+  db: &Connection,
+  updater: Updater<T>,
+) -> Result<()> {
+  if !config.group_sync {
+    return Ok(());
+  }
+
+  let groups = auth.groups(&config.group_claim);
+  let mut group_ids = db.group().group_ids(&groups).await?;
+
+  let Some(admin_group) = db.setup().get_admin_group_id().await? else {
+    return Ok(());
+  };
+
+  if db.group().is_last_admin(admin_group, user).await? && !group_ids.contains(&admin_group) {
+    group_ids.push(admin_group);
+  }
+
+  db.user().clear_user_groups(user).await?;
+  db.group().add_user_to_groups(user, group_ids).await?;
+
+  updater.send_to(user, T::user(user)).await;
+  updater.send_to(user, T::user_permissions()).await;
+
+  Ok(())
+}
+
+#[cfg(feature = "avatar")]
+async fn sync_image<T: UpdateMessage>(
+  user: Uuid,
+  picture: Option<String>,
+  db: Connection,
+  id_token: String,
+  client: Client,
+  updater: Updater<T>,
+) {
+  let Some(picture) = picture else {
+    return;
+  };
+
+  spawn(async move {
+    let req = client.get(picture).bearer_auth(id_token).build()?;
+    let res = client.execute(req).await?;
+    if !res.status().is_success() {
+      return Result::Ok(());
+    }
+
+    let bytes = res.bytes().await?;
+    db.user().update_user_avatar(user, bytes.to_vec()).await?;
+
+    updater.send_to(user, T::user(user)).await;
+
+    Ok(())
+  });
 }

@@ -85,6 +85,11 @@ async fn change_user_email<T: UpdateMessage>(
     );
   }
 
+  let user = db.user().get_user_by_id(req.uuid).await?;
+  if user.oidc_user {
+    bail!(BAD_REQUEST, "Cannot change email for an OIDC user");
+  }
+
   if db.user().get_user_by_email(&req.new_email).await.is_ok() {
     bail!(CONFLICT, "Email is already in use");
   }

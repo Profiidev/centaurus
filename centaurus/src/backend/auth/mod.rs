@@ -22,6 +22,7 @@ use crate::{
       settings::AuthConfig,
     },
     config::Config,
+    endpoints::websocket::state::UpdateMessage,
     middleware::rate_limiter::RateLimiter,
   },
   db::{init::Connection, tables::ConnectionExt},
@@ -48,7 +49,7 @@ pub mod settings;
 pub mod test_token;
 
 #[cfg(feature = "endpoints")]
-pub fn router(rate_limiter: &mut RateLimiter) -> BackendRouter {
+pub fn router<T: UpdateMessage>(rate_limiter: &mut RateLimiter) -> BackendRouter {
   let router = BackendRouter::new()
     .nest("/password", password::router(rate_limiter))
     .nest("/logout", logout::router())
@@ -57,7 +58,7 @@ pub fn router(rate_limiter: &mut RateLimiter) -> BackendRouter {
   #[cfg(feature = "avatar")]
   {
     router
-      .nest("/oidc", oidc::router(rate_limiter))
+      .nest("/oidc", oidc::router::<T>(rate_limiter))
       .nest("/config", config::router())
   }
   #[cfg(not(feature = "avatar"))]

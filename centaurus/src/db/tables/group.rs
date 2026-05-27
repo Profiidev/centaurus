@@ -339,4 +339,15 @@ impl<'db> GroupTable<'db> {
 
     Ok(permissions)
   }
+
+  pub async fn group_ids(&self, group_names: &[String]) -> Result<Vec<Uuid>> {
+    let groups = group::Entity::find()
+      .filter(group::Column::Name.is_in(group_names))
+      .column(group::Column::Id)
+      .into_tuple()
+      .all(self.db)
+      .await?;
+
+    Ok(groups)
+  }
 }
