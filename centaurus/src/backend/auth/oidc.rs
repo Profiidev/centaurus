@@ -12,6 +12,7 @@ use crate::{
       settings::{OidcSettings, UserSettings},
     },
     config::SiteConfig,
+    endpoints::websocket::state::{UpdateMessage, Updater},
     middleware::rate_limiter::RateLimiter,
     request::redirect::Redirect,
   },
@@ -44,7 +45,7 @@ use uuid::Uuid;
 
 pub const OIDC_STATE: &str = "oidc_state";
 
-pub fn router(rate_limiter: &mut RateLimiter) -> BackendRouter {
+pub fn router<T: UpdateMessage>(rate_limiter: &mut RateLimiter) -> BackendRouter {
   #[cfg(feature = "openapi")]
   use aide::axum::routing::get;
   #[cfg(not(feature = "openapi"))]
@@ -53,7 +54,7 @@ pub fn router(rate_limiter: &mut RateLimiter) -> BackendRouter {
   BackendRouter::new()
     .route("/url", get(oidc_url))
     .layer(GovernorLayer::new(rate_limiter.create_limiter()))
-    .route("/callback", get(oidc_callback))
+    .route("/callback", get(oidc_callback::<T>))
 }
 
 #[derive(Clone, FromRequestParts, Debug, OperationIo)]
@@ -343,13 +344,14 @@ pub struct AuthInfo {
   pub extra: HashMap<String, serde_json::Value>,
 }
 
-async fn oidc_callback(
+async fn oidc_callback<T: UpdateMessage>(
   Query(OidcCallbackQuery { code, state, error }): Query<OidcCallbackQuery>,
   oidc_state: OidcState,
   cookies: CookieJar,
   db: Connection,
   oidc_config: SiteConfig,
   jwt: JwtState,
+  updater: Updater<T>,
 ) -> Result<(CookieJar, Redirect)> {
   let lock = oidc_state.config.lock().await;
   let Some(config) = lock.clone() else {
@@ -367,8 +369,17 @@ async fn oidc_callback(
     bail!(BAD_REQUEST, "OIDC state mismatch");
   }
 
-  let (path, error, mut cookies) =
-    check_code(error, code, &config, &db, cookies, &jwt, &oidc_state.nonce).await?;
+  let (path, error, mut cookies) = check_code(
+    error,
+    code,
+    &config,
+    &db,
+    cookies,
+    &jwt,
+    &oidc_state.nonce,
+    updater,
+  )
+  .await?;
 
   cookies = cookies.remove(Cookie::from(OIDC_STATE));
 
@@ -379,7 +390,8 @@ async fn oidc_callback(
   Ok((cookies, Redirect::found(url.to_string())))
 }
 
-async fn check_code(
+#[allow(clippy::too_many_arguments)]
+async fn check_code<T: UpdateMessage>(
   error: Option<String>,
   code: Option<String>,
   config: &OidcConfig,
@@ -387,6 +399,7 @@ async fn check_code(
   mut cookies: CookieJar,
   jwt: &JwtState,
   nonce_map: &DashMap<Uuid, Instant>,
+  updater: Updater<T>,
 ) -> Result<(&'static str, Option<String>, CookieJar)> {
   if let Some(error) = error {
     return Ok(("/login", Some(error), cookies));
@@ -437,7 +450,15 @@ async fn check_code(
     sync_groups(user.id, &res, config, db).await?;
     #[cfg(feature = "avatar")]
     if config.image_sync {
-      let _ = sync_image(user.id, res.picture, db, token, &config.client).await;
+      sync_image(
+        user.id,
+        res.picture,
+        db.clone(),
+        token,
+        config.client.clone(),
+        updater,
+      )
+      .await;
     }
 
     debug!("OIDC user authenticated: {}", user.id);
@@ -464,7 +485,15 @@ async fn check_code(
   sync_groups(user, &res, config, db).await?;
   #[cfg(feature = "avatar")]
   if config.image_sync {
-    let _ = sync_image(user, res.picture, db, token, &config.client).await;
+    sync_image(
+      user,
+      res.picture,
+      db.clone(),
+      token,
+      config.client.clone(),
+      updater,
+    )
+    .await;
   }
 
   debug!("OIDC user authenticated: {}", user);
@@ -517,25 +546,30 @@ async fn sync_groups(
 }
 
 #[cfg(feature = "avatar")]
-async fn sync_image(
+async fn sync_image<T: UpdateMessage>(
   user: Uuid,
   picture: Option<String>,
-  db: &Connection,
+  db: Connection,
   id_token: String,
-  client: &Client,
-) -> Result<()> {
+  client: Client,
+  updater: Updater<T>,
+) {
   let Some(picture) = picture else {
-    return Ok(());
+    return;
   };
 
-  let req = client.get(picture).bearer_auth(id_token).build()?;
-  let res = client.execute(req).await?;
-  if !res.status().is_success() {
-    return Ok(());
-  }
+  spawn(async move {
+    let req = client.get(picture).bearer_auth(id_token).build()?;
+    let res = client.execute(req).await?;
+    if !res.status().is_success() {
+      return Result::Ok(());
+    }
 
-  let bytes = res.bytes().await?;
-  db.user().update_user_avatar(user, bytes.to_vec()).await?;
+    let bytes = res.bytes().await?;
+    db.user().update_user_avatar(user, bytes.to_vec()).await?;
 
-  Ok(())
+    updater.send_to(user, T::user(user)).await;
+
+    Ok(())
+  });
 }
