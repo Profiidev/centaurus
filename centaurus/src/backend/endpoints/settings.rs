@@ -109,6 +109,7 @@ async fn get_user_settings(
     oidc_client_secret,
     oidc_scopes,,
     oidc_enabled,
+    oidc_image_sync,
     oidc_group_sync
   );
 
@@ -163,6 +164,7 @@ async fn save_user_settings<T: UpdateMessage>(
     oidc_client_secret,
     oidc_scopes,,
     oidc_enabled,
+    oidc_image_sync,
     oidc_group_sync,
     sso_create_user,
     sso_instant_redirect

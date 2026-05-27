@@ -74,6 +74,7 @@ struct OidcConfig {
   scope: Vec<String>,
   group_sync: bool,
   group_claim: String,
+  image_sync: bool,
 }
 
 #[derive(Deserialize, Debug)]
@@ -98,6 +99,7 @@ impl OidcState {
       oidc_scopes,,
       oidc_enabled,
       oidc_group_sync,
+      oidc_image_sync,
       sso_create_user,
       sso_instant_redirect
     );
@@ -195,6 +197,7 @@ impl OidcConfig {
       scope: oidc_settings.scopes.clone(),
       group_claim: oidc_settings.group_claim.clone(),
       group_sync: oidc_settings.group_sync,
+      image_sync: oidc_settings.image_sync,
     })
   }
 }
@@ -329,6 +332,7 @@ struct TokenRes {
 pub struct AuthInfo {
   pub email: String,
   pub name: String,
+  pub picture: Option<String>,
   #[serde(flatten)]
   pub extra: HashMap<String, serde_json::Value>,
 }
@@ -401,11 +405,12 @@ async fn check_code(
 
   let res: TokenRes = res.json().await?;
   config.validate_jwk(&res.id_token).await?;
+  let token = res.id_token.clone();
 
   let req = config
     .client
     .get(config.userinfo_endpoint.clone())
-    .bearer_auth(res.id_token)
+    .bearer_auth(&token)
     .build()?;
 
   let res = config.client.execute(req).await?;
@@ -420,7 +425,10 @@ async fn check_code(
   let res: AuthInfo = res.json().await?;
 
   if let Some(user) = db.user().try_get_user_by_email(&res.email).await? {
-    sync_groups(user.id, res, config, db).await?;
+    sync_groups(user.id, &res, config, db).await?;
+    if config.image_sync {
+      let _ = sync_image(user.id, res.picture, db, token, &config.client).await;
+    }
 
     debug!("OIDC user authenticated: {}", user.id);
     cookies = cookies.add(jwt.create_token(user.id)?);
@@ -443,7 +451,10 @@ async fn check_code(
       true,
     )
     .await?;
-  sync_groups(user, res, config, db).await?;
+  sync_groups(user, &res, config, db).await?;
+  if config.image_sync {
+    let _ = sync_image(user, res.picture, db, token, &config.client).await;
+  }
 
   debug!("OIDC user authenticated: {}", user);
   cookies = cookies.add(jwt.create_token(user)?);
@@ -469,7 +480,7 @@ impl AuthInfo {
 
 async fn sync_groups(
   user: Uuid,
-  auth: AuthInfo,
+  auth: &AuthInfo,
   config: &OidcConfig,
   db: &Connection,
 ) -> Result<()> {
@@ -490,6 +501,29 @@ async fn sync_groups(
 
   db.user().clear_user_groups(user).await?;
   db.group().add_user_to_groups(user, group_ids).await?;
+
+  Ok(())
+}
+
+async fn sync_image(
+  user: Uuid,
+  picture: Option<String>,
+  db: &Connection,
+  id_token: String,
+  client: &Client,
+) -> Result<()> {
+  let Some(picture) = picture else {
+    return Ok(());
+  };
+
+  let req = client.get(picture).bearer_auth(id_token).build()?;
+  let res = client.execute(req).await?;
+  if !res.status().is_success() {
+    return Ok(());
+  }
+
+  let bytes = res.bytes().await?;
+  db.user().update_user_avatar(user, bytes.to_vec()).await?;
 
   Ok(())
 }

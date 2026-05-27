@@ -21,6 +21,7 @@ pub struct UserSettings {
   pub oidc_scopes: Option<String>,
   pub oidc_group_sync: bool,
   pub oidc_group_claim: Option<String>,
+  pub oidc_image_sync: bool,
   pub sso_instant_redirect: bool,
   pub sso_create_user: bool,
 }
@@ -52,6 +53,7 @@ impl Default for UserSettings {
       oidc_scopes: None,
       oidc_group_claim: None,
       oidc_group_sync: true,
+      oidc_image_sync: true,
     }
   }
 }
@@ -74,6 +76,7 @@ impl UserSettings {
         issuer: issuer.clone(),
         client_id: client_id.clone(),
         client_secret: client_secret.clone(),
+        image_sync: self.oidc_image_sync,
         group_sync: self.oidc_group_sync,
         group_claim: self
           .oidc_group_claim
@@ -94,6 +97,7 @@ pub struct OidcSettings {
   pub scopes: Vec<String>,
   pub group_sync: bool,
   pub group_claim: String,
+  pub image_sync: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
