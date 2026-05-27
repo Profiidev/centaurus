@@ -19,8 +19,11 @@ pub struct UserSettings {
   pub oidc_client_id: Option<String>,
   pub oidc_client_secret: Option<String>,
   pub oidc_scopes: Option<String>,
+  #[serde(default)]
   pub oidc_group_sync: bool,
+  #[serde(default)]
   pub oidc_group_claim: Option<String>,
+  #[serde(default)]
   pub oidc_image_sync: bool,
   pub sso_instant_redirect: bool,
   pub sso_create_user: bool,
