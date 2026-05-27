@@ -447,7 +447,7 @@ async fn check_code<T: UpdateMessage>(
   let res: AuthInfo = res.json().await?;
 
   if let Some(user) = db.user().try_get_user_by_email(&res.email).await? {
-    sync_groups(user.id, &res, config, db).await?;
+    sync_groups(user.id, &res, config, db, updater.clone()).await?;
     #[cfg(feature = "avatar")]
     if config.image_sync {
       sync_image(
@@ -482,7 +482,7 @@ async fn check_code<T: UpdateMessage>(
       true,
     )
     .await?;
-  sync_groups(user, &res, config, db).await?;
+  sync_groups(user, &res, config, db, updater.clone()).await?;
   #[cfg(feature = "avatar")]
   if config.image_sync {
     sync_image(
@@ -518,11 +518,12 @@ impl AuthInfo {
   }
 }
 
-async fn sync_groups(
+async fn sync_groups<T: UpdateMessage>(
   user: Uuid,
   auth: &AuthInfo,
   config: &OidcConfig,
   db: &Connection,
+  updater: Updater<T>,
 ) -> Result<()> {
   if !config.group_sync {
     return Ok(());
@@ -541,6 +542,9 @@ async fn sync_groups(
 
   db.user().clear_user_groups(user).await?;
   db.group().add_user_to_groups(user, group_ids).await?;
+
+  updater.send_to(user, T::user(user)).await;
+  updater.send_to(user, T::user_permissions()).await;
 
   Ok(())
 }
