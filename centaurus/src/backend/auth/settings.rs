@@ -55,8 +55,8 @@ impl Default for UserSettings {
       oidc_client_secret: None,
       oidc_scopes: None,
       oidc_group_claim: None,
-      oidc_group_sync: true,
-      oidc_image_sync: true,
+      oidc_group_sync: false,
+      oidc_image_sync: false,
     }
   }
 }
