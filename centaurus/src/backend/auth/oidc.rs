@@ -553,7 +553,7 @@ async fn check_code<T: UpdateMessage>(
     .await;
   }
 
-  if !db.setup().is_setup().await? {
+  if !db.setup().is_setup().await? || db.user().count_users().await? == 1 {
     let Some(admin_group_id) = db.setup().get_admin_group_id().await? else {
       bail!(
         INTERNAL_SERVER_ERROR,

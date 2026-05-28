@@ -338,4 +338,9 @@ impl<'db> UserTable<'db> {
 
     Ok(())
   }
+
+  pub async fn count_users(&self) -> Result<u64> {
+    let count = user::Entity::find().count(self.db).await?;
+    Ok(count)
+  }
 }
