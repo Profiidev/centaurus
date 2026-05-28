@@ -39,7 +39,7 @@ use rsa::rand_core::OsRng;
 use serde::{Deserialize, Serialize};
 use tokio::{spawn, sync::Mutex, time::sleep};
 use tower_governor::GovernorLayer;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 use url::Url;
 use uuid::Uuid;
 
@@ -115,7 +115,16 @@ impl OidcState {
     );
 
     if let Some(oidc_settings) = &settings.oidc_settings() {
-      let _ = state.try_init(oidc_settings).await;
+      spawn({
+        let state = state.clone();
+        let oidc_settings = oidc_settings.clone();
+
+        async move {
+          if let Err(e) = state.try_init(&oidc_settings).await {
+            warn!("Failed to initialize OIDC: {:?}", e);
+          }
+        }
+      });
     }
 
     spawn({

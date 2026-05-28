@@ -73,6 +73,7 @@ impl UserSettings {
   }
 }
 
+#[derive(Debug, Clone)]
 pub struct OidcSettings {
   pub issuer: Url,
   pub client_id: String,
