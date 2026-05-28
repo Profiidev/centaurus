@@ -81,6 +81,7 @@ struct OidcConfig {
   group_claim: String,
   #[allow(unused)]
   image_sync: bool,
+  create_user: bool,
 }
 
 #[derive(Deserialize, Debug)]
@@ -101,6 +102,8 @@ impl OidcState {
     };
 
     let mut settings: UserSettings = db.settings().get_settings().await.unwrap_or_default();
+    let mut db_settings = settings.clone();
+
     overwrite_with_env_config!(
       settings,
       oidc,
@@ -123,12 +126,26 @@ impl OidcState {
     if let Some(oidc_settings) = &settings.oidc_settings() {
       spawn({
         let state = state.clone();
-        let oidc_settings = oidc_settings.clone();
+        let mut oidc_settings = oidc_settings.clone();
         let db = db.clone();
 
         async move {
           if skip_setup && !is_setup {
             info!("Trying to init oidc and skip setup");
+
+            if !oidc_settings.create_user {
+              info!("Enabling sso user creation to make setup skip work");
+
+              oidc_settings.create_user = true;
+              db_settings.sso_create_user = Some(true);
+
+              db.settings()
+                .save_settings(&db_settings)
+                .await
+                .unwrap_or_else(|e| {
+                  warn!("Failed to save settings: {:?}", e);
+                });
+            }
           }
 
           if let Err(e) = state.try_init(&oidc_settings).await {
@@ -243,6 +260,7 @@ impl OidcConfig {
       group_claim: oidc_settings.group_claim.clone(),
       group_sync: oidc_settings.group_sync,
       image_sync: oidc_settings.image_sync,
+      create_user: oidc_settings.create_user,
     })
   }
 }
@@ -507,8 +525,7 @@ async fn check_code<T: UpdateMessage>(
     return Ok(("/", None, cookies));
   }
 
-  let user_settings = db.settings().get_settings::<UserSettings>().await?;
-  if !user_settings.sso_create_user.unwrap_or(false) {
+  if !config.create_user {
     return Ok(("/login", Some("user_not_found".to_string()), cookies));
   }
 

@@ -66,6 +66,7 @@ impl UserSettings {
           .clone()
           .unwrap_or_else(|| "groups".to_string()),
         scopes,
+        create_user: self.sso_create_user.unwrap_or(false),
       })
     } else {
       None
@@ -82,6 +83,7 @@ pub struct OidcSettings {
   pub group_sync: bool,
   pub group_claim: String,
   pub image_sync: bool,
+  pub create_user: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
