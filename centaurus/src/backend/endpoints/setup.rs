@@ -245,7 +245,9 @@ async fn init_oidc(
   );
 
   // required to create the first user after setup
+  settings.oidc_enabled = Some(true);
   settings.sso_create_user = Some(true);
+  settings_to_db.oidc_enabled = Some(true);
   settings_to_db.sso_create_user = Some(true);
 
   if let Some(oidc_settings) = &settings.oidc_settings() {

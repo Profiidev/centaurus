@@ -44,6 +44,7 @@ use url::Url;
 use uuid::Uuid;
 
 pub const OIDC_STATE: &str = "oidc_state";
+pub const SKIP_SETUP_ENV: &str = "SKIP_SETUP";
 
 pub fn router<T: UpdateMessage>(rate_limiter: &mut RateLimiter) -> BackendRouter {
   #[cfg(feature = "openapi")]
@@ -114,17 +115,43 @@ impl OidcState {
       sso_instant_redirect
     );
 
+    let is_setup = db.setup().is_setup().await.unwrap_or(false);
+    let skip_setup = std::env::var(SKIP_SETUP_ENV)
+      .map(|v| v == "true")
+      .unwrap_or(false);
+
     if let Some(oidc_settings) = &settings.oidc_settings() {
       spawn({
         let state = state.clone();
         let oidc_settings = oidc_settings.clone();
+        let db = db.clone();
 
         async move {
+          if skip_setup && !is_setup {
+            info!("Trying to init oidc and skip setup");
+          }
+
           if let Err(e) = state.try_init(&oidc_settings).await {
-            warn!("Failed to initialize OIDC: {:?}", e);
+            if skip_setup && !is_setup {
+              info!(
+                "Failed to init Oidc. Setup will not be skipped. Error: {:?}",
+                e
+              );
+            } else {
+              warn!("Failed to initialize OIDC: {:?}", e);
+            }
+          } else if skip_setup && !is_setup {
+            info!("Oidc initialized successfully, setup will be skipped");
+            db.setup().mark_completed().await.unwrap_or_else(|e| {
+              warn!("Failed to mark setup as completed: {:?}", e);
+            });
+          } else {
+            info!("Oidc initialized successfully");
           }
         }
       });
+    } else if skip_setup && !is_setup {
+      info!("Could not skip setup, OIDC is not configured");
     }
 
     spawn({
