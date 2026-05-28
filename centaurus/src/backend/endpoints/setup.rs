@@ -47,7 +47,11 @@ pub fn init_oidc_route() -> ApiMethodRouter<()> {
   post_with(init_oidc, |op| op.id("initOidc"))
 }
 
-pub async fn create_admin_group(db: &Connection, all_perms: Vec<&'static str>) -> Result<()> {
+pub async fn create_admin_group(
+  db: &Connection,
+  all_perms: Vec<&'static str>,
+  name: Option<String>,
+) -> Result<()> {
   match db.setup().get_admin_group_id().await? {
     Some(id) => {
       info!("Admin group already created with ID {}", id);
@@ -68,12 +72,19 @@ pub async fn create_admin_group(db: &Connection, all_perms: Vec<&'static str>) -
       } else {
         info!("No missing permissions for admin group");
       }
+
+      if let Some(name) = name {
+        db.group().update_name(id, name).await?;
+      }
     }
     None => {
       info!("Admin group not found, creating it with all permissions");
 
       let all_perms: Vec<String> = all_perms.into_iter().map(|p| p.to_string()).collect();
-      let admin_group_id = db.group().create_group("Admin".to_string()).await?;
+      let admin_group_id = db
+        .group()
+        .create_group(name.unwrap_or_else(|| "Admin".to_string()))
+        .await?;
       db.group()
         .add_permissions_to_group(admin_group_id, all_perms)
         .await?;

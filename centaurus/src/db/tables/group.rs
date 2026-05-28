@@ -350,4 +350,17 @@ impl<'db> GroupTable<'db> {
 
     Ok(groups)
   }
+
+  pub async fn update_name(&self, group_id: Uuid, new_name: String) -> Result<()> {
+    let mut group_model = group::Entity::find_by_id(group_id)
+      .one(self.db)
+      .await?
+      .ok_or_else(|| DbErr::RecordNotFound("Group not found".to_string()))?
+      .into_active_model();
+
+    group_model.name = Set(new_name);
+    group_model.update(self.db).await?;
+
+    Ok(())
+  }
 }
