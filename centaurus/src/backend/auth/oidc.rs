@@ -39,11 +39,12 @@ use rsa::rand_core::OsRng;
 use serde::{Deserialize, Serialize};
 use tokio::{spawn, sync::Mutex, time::sleep};
 use tower_governor::GovernorLayer;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 use url::Url;
 use uuid::Uuid;
 
 pub const OIDC_STATE: &str = "oidc_state";
+pub const SKIP_SETUP_ENV: &str = "SKIP_SETUP";
 
 pub fn router<T: UpdateMessage>(rate_limiter: &mut RateLimiter) -> BackendRouter {
   #[cfg(feature = "openapi")]
@@ -80,6 +81,7 @@ struct OidcConfig {
   group_claim: String,
   #[allow(unused)]
   image_sync: bool,
+  create_user: bool,
 }
 
 #[derive(Deserialize, Debug)]
@@ -100,6 +102,8 @@ impl OidcState {
     };
 
     let mut settings: UserSettings = db.settings().get_settings().await.unwrap_or_default();
+    let mut db_settings = settings.clone();
+
     overwrite_with_env_config!(
       settings,
       oidc,
@@ -114,8 +118,57 @@ impl OidcState {
       sso_instant_redirect
     );
 
+    let is_setup = db.setup().is_setup().await.unwrap_or(false);
+    let skip_setup = std::env::var(SKIP_SETUP_ENV)
+      .map(|v| v == "true")
+      .unwrap_or(false);
+
     if let Some(oidc_settings) = &settings.oidc_settings() {
-      let _ = state.try_init(oidc_settings).await;
+      spawn({
+        let state = state.clone();
+        let mut oidc_settings = oidc_settings.clone();
+        let db = db.clone();
+
+        async move {
+          if skip_setup && !is_setup {
+            info!("Trying to init oidc and skip setup");
+
+            if !oidc_settings.create_user {
+              info!("Enabling sso user creation to make setup skip work");
+
+              oidc_settings.create_user = true;
+              db_settings.sso_create_user = Some(true);
+
+              db.settings()
+                .save_settings(&db_settings)
+                .await
+                .unwrap_or_else(|e| {
+                  warn!("Failed to save settings: {:?}", e);
+                });
+            }
+          }
+
+          if let Err(e) = state.try_init(&oidc_settings).await {
+            if skip_setup && !is_setup {
+              info!(
+                "Failed to init Oidc. Setup will not be skipped. Error: {:?}",
+                e
+              );
+            } else {
+              warn!("Failed to initialize OIDC: {:?}", e);
+            }
+          } else if skip_setup && !is_setup {
+            info!("Oidc initialized successfully, setup will be skipped");
+            db.setup().mark_completed().await.unwrap_or_else(|e| {
+              warn!("Failed to mark setup as completed: {:?}", e);
+            });
+          } else {
+            info!("Oidc initialized successfully");
+          }
+        }
+      });
+    } else if skip_setup && !is_setup {
+      info!("Could not skip setup, OIDC is not configured");
     }
 
     spawn({
@@ -189,6 +242,10 @@ impl OidcConfig {
     let jwk_set: JwkSet = res.json().await?;
 
     let client = Client::builder().redirect(Policy::none()).build()?;
+    info!(
+      "OIDC configured successfully with issuer: {}",
+      config.issuer
+    );
 
     Ok(Self {
       issuer: config.issuer,
@@ -203,6 +260,7 @@ impl OidcConfig {
       group_claim: oidc_settings.group_claim.clone(),
       group_sync: oidc_settings.group_sync,
       image_sync: oidc_settings.image_sync,
+      create_user: oidc_settings.create_user,
     })
   }
 }
@@ -467,8 +525,7 @@ async fn check_code<T: UpdateMessage>(
     return Ok(("/", None, cookies));
   }
 
-  let user_settings = db.settings().get_settings::<UserSettings>().await?;
-  if !user_settings.sso_create_user {
+  if !config.create_user {
     return Ok(("/login", Some("user_not_found".to_string()), cookies));
   }
 
@@ -494,6 +551,22 @@ async fn check_code<T: UpdateMessage>(
       updater,
     )
     .await;
+  }
+
+  if !db.setup().is_setup().await? || db.user().count_users().await? == 1 {
+    let Some(admin_group_id) = db.setup().get_admin_group_id().await? else {
+      bail!(
+        INTERNAL_SERVER_ERROR,
+        "Admin group has not been created yet, cannot create initial user"
+      );
+    };
+
+    db.group()
+      .add_user_to_groups(user, vec![admin_group_id])
+      .await?;
+
+    db.setup().mark_completed().await?;
+    info!("Setup completed via OIDC, created user with ID {}", user);
   }
 
   debug!("OIDC user authenticated: {}", user);

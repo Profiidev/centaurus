@@ -42,6 +42,7 @@ pub fn router<T: UpdateMessage>() -> ApiRouter {
     .api_route("/groups", list_groups_simple_route())
     .api_route("/password", reset_user_password_route())
     .api_route("/email", change_email_route::<T>())
+    .api_route("/convert-oidc", convert_oidc_user_route::<T>())
 }
 
 pub fn list_users_route() -> ApiMethodRouter<()> {
@@ -79,6 +80,10 @@ pub fn reset_user_avatar_route<T: UpdateMessage>() -> ApiMethodRouter<()> {
 
 pub fn reset_user_password_route() -> ApiMethodRouter<()> {
   put_with(reset_user_password, |op| op.id("resetUserPassword"))
+}
+
+pub fn convert_oidc_user_route<T: UpdateMessage>() -> ApiMethodRouter<()> {
+  put_with(convert_oidc_user::<T>, |op| op.id("convertOidcUser"))
 }
 
 async fn list_users(_auth: JwtAuth<UserView>, db: Connection) -> Result<Json<Vec<UserListInfo>>> {
@@ -351,6 +356,38 @@ async fn reset_user_password(
 
   let hash = state.pw_hash(&user.salt, &req.new_password)?;
   db.user().update_user_password(req.uuid, hash).await?;
+
+  Ok(())
+}
+
+async fn convert_oidc_user<T: UpdateMessage>(
+  auth: JwtAuth<UserEdit>,
+  db: Connection,
+  state: PasswordState,
+  updater: Updater<T>,
+  Json(req): Json<ResetUserPassword>,
+) -> Result<()> {
+  let self_permissions = db.group().get_user_permissions(auth.user_id).await?;
+  let target_permissions = db.group().get_user_permissions(req.uuid).await?;
+
+  if target_permissions
+    .iter()
+    .any(|p| !self_permissions.contains(p))
+  {
+    bail!(FORBIDDEN, "Cannot convert user with higher permissions");
+  }
+
+  let user = db.user().get_user_by_id(req.uuid).await?;
+
+  if !user.oidc_user {
+    bail!(BAD_REQUEST, "Cannot convert a non-OIDC user");
+  }
+
+  let hash = state.pw_hash(&user.salt, &req.new_password)?;
+  db.user().update_user_password(req.uuid, hash).await?;
+  db.user().to_local_user(req.uuid).await?;
+
+  updater.broadcast(T::user(req.uuid)).await;
 
   Ok(())
 }

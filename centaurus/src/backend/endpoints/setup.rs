@@ -3,24 +3,32 @@ use aide::axum::routing::{ApiMethodRouter, get_with, post_with};
 use argon2::password_hash::SaltString;
 use axum::Json;
 use axum_extra::extract::CookieJar;
+use http::StatusCode;
 use rsa::rand_core::OsRng;
 use schemars::JsonSchema;
 use sea_orm::ConnectionTrait;
 use serde::{Deserialize, Serialize};
 use tracing::info;
+use url::Url;
 use uuid::Uuid;
 
 use crate::backend::auth::jwt_state::JwtState;
+use crate::backend::auth::oidc::OidcState;
 use crate::backend::auth::pw_state::PasswordState;
-use crate::bail;
+use crate::backend::auth::settings::UserSettings;
+use crate::backend::config::SiteConfig;
+use crate::backend::endpoints::settings::UserSettingsResponse;
 use crate::db::init::Connection;
 use crate::db::tables::ConnectionExt;
-use crate::error::Result;
+use crate::error::{ErrorReportStatusExt, Result};
+use crate::{bail, each_field_from_env, overwrite_with_env_config};
 
 pub fn router() -> ApiRouter {
   ApiRouter::new()
     .api_route("/", complete_setup_route())
     .api_route("/", is_setup_route())
+    .api_route("/oidc", get_oidc_settings_route())
+    .api_route("/oidc", init_oidc_route())
 }
 
 pub fn complete_setup_route() -> ApiMethodRouter<()> {
@@ -29,6 +37,14 @@ pub fn complete_setup_route() -> ApiMethodRouter<()> {
 
 pub fn is_setup_route() -> ApiMethodRouter<()> {
   get_with(is_setup, |op| op.id("isSetup"))
+}
+
+pub fn get_oidc_settings_route() -> ApiMethodRouter<()> {
+  get_with(get_oidc_settings, |op| op.id("getOidcSettings"))
+}
+
+pub fn init_oidc_route() -> ApiMethodRouter<()> {
+  post_with(init_oidc, |op| op.id("initOidc"))
 }
 
 pub async fn create_admin_group(db: &Connection, all_perms: Vec<&'static str>) -> Result<()> {
@@ -160,4 +176,90 @@ async fn is_setup(
     #[cfg(feature = "storage")]
     storage_backend: storage.name().to_string(),
   }))
+}
+
+#[derive(Serialize, JsonSchema)]
+pub struct OidcSetupResponse {
+  pub settings: UserSettings,
+  pub from_env: Vec<String>,
+  pub site_url: Url,
+}
+
+async fn get_oidc_settings(
+  db: Connection,
+  config: Option<UserSettings>,
+  site: SiteConfig,
+) -> Result<Json<OidcSetupResponse>> {
+  if db.setup().is_setup().await? {
+    bail!(FORBIDDEN, "Setup has already been completed");
+  }
+
+  let mut settings = db.settings().get_settings::<UserSettings>().await?;
+
+  let res = each_field_from_env!(
+    UserSettingsResponse,
+    settings,
+    config,
+    oidc_issuer,
+    oidc_client_id,
+    oidc_client_secret,
+    oidc_scopes,,
+    oidc_enabled,
+    oidc_image_sync,
+    oidc_group_sync,
+    sso_instant_redirect,
+    sso_create_user
+  );
+
+  Ok(Json(OidcSetupResponse {
+    settings: res.settings,
+    from_env: res.from_env,
+    site_url: site.site_url,
+  }))
+}
+
+async fn init_oidc(
+  db: Connection,
+  state: OidcState,
+  config: Option<UserSettings>,
+  Json(mut settings): Json<UserSettings>,
+) -> Result<()> {
+  if db.setup().is_setup().await? {
+    bail!(FORBIDDEN, "Setup has already been completed");
+  }
+
+  let mut settings_to_db = settings.clone();
+
+  overwrite_with_env_config!(
+    settings,
+    config,
+    oidc_issuer,
+    oidc_client_id,
+    oidc_client_secret,
+    oidc_scopes,,
+    oidc_enabled,
+    oidc_image_sync,
+    oidc_group_sync,
+    sso_create_user,
+    sso_instant_redirect
+  );
+
+  // required to create the first user after setup
+  settings.oidc_enabled = Some(true);
+  settings.sso_create_user = Some(true);
+  settings_to_db.oidc_enabled = Some(true);
+  settings_to_db.sso_create_user = Some(true);
+
+  if let Some(oidc_settings) = &settings.oidc_settings() {
+    state.try_init(oidc_settings).await.status_context(
+      StatusCode::NOT_ACCEPTABLE,
+      "Failed to initialize OIDC state",
+    )?;
+  } else {
+    state.deactivate().await;
+  }
+
+  db.settings().save_settings(&settings_to_db).await?;
+
+  Ok(())
 }

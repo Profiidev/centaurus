@@ -147,6 +147,16 @@ impl<'db> UserTable<'db> {
     Ok(())
   }
 
+  pub async fn to_local_user(&self, id: Uuid) -> Result<()> {
+    let mut user: user::ActiveModel = self.get_user_by_id(id).await?.into();
+
+    user.oidc_user = Set(false);
+
+    user.update(self.db).await?;
+
+    Ok(())
+  }
+
   pub async fn update_user_name(&self, id: Uuid, new_name: String) -> Result<()> {
     let mut user: user::ActiveModel = self.get_user_by_id(id).await?.into();
 
@@ -327,5 +337,10 @@ impl<'db> UserTable<'db> {
       .await?;
 
     Ok(())
+  }
+
+  pub async fn count_users(&self) -> Result<u64> {
+    let count = user::Entity::find().count(self.db).await?;
+    Ok(count)
   }
 }
