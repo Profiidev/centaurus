@@ -7,7 +7,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-#[derive(Serialize, Deserialize, Debug, FromRequestParts, Clone)]
+#[derive(Serialize, Deserialize, Debug, FromRequestParts, Clone, Default)]
 #[cfg_attr(feature = "openapi", derive(schemars::JsonSchema, aide::OperationIo))]
 #[cfg_attr(feature = "db", derive(crate::Settings))]
 #[cfg_attr(feature = "db", settings(id = 2))]
@@ -38,23 +38,6 @@ impl<S: Send + Sync> OptionalFromRequestParts<S> for UserSettings {
         .await
         .ok(),
     )
-  }
-}
-
-impl Default for UserSettings {
-  fn default() -> Self {
-    Self {
-      sso_instant_redirect: Some(true),
-      sso_create_user: Some(true),
-      oidc_enabled: Some(false),
-      oidc_issuer: None,
-      oidc_client_id: None,
-      oidc_client_secret: None,
-      oidc_scopes: None,
-      oidc_group_claim: None,
-      oidc_group_sync: Some(false),
-      oidc_image_sync: Some(false),
-    }
   }
 }
 
