@@ -147,6 +147,16 @@ impl<'db> UserTable<'db> {
     Ok(())
   }
 
+  pub async fn to_local_user(&self, id: Uuid) -> Result<()> {
+    let mut user: user::ActiveModel = self.get_user_by_id(id).await?.into();
+
+    user.oidc_user = Set(false);
+
+    user.update(self.db).await?;
+
+    Ok(())
+  }
+
   pub async fn update_user_name(&self, id: Uuid, new_name: String) -> Result<()> {
     let mut user: user::ActiveModel = self.get_user_by_id(id).await?.into();
 
