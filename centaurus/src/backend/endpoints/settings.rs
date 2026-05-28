@@ -156,6 +156,8 @@ async fn save_user_settings<T: UpdateMessage>(
   config: Option<UserSettings>,
   Json(mut settings): Json<UserSettings>,
 ) -> Result<()> {
+  let settings_to_db = settings.clone();
+
   overwrite_with_env_config!(
     settings,
     config,
@@ -179,7 +181,7 @@ async fn save_user_settings<T: UpdateMessage>(
     state.deactivate().await;
   }
 
-  db.settings().save_settings(&settings).await?;
+  db.settings().save_settings(&settings_to_db).await?;
   updater.broadcast(T::settings()).await;
 
   Ok(())
@@ -194,6 +196,8 @@ async fn save_mail_settings<T: UpdateMessage>(
   config: Option<MailSettings>,
   Json(mut settings): Json<MailSettings>,
 ) -> Result<()> {
+  let settings_to_db = settings.clone();
+
   overwrite_with_env_config!(
     settings,
     config,
@@ -213,7 +217,7 @@ async fn save_mail_settings<T: UpdateMessage>(
     state.deactivate().await;
   }
 
-  db.settings().save_settings(&settings).await?;
+  db.settings().save_settings(&settings_to_db).await?;
   updater.broadcast(T::settings()).await;
 
   Ok(())
