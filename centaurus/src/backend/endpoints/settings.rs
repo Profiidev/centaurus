@@ -73,9 +73,9 @@ macro_rules! each_field_from_env {
         )*
 
         $(
-          if $env_config.$bool_field {
+          if let Some($bool_field) = $env_config.$bool_field {
             from_env.push(stringify!($bool_field).to_string());
-            $config.$bool_field = true;
+            $config.$bool_field = Some($bool_field);
           }
         )*
 

@@ -51,7 +51,7 @@ async fn config(
 
   Ok(Json(AuthConfig {
     sso_type,
-    instant_redirect: user_settings.sso_instant_redirect,
+    instant_redirect: user_settings.sso_instant_redirect.unwrap_or(false),
     #[cfg(feature = "mail")]
     mail_enabled,
   }))

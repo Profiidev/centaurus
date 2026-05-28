@@ -26,8 +26,7 @@ use crate::{bail, error::Result};
 #[cfg_attr(feature = "db", derive(crate::Settings))]
 #[cfg_attr(feature = "db", settings(id = 3))]
 pub struct MailSettings {
-  #[serde(default)]
-  pub smtp_enabled: bool,
+  pub smtp_enabled: Option<bool>,
   pub smtp_server: Option<String>,
   pub smtp_port: Option<u16>,
   pub smtp_username: Option<String>,
@@ -55,7 +54,7 @@ impl<S: Send + Sync> OptionalFromRequestParts<S> for MailSettings {
 
 impl MailSettings {
   pub fn smtp(&self) -> Option<SmtpSettings> {
-    if self.smtp_enabled {
+    if self.smtp_enabled.unwrap_or(false) {
       Some(SmtpSettings {
         server: self.smtp_server.clone()?,
         port: self.smtp_port?,

@@ -25,8 +25,8 @@ macro_rules! overwrite_with_env_config {
       )*
 
       $(
-        if $env_config.$bool_field {
-          $config.$bool_field = true;
+        if let Some($bool_field) = $env_config.$bool_field {
+          $config.$bool_field = Some($bool_field);
         }
       )*
     }

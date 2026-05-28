@@ -14,19 +14,16 @@ use url::Url;
 #[from_request(via(Extension))]
 pub struct UserSettings {
   #[serde(default)]
-  pub oidc_enabled: bool,
+  pub oidc_enabled: Option<bool>,
   pub oidc_issuer: Option<Url>,
   pub oidc_client_id: Option<String>,
   pub oidc_client_secret: Option<String>,
   pub oidc_scopes: Option<String>,
-  #[serde(default)]
-  pub oidc_group_sync: bool,
-  #[serde(default)]
+  pub oidc_group_sync: Option<bool>,
   pub oidc_group_claim: Option<String>,
-  #[serde(default)]
-  pub oidc_image_sync: bool,
-  pub sso_instant_redirect: bool,
-  pub sso_create_user: bool,
+  pub oidc_image_sync: Option<bool>,
+  pub sso_instant_redirect: Option<bool>,
+  pub sso_create_user: Option<bool>,
 }
 
 impl<S: Send + Sync> OptionalFromRequestParts<S> for UserSettings {
@@ -47,23 +44,23 @@ impl<S: Send + Sync> OptionalFromRequestParts<S> for UserSettings {
 impl Default for UserSettings {
   fn default() -> Self {
     Self {
-      sso_instant_redirect: true,
-      sso_create_user: true,
-      oidc_enabled: false,
+      sso_instant_redirect: Some(true),
+      sso_create_user: Some(true),
+      oidc_enabled: Some(false),
       oidc_issuer: None,
       oidc_client_id: None,
       oidc_client_secret: None,
       oidc_scopes: None,
       oidc_group_claim: None,
-      oidc_group_sync: false,
-      oidc_image_sync: false,
+      oidc_group_sync: Some(false),
+      oidc_image_sync: Some(false),
     }
   }
 }
 
 impl UserSettings {
   pub fn oidc_settings(&self) -> Option<OidcSettings> {
-    if self.oidc_enabled
+    if self.oidc_enabled.unwrap_or(false)
       && let (Some(issuer), Some(client_id), Some(client_secret)) = (
         &self.oidc_issuer,
         &self.oidc_client_id,
@@ -79,8 +76,8 @@ impl UserSettings {
         issuer: issuer.clone(),
         client_id: client_id.clone(),
         client_secret: client_secret.clone(),
-        image_sync: self.oidc_image_sync,
-        group_sync: self.oidc_group_sync,
+        image_sync: self.oidc_image_sync.unwrap_or(false),
+        group_sync: self.oidc_group_sync.unwrap_or(false),
         group_claim: self
           .oidc_group_claim
           .clone()

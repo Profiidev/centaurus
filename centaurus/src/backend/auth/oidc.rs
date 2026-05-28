@@ -468,7 +468,7 @@ async fn check_code<T: UpdateMessage>(
   }
 
   let user_settings = db.settings().get_settings::<UserSettings>().await?;
-  if !user_settings.sso_create_user {
+  if !user_settings.sso_create_user.unwrap_or(false) {
     return Ok(("/login", Some("user_not_found".to_string()), cookies));
   }
 
