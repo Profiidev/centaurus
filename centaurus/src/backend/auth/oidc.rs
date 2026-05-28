@@ -198,6 +198,10 @@ impl OidcConfig {
     let jwk_set: JwkSet = res.json().await?;
 
     let client = Client::builder().redirect(Policy::none()).build()?;
+    info!(
+      "OIDC configured successfully with issuer: {}",
+      config.issuer
+    );
 
     Ok(Self {
       issuer: config.issuer,

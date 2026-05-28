@@ -9,12 +9,14 @@ use schemars::JsonSchema;
 use sea_orm::ConnectionTrait;
 use serde::{Deserialize, Serialize};
 use tracing::info;
+use url::Url;
 use uuid::Uuid;
 
 use crate::backend::auth::jwt_state::JwtState;
 use crate::backend::auth::oidc::OidcState;
 use crate::backend::auth::pw_state::PasswordState;
 use crate::backend::auth::settings::UserSettings;
+use crate::backend::config::SiteConfig;
 use crate::backend::endpoints::settings::UserSettingsResponse;
 use crate::db::init::Connection;
 use crate::db::tables::ConnectionExt;
@@ -176,10 +178,18 @@ async fn is_setup(
   }))
 }
 
+#[derive(Serialize, JsonSchema)]
+pub struct OidcSetupResponse {
+  pub settings: UserSettings,
+  pub from_env: Vec<String>,
+  pub site_url: Url,
+}
+
 async fn get_oidc_settings(
   db: Connection,
   config: Option<UserSettings>,
-) -> Result<Json<UserSettingsResponse>> {
+  site: SiteConfig,
+) -> Result<Json<OidcSetupResponse>> {
   if db.setup().is_setup().await? {
     bail!(FORBIDDEN, "Setup has already been completed");
   }
@@ -201,7 +211,11 @@ async fn get_oidc_settings(
     sso_create_user
   );
 
-  Ok(Json(res))
+  Ok(Json(OidcSetupResponse {
+    settings: res.settings,
+    from_env: res.from_env,
+    site_url: site.site_url,
+  }))
 }
 
 async fn init_oidc(
