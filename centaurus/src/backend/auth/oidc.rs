@@ -561,9 +561,14 @@ async fn check_code<T: UpdateMessage>(
       );
     };
 
-    db.group()
-      .add_user_to_groups(user, vec![admin_group_id])
-      .await?;
+    let users = db.group().get_group_users_ids(admin_group_id).await?;
+
+    // oidc group sync could have already added the user to the admin group, so only add if not already present
+    if !users.contains(&user) {
+      db.group()
+        .add_user_to_groups(user, vec![admin_group_id])
+        .await?;
+    }
 
     db.setup().mark_completed().await?;
     info!("Setup completed via OIDC, created user with ID {}", user);
