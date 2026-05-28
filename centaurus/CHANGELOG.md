@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-05-28
+
+### 🚀 Features
+
+- Added is oidc user to user endpoints
+- Added oidc group sync
+- Added image sync to oidc
+- Send permissions update to user on oidc login
+- Added oidc convert endpoint
+- Added oidc settings endpoints to setup
+- Complete setup on initial oidc login
+- Added site url to oidc setup endpoint
+- Added env var for skipping setup with oidc
+- Added option to change admin group name
+
+### 🐛 Bug Fixes
+
+- Feature gate oidc image sync
+- Image sync unused
+- Added serde default for new fields
+- Disable group and image sync per default
+- No password reset for oidc users
+- Send update for user convertion
+- Dont save env config to db
+- Env default values
+- Enable sso user creation on setup skip
+- Add first oidc user to admin group on setup skip
+
+### 🚜 Refactor
+
+- Improved oidc state locking
+- Made image sync async to not block login
+- Make all config fields optional
+- Made oidc init async
+
+
+
 ## [0.12.2] - 2026-05-26
 
 ### 🐛 Bug Fixes
