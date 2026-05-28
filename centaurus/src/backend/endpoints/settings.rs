@@ -54,9 +54,9 @@ pub fn save_mail_settings_route<T: UpdateMessage>() -> ApiMethodRouter<()> {
 }
 
 #[derive(Serialize, JsonSchema)]
-struct UserSettingsResponse {
-  settings: UserSettings,
-  from_env: Vec<String>,
+pub struct UserSettingsResponse {
+  pub settings: UserSettings,
+  pub from_env: Vec<String>,
 }
 
 #[macro_export]
@@ -110,7 +110,9 @@ async fn get_user_settings(
     oidc_scopes,,
     oidc_enabled,
     oidc_image_sync,
-    oidc_group_sync
+    oidc_group_sync,
+    sso_instant_redirect,
+    sso_create_user
   );
 
   Ok(Json(res))
