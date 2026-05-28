@@ -496,6 +496,22 @@ async fn check_code<T: UpdateMessage>(
     .await;
   }
 
+  if !db.setup().is_setup().await? {
+    let Some(admin_group_id) = db.setup().get_admin_group_id().await? else {
+      bail!(
+        INTERNAL_SERVER_ERROR,
+        "Admin group has not been created yet, cannot create initial user"
+      );
+    };
+
+    db.group()
+      .add_user_to_groups(user, vec![admin_group_id])
+      .await?;
+
+    db.setup().mark_completed().await?;
+    info!("Setup completed via OIDC, created user with ID {}", user);
+  }
+
   debug!("OIDC user authenticated: {}", user);
   cookies = cookies.add(jwt.create_token(user)?);
 
