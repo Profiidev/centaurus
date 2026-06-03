@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-06-03
+
+### 🐛 Bug Fixes
+
+- Oidc group sync error at setup
+- Sso instant redirect env loading
+
+
+
 ## [0.13.0] - 2026-05-28
 
 ### 🚀 Features
