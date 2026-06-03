@@ -12,7 +12,7 @@ pub struct DBConfig {
 impl Default for DBConfig {
   fn default() -> Self {
     Self {
-      database_max_connections: 1024,
+      database_max_connections: 20,
       database_min_connections: 1,
       database_connect_timeout: 5,
       database_logging: false,

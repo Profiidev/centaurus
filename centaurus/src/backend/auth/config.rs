@@ -36,6 +36,7 @@ struct AuthConfig {
 
 async fn config(
   oidc: OidcState,
+  user: UserSettings,
   #[cfg(feature = "mail")] mailer: crate::mail::Mailer,
   db: Connection,
 ) -> Result<Json<AuthConfig>> {
@@ -49,9 +50,13 @@ async fn config(
   #[cfg(feature = "mail")]
   let mail_enabled = mailer.is_active().await;
 
+  let instant_redirect = user
+    .sso_instant_redirect
+    .unwrap_or(user_settings.sso_instant_redirect.unwrap_or(false));
+
   Ok(Json(AuthConfig {
     sso_type,
-    instant_redirect: user_settings.sso_instant_redirect.unwrap_or(false),
+    instant_redirect,
     #[cfg(feature = "mail")]
     mail_enabled,
   }))
