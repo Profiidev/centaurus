@@ -28,15 +28,18 @@ use axum::{
   extract::{FromRequestParts, Query},
 };
 use axum_extra::extract::{CookieJar, cookie::Cookie};
+use base64::{Engine, prelude::BASE64_URL_SAFE_NO_PAD};
 use dashmap::DashMap;
 use http::{StatusCode, header::LOCATION};
 use jsonwebtoken::{
   DecodingKey, Validation,
   jwk::{AlgorithmParameters, JwkSet},
 };
+use rand::seq::IndexedRandom;
 use reqwest::{Client, redirect::Policy};
 use rsa::rand_core::OsRng;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use tokio::{spawn, sync::Mutex, time::sleep};
 use tower_governor::GovernorLayer;
 use tracing::{debug, info, warn};
@@ -45,6 +48,8 @@ use uuid::Uuid;
 
 pub const OIDC_STATE: &str = "oidc_state";
 pub const SKIP_SETUP_ENV: &str = "SKIP_SETUP";
+pub const URL_SAFE_CHARS: &[u8] =
+  b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
 
 pub fn router<T: UpdateMessage>(rate_limiter: &mut RateLimiter) -> BackendRouter {
   #[cfg(feature = "openapi")]
@@ -62,7 +67,7 @@ pub fn router<T: UpdateMessage>(rate_limiter: &mut RateLimiter) -> BackendRouter
 #[from_request(via(Extension))]
 pub struct OidcState {
   config: Arc<Mutex<Option<OidcConfig>>>,
-  state: Arc<DashMap<Uuid, Instant>>,
+  state: Arc<DashMap<Uuid, (Instant, String)>>,
   nonce: Arc<DashMap<Uuid, Instant>>,
 }
 
@@ -184,7 +189,7 @@ impl OidcState {
             .retain(|_, &mut instant| now.duration_since(instant) < expiration_duration);
           state
             .state
-            .retain(|_, &mut instant| now.duration_since(instant) < expiration_duration);
+            .retain(|_, &mut (instant, _)| now.duration_since(instant) < expiration_duration);
         }
       }
     });
@@ -333,12 +338,28 @@ async fn oidc_url(
 
   let state_id = Uuid::new_v4();
   let nonce = Uuid::new_v4();
+  let code_verifier: String = {
+    let mut rng = rand::rng();
+    (0..64)
+      .map(|_| *URL_SAFE_CHARS.choose(&mut rng).unwrap() as char)
+      .collect()
+  };
+
+  let code_challenge = {
+    let ascii_bytes = code_verifier.as_bytes();
+
+    let mut hasher = Sha256::new();
+    hasher.update(ascii_bytes);
+    BASE64_URL_SAFE_NO_PAD.encode(hasher.finalize())
+  };
 
   let mut form = HashMap::new();
   form.insert("response_type", "code".to_string());
   form.insert("client_id", config.client_id.clone());
   form.insert("state", state_id.to_string());
   form.insert("nonce", nonce.to_string());
+  form.insert("code_challenge", code_challenge);
+  form.insert("code_challenge_method", "S256".to_string());
 
   if !config.scope.is_empty() {
     form.insert("scope", config.scope.join(" "));
@@ -367,7 +388,9 @@ async fn oidc_url(
     );
   };
 
-  state.state.insert(state_id, Instant::now());
+  state
+    .state
+    .insert(state_id, (Instant::now(), code_verifier));
   cookies = cookies.add(jwt.create_cookie(OIDC_STATE, state_id.to_string()));
 
   state.nonce.insert(nonce, Instant::now());
@@ -417,9 +440,9 @@ async fn oidc_callback<T: UpdateMessage>(
   };
   drop(lock);
 
-  if oidc_state.state.remove(&state).is_none() {
+  let Some((_, (_, code_verifier))) = oidc_state.state.remove(&state) else {
     bail!(BAD_REQUEST, "Invalid OIDC state");
-  }
+  };
   let Some(cookie) = cookies.get(OIDC_STATE) else {
     bail!(BAD_REQUEST, "Missing OIDC state cookie");
   };
@@ -430,6 +453,7 @@ async fn oidc_callback<T: UpdateMessage>(
   let (path, error, mut cookies) = check_code(
     error,
     code,
+    code_verifier,
     &config,
     &db,
     cookies,
@@ -452,6 +476,7 @@ async fn oidc_callback<T: UpdateMessage>(
 async fn check_code<T: UpdateMessage>(
   error: Option<String>,
   code: Option<String>,
+  code_verifier: String,
   config: &OidcConfig,
   db: &Connection,
   mut cookies: CookieJar,
@@ -469,6 +494,7 @@ async fn check_code<T: UpdateMessage>(
   let mut form = HashMap::new();
   form.insert("grant_type", "authorization_code".to_string());
   form.insert("code", code);
+  form.insert("code_verifier", code_verifier);
 
   let req = config
     .client
