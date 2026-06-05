@@ -67,7 +67,7 @@ pub fn router<T: UpdateMessage>(rate_limiter: &mut RateLimiter) -> BackendRouter
 #[from_request(via(Extension))]
 pub struct OidcState {
   config: Arc<Mutex<Option<OidcConfig>>>,
-  state: Arc<DashMap<Uuid, (Instant, String)>>,
+  state: Arc<DashMap<Uuid, (Instant, Option<String>)>>,
   nonce: Arc<DashMap<Uuid, Instant>>,
 }
 
@@ -87,6 +87,7 @@ struct OidcConfig {
   #[allow(unused)]
   image_sync: bool,
   create_user: bool,
+  pkce: bool,
 }
 
 #[derive(Deserialize, Debug)]
@@ -119,6 +120,7 @@ impl OidcState {
       oidc_enabled,
       oidc_group_sync,
       oidc_image_sync,
+      oidc_pkce,
       sso_create_user,
       sso_instant_redirect
     );
@@ -266,6 +268,7 @@ impl OidcConfig {
       group_sync: oidc_settings.group_sync,
       image_sync: oidc_settings.image_sync,
       create_user: oidc_settings.create_user,
+      pkce: oidc_settings.pkce,
     })
   }
 }
@@ -338,28 +341,35 @@ async fn oidc_url(
 
   let state_id = Uuid::new_v4();
   let nonce = Uuid::new_v4();
-  let code_verifier: String = {
-    let mut rng = rand::rng();
-    (0..64)
-      .map(|_| *URL_SAFE_CHARS.choose(&mut rng).unwrap() as char)
-      .collect()
-  };
-
-  let code_challenge = {
-    let ascii_bytes = code_verifier.as_bytes();
-
-    let mut hasher = Sha256::new();
-    hasher.update(ascii_bytes);
-    BASE64_URL_SAFE_NO_PAD.encode(hasher.finalize())
-  };
 
   let mut form = HashMap::new();
   form.insert("response_type", "code".to_string());
   form.insert("client_id", config.client_id.clone());
   form.insert("state", state_id.to_string());
   form.insert("nonce", nonce.to_string());
-  form.insert("code_challenge", code_challenge);
-  form.insert("code_challenge_method", "S256".to_string());
+
+  let code_verifier = if config.pkce {
+    let code_verifier: String = {
+      let mut rng = rand::rng();
+      (0..64)
+        .map(|_| *URL_SAFE_CHARS.choose(&mut rng).unwrap() as char)
+        .collect()
+    };
+
+    let code_challenge = {
+      let ascii_bytes = code_verifier.as_bytes();
+
+      let mut hasher = Sha256::new();
+      hasher.update(ascii_bytes);
+      BASE64_URL_SAFE_NO_PAD.encode(hasher.finalize())
+    };
+    form.insert("code_challenge", code_challenge);
+    form.insert("code_challenge_method", "S256".to_string());
+
+    Some(code_verifier)
+  } else {
+    None
+  };
 
   if !config.scope.is_empty() {
     form.insert("scope", config.scope.join(" "));
@@ -476,7 +486,7 @@ async fn oidc_callback<T: UpdateMessage>(
 async fn check_code<T: UpdateMessage>(
   error: Option<String>,
   code: Option<String>,
-  code_verifier: String,
+  code_verifier: Option<String>,
   config: &OidcConfig,
   db: &Connection,
   mut cookies: CookieJar,
@@ -494,7 +504,10 @@ async fn check_code<T: UpdateMessage>(
   let mut form = HashMap::new();
   form.insert("grant_type", "authorization_code".to_string());
   form.insert("code", code);
-  form.insert("code_verifier", code_verifier);
+
+  if let Some(code_verifier) = code_verifier {
+    form.insert("code_verifier", code_verifier);
+  }
 
   let req = config
     .client

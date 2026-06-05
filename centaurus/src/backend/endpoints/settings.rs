@@ -111,6 +111,7 @@ async fn get_user_settings(
     oidc_enabled,
     oidc_image_sync,
     oidc_group_sync,
+    oidc_pkce,
     sso_instant_redirect,
     sso_create_user
   );
@@ -170,6 +171,7 @@ async fn save_user_settings<T: UpdateMessage>(
     oidc_enabled,
     oidc_image_sync,
     oidc_group_sync,
+    oidc_pkce,
     sso_create_user,
     sso_instant_redirect
   );

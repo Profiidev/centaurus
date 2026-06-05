@@ -22,6 +22,7 @@ pub struct UserSettings {
   pub oidc_group_sync: Option<bool>,
   pub oidc_group_claim: Option<String>,
   pub oidc_image_sync: Option<bool>,
+  pub oidc_pkce: Option<bool>,
   pub sso_instant_redirect: Option<bool>,
   pub sso_create_user: Option<bool>,
 }
@@ -67,6 +68,7 @@ impl UserSettings {
           .unwrap_or_else(|| "groups".to_string()),
         scopes,
         create_user: self.sso_create_user.unwrap_or(false),
+        pkce: self.oidc_pkce.unwrap_or(false),
       })
     } else {
       None
@@ -82,6 +84,7 @@ pub struct OidcSettings {
   pub scopes: Vec<String>,
   pub group_sync: bool,
   pub group_claim: String,
+  pub pkce: bool,
   pub image_sync: bool,
   pub create_user: bool,
 }
