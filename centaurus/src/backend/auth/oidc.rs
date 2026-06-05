@@ -417,7 +417,7 @@ async fn oidc_url(
 #[cfg_attr(feature = "openapi", derive(schemars::JsonSchema))]
 struct OidcCallbackQuery {
   code: Option<String>,
-  state: Uuid,
+  state: Option<Uuid>,
   error: Option<String>,
 }
 
@@ -444,32 +444,16 @@ async fn oidc_callback<T: UpdateMessage>(
   jwt: JwtState,
   updater: Updater<T>,
 ) -> Result<(CookieJar, Redirect)> {
-  let lock = oidc_state.config.lock().await;
-  let Some(config) = lock.clone() else {
-    bail!(BAD_REQUEST, "OIDC not configured");
-  };
-  drop(lock);
-
-  let Some((_, (_, code_verifier))) = oidc_state.state.remove(&state) else {
-    bail!(BAD_REQUEST, "Invalid OIDC state");
-  };
-  let Some(cookie) = cookies.get(OIDC_STATE) else {
-    bail!(BAD_REQUEST, "Missing OIDC state cookie");
-  };
-  if cookie.value() != state.to_string() {
-    bail!(BAD_REQUEST, "OIDC state mismatch");
-  }
-
   let (path, error, mut cookies) = check_code(
     error,
+    state,
     code,
-    code_verifier,
-    &config,
     &db,
     cookies,
     &jwt,
     &oidc_state.nonce,
     updater,
+    &oidc_state,
   )
   .await?;
 
@@ -482,21 +466,47 @@ async fn oidc_callback<T: UpdateMessage>(
   Ok((cookies, Redirect::found(url.to_string())))
 }
 
+#[derive(Deserialize)]
+struct TokenError {
+  error: String,
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn check_code<T: UpdateMessage>(
   error: Option<String>,
+  state: Option<Uuid>,
   code: Option<String>,
-  code_verifier: Option<String>,
-  config: &OidcConfig,
   db: &Connection,
   mut cookies: CookieJar,
   jwt: &JwtState,
   nonce_map: &DashMap<Uuid, Instant>,
   updater: Updater<T>,
+  oidc_state: &OidcState,
 ) -> Result<(&'static str, Option<String>, CookieJar)> {
+  let lock = oidc_state.config.lock().await;
+  let Some(config) = lock.clone() else {
+    return Ok(("/login", Some("oidc_not_configured".to_string()), cookies));
+  };
+  drop(lock);
+
   if let Some(error) = error {
     return Ok(("/login", Some(error), cookies));
   }
+
+  let Some(state) = state else {
+    return Ok(("/login", Some("invalid_state".to_string()), cookies));
+  };
+
+  let Some((_, (_, code_verifier))) = oidc_state.state.remove(&state) else {
+    return Ok(("/login", Some("invalid_state".to_string()), cookies));
+  };
+  let Some(cookie) = cookies.get(OIDC_STATE) else {
+    return Ok(("/login", Some("invalid_state".to_string()), cookies));
+  };
+  if cookie.value() != state.to_string() {
+    return Ok(("/login", Some("invalid_state".to_string()), cookies));
+  }
+
   let Some(code) = code else {
     return Ok(("/login", Some("missing_code".to_string()), cookies));
   };
@@ -519,7 +529,12 @@ async fn check_code<T: UpdateMessage>(
   let res = config.client.execute(req).await?;
   if !res.status().is_success() {
     let body = res.text().await.unwrap_or_default();
-    bail!(INTERNAL_SERVER_ERROR, "OIDC token request failed: {}", body);
+    let Ok(error) = serde_json::from_str::<TokenError>(&body) else {
+      tracing::error!("OIDC token request failed: {}", body);
+      return Ok(("/login", Some("invalid_code".to_string()), cookies));
+    };
+    tracing::error!("OIDC token request failed: {}", error.error);
+    return Ok(("/login", Some(error.error), cookies));
   }
 
   let res: TokenRes = res.json().await?;
@@ -535,16 +550,13 @@ async fn check_code<T: UpdateMessage>(
   let res = config.client.execute(req).await?;
   if !res.status().is_success() {
     let body = res.text().await.unwrap_or_default();
-    bail!(
-      INTERNAL_SERVER_ERROR,
-      "OIDC userinfo request failed: {}",
-      body
-    );
+    tracing::error!("OIDC userinfo request failed: {}", body);
+    return Ok(("/login", Some("invalid_token".to_string()), cookies));
   }
   let res: AuthInfo = res.json().await?;
 
   if let Some(user) = db.user().try_get_user_by_email(&res.email).await? {
-    sync_groups(user.id, &res, config, db, updater.clone()).await?;
+    sync_groups(user.id, &res, &config, db, updater.clone()).await?;
     #[cfg(feature = "avatar")]
     if config.image_sync {
       sync_image(
@@ -578,7 +590,7 @@ async fn check_code<T: UpdateMessage>(
       true,
     )
     .await?;
-  sync_groups(user, &res, config, db, updater.clone()).await?;
+  sync_groups(user, &res, &config, db, updater.clone()).await?;
   #[cfg(feature = "avatar")]
   if config.image_sync {
     sync_image(
