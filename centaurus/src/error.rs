@@ -178,6 +178,8 @@ impl_from_error!(serde_json::Error, StatusCode::BAD_REQUEST);
 
 #[cfg(feature = "http")]
 impl_from_error!(http::header::InvalidHeaderValue, StatusCode::BAD_REQUEST);
+#[cfg(feature = "http")]
+impl_from_error!(http::header::InvalidHeaderName, StatusCode::BAD_REQUEST);
 #[cfg(feature = "backend")]
 impl_from_error!(TypedHeaderRejection, StatusCode::BAD_REQUEST);
 #[cfg(feature = "backend")]
