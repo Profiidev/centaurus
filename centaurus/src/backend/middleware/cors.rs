@@ -15,7 +15,7 @@ pub fn cors(config: &BaseConfig) -> Result<CorsLayer> {
       Method::PATCH,
       Method::OPTIONS,
     ])
-    .allow_headers([crate::VERSION_HEADER_NAME.parse::<HeaderName>()?])
+    .expose_headers([crate::VERSION_HEADER_NAME.parse::<HeaderName>()?])
     .allow_credentials(true);
 
   let mut origins = Vec::new();
