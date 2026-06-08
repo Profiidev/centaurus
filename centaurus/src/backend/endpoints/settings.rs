@@ -100,7 +100,7 @@ async fn get_user_settings(
 ) -> Result<Json<UserSettingsResponse>> {
   let mut settings = db.settings().get_settings::<UserSettings>().await?;
 
-  let res = each_field_from_env!(
+  let mut res = each_field_from_env!(
     UserSettingsResponse,
     settings,
     config,
@@ -115,6 +115,8 @@ async fn get_user_settings(
     sso_instant_redirect,
     sso_create_user
   );
+
+  res.settings.oidc_client_secret = None;
 
   Ok(Json(res))
 }
@@ -134,7 +136,7 @@ async fn get_mail_settings(
 ) -> Result<Json<MailSettingsResponse>> {
   let mut settings = db.settings().get_settings::<MailSettings>().await?;
 
-  let res = each_field_from_env!(
+  let mut res = each_field_from_env!(
     MailSettingsResponse,
     settings,
     config,
@@ -148,6 +150,8 @@ async fn get_mail_settings(
     smtp_enabled
   );
 
+  res.settings.smtp_password = None;
+
   Ok(Json(res))
 }
 
@@ -159,7 +163,12 @@ async fn save_user_settings<T: UpdateMessage>(
   config: Option<UserSettings>,
   Json(mut settings): Json<UserSettings>,
 ) -> Result<()> {
-  let settings_to_db = settings.clone();
+  let mut settings_to_db = settings.clone();
+  if let Some(secret) = &settings_to_db.oidc_client_secret
+    && secret.is_empty()
+  {
+    settings_to_db.oidc_client_secret = None;
+  }
 
   overwrite_with_env_config!(
     settings,
@@ -175,6 +184,11 @@ async fn save_user_settings<T: UpdateMessage>(
     sso_create_user,
     sso_instant_redirect
   );
+
+  if settings.oidc_client_secret.is_none() {
+    let db_settings = db.settings().get_settings::<UserSettings>().await?;
+    settings.oidc_client_secret = db_settings.oidc_client_secret;
+  }
 
   if let Some(oidc_settings) = &settings.oidc_settings() {
     state.try_init(oidc_settings).await.status_context(
@@ -200,7 +214,12 @@ async fn save_mail_settings<T: UpdateMessage>(
   config: Option<MailSettings>,
   Json(mut settings): Json<MailSettings>,
 ) -> Result<()> {
-  let settings_to_db = settings.clone();
+  let mut settings_to_db = settings.clone();
+  if let Some(password) = &settings_to_db.smtp_password
+    && password.is_empty()
+  {
+    settings_to_db.smtp_password = None;
+  }
 
   overwrite_with_env_config!(
     settings,
@@ -214,6 +233,11 @@ async fn save_mail_settings<T: UpdateMessage>(
     smtp_use_tls,,
     smtp_enabled
   );
+
+  if settings.smtp_password.is_none() {
+    let db_settings = db.settings().get_settings::<MailSettings>().await?;
+    settings.smtp_password = db_settings.smtp_password;
+  }
 
   if let Some(smtp_settings) = &settings.smtp() {
     state.try_init(smtp_settings).await?;
