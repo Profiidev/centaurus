@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.5] - 2026-06-09
+
+### 🐛 Bug Fixes
+
+- Mail settings
+
+
+
 ## [0.14.4] - 2026-06-09
 
 ### 🐛 Bug Fixes
