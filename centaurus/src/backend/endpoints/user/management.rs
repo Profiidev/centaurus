@@ -113,7 +113,7 @@ struct MailActiveResponse {
   active: bool,
 }
 
-async fn mail_active(_auth: JwtAuth<UserView>, mailer: Mailer) -> Result<Json<MailActiveResponse>> {
+async fn mail_active(_auth: JwtAuth, mailer: Mailer) -> Result<Json<MailActiveResponse>> {
   let active = mailer.is_active().await;
   Ok(Json(MailActiveResponse { active }))
 }
