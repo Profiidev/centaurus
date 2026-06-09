@@ -19,7 +19,7 @@ use tokio::sync::Mutex;
 use crate::error::ErrorReportStatusExt;
 use crate::{bail, error::Result};
 
-#[derive(Serialize, Deserialize, Default, Clone)]
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
 #[cfg_attr(feature = "openapi", derive(schemars::JsonSchema, aide::OperationIo))]
 #[cfg_attr(feature = "backend", derive(axum::extract::FromRequestParts))]
 #[cfg_attr(feature = "backend", from_request(via(axum::extract::Extension)))]
@@ -70,6 +70,7 @@ impl MailSettings {
   }
 }
 
+#[derive(Debug)]
 pub struct SmtpSettings {
   pub server: String,
   pub port: u16,

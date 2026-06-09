@@ -163,12 +163,17 @@ async fn save_user_settings<T: UpdateMessage>(
   config: Option<UserSettings>,
   Json(mut settings): Json<UserSettings>,
 ) -> Result<()> {
-  let mut settings_to_db = settings.clone();
-  if let Some(secret) = &settings_to_db.oidc_client_secret
+  if let Some(secret) = &settings.oidc_client_secret
     && secret.is_empty()
   {
-    settings_to_db.oidc_client_secret = None;
+    settings.oidc_client_secret = None;
   }
+  if settings.oidc_client_secret.is_none() {
+    let db_settings = db.settings().get_settings::<UserSettings>().await?;
+    settings.oidc_client_secret = db_settings.oidc_client_secret;
+  }
+
+  let settings_to_db = settings.clone();
 
   overwrite_with_env_config!(
     settings,
@@ -184,11 +189,6 @@ async fn save_user_settings<T: UpdateMessage>(
     sso_create_user,
     sso_instant_redirect
   );
-
-  if settings.oidc_client_secret.is_none() {
-    let db_settings = db.settings().get_settings::<UserSettings>().await?;
-    settings.oidc_client_secret = db_settings.oidc_client_secret;
-  }
 
   if let Some(oidc_settings) = &settings.oidc_settings() {
     state.try_init(oidc_settings).await.status_context(
@@ -214,12 +214,17 @@ async fn save_mail_settings<T: UpdateMessage>(
   config: Option<MailSettings>,
   Json(mut settings): Json<MailSettings>,
 ) -> Result<()> {
-  let mut settings_to_db = settings.clone();
-  if let Some(password) = &settings_to_db.smtp_password
+  if let Some(password) = &settings.smtp_password
     && password.is_empty()
   {
-    settings_to_db.smtp_password = None;
+    settings.smtp_password = None;
   }
+  if settings.smtp_password.is_none() {
+    let db_settings = db.settings().get_settings::<MailSettings>().await?;
+    settings.smtp_password = db_settings.smtp_password;
+  }
+
+  let settings_to_db = settings.clone();
 
   overwrite_with_env_config!(
     settings,
@@ -233,11 +238,6 @@ async fn save_mail_settings<T: UpdateMessage>(
     smtp_use_tls,,
     smtp_enabled
   );
-
-  if settings.smtp_password.is_none() {
-    let db_settings = db.settings().get_settings::<MailSettings>().await?;
-    settings.smtp_password = db_settings.smtp_password;
-  }
 
   if let Some(smtp_settings) = &settings.smtp() {
     state.try_init(smtp_settings).await?;
