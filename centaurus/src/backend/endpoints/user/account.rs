@@ -36,7 +36,12 @@ pub fn router<T: UpdateMessage>(rate_limiter: &mut RateLimiter) -> ApiRouter {
 
   #[cfg(feature = "avatar")]
   {
-    router.api_route("/avatar", update_avatar_route::<T>())
+    use axum::extract::DefaultBodyLimit;
+
+    router.api_route(
+      "/avatar",
+      update_avatar_route::<T>().layer(DefaultBodyLimit::max(1024 * 1024 * 10)),
+    )
   }
   #[cfg(not(feature = "avatar"))]
   {
