@@ -39,16 +39,20 @@ mod tests {
 
   #[test]
   fn test_cors_with_valid_origin() {
-    let mut config = BaseConfig::default();
-    config.allowed_origins = "https://example.com".into();
+    let config = BaseConfig {
+      allowed_origins: "https://example.com".into(),
+      ..Default::default()
+    };
     assert!(cors(&config).is_ok());
   }
 
   #[test]
   fn test_cors_rejects_invalid_origin() {
-    let mut config = BaseConfig::default();
     // A newline is not a valid header value byte.
-    config.allowed_origins = "https://ok.com,bad\norigin".into();
+    let config = BaseConfig {
+      allowed_origins: "https://ok.com,bad\norigin".into(),
+      ..Default::default()
+    };
     assert!(cors(&config).is_err());
   }
 }

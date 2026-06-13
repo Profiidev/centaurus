@@ -230,6 +230,53 @@ async fn get_oidc_settings(
   }))
 }
 
+async fn init_oidc(
+  db: Connection,
+  state: OidcState,
+  config: Option<UserSettings>,
+  Json(mut settings): Json<UserSettings>,
+) -> Result<()> {
+  if db.setup().is_setup().await? {
+    bail!(FORBIDDEN, "Setup has already been completed");
+  }
+
+  let mut settings_to_db = settings.clone();
+
+  overwrite_with_env_config!(
+    settings,
+    config,
+    oidc_issuer,
+    oidc_client_id,
+    oidc_client_secret,
+    oidc_scopes,,
+    oidc_enabled,
+    oidc_image_sync,
+    oidc_group_sync,
+    oidc_pkce,
+    sso_create_user,
+    sso_instant_redirect
+  );
+
+  // required to create the first user after setup
+  settings.oidc_enabled = Some(true);
+  settings.sso_create_user = Some(true);
+  settings_to_db.oidc_enabled = Some(true);
+  settings_to_db.sso_create_user = Some(true);
+
+  if let Some(oidc_settings) = &settings.oidc_settings() {
+    state.try_init(oidc_settings).await.status_context(
+      StatusCode::NOT_ACCEPTABLE,
+      "Failed to initialize OIDC state",
+    )?;
+  } else {
+    state.deactivate().await;
+  }
+
+  db.settings().save_settings(&settings_to_db).await?;
+
+  Ok(())
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -283,51 +330,4 @@ mod tests {
       3
     );
   }
-}
-
-async fn init_oidc(
-  db: Connection,
-  state: OidcState,
-  config: Option<UserSettings>,
-  Json(mut settings): Json<UserSettings>,
-) -> Result<()> {
-  if db.setup().is_setup().await? {
-    bail!(FORBIDDEN, "Setup has already been completed");
-  }
-
-  let mut settings_to_db = settings.clone();
-
-  overwrite_with_env_config!(
-    settings,
-    config,
-    oidc_issuer,
-    oidc_client_id,
-    oidc_client_secret,
-    oidc_scopes,,
-    oidc_enabled,
-    oidc_image_sync,
-    oidc_group_sync,
-    oidc_pkce,
-    sso_create_user,
-    sso_instant_redirect
-  );
-
-  // required to create the first user after setup
-  settings.oidc_enabled = Some(true);
-  settings.sso_create_user = Some(true);
-  settings_to_db.oidc_enabled = Some(true);
-  settings_to_db.sso_create_user = Some(true);
-
-  if let Some(oidc_settings) = &settings.oidc_settings() {
-    state.try_init(oidc_settings).await.status_context(
-      StatusCode::NOT_ACCEPTABLE,
-      "Failed to initialize OIDC state",
-    )?;
-  } else {
-    state.deactivate().await;
-  }
-
-  db.settings().save_settings(&settings_to_db).await?;
-
-  Ok(())
 }

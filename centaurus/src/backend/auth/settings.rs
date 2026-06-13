@@ -124,11 +124,13 @@ mod tests {
 
   #[test]
   fn test_oidc_settings_some() {
-    let mut settings = UserSettings::default();
-    settings.oidc_enabled = Some(true);
-    settings.oidc_issuer = Some(Url::parse("http://issuer.com").unwrap());
-    settings.oidc_client_id = Some("client".to_string());
-    settings.oidc_client_secret = Some("secret".to_string());
+    let settings = UserSettings {
+      oidc_enabled: Some(true),
+      oidc_issuer: Some(Url::parse("http://issuer.com").unwrap()),
+      oidc_client_id: Some("client".to_string()),
+      oidc_client_secret: Some("secret".to_string()),
+      ..Default::default()
+    };
 
     let oidc = settings.oidc_settings().unwrap();
     assert_eq!(oidc.issuer.as_str(), "http://issuer.com/");

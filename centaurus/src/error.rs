@@ -382,8 +382,7 @@ mod tests {
   #[cfg(feature = "http")]
   #[test]
   fn test_error_report_status_ext() {
-    let res: std::result::Result<i32, std::io::Error> =
-      Err(std::io::Error::new(std::io::ErrorKind::Other, "oh no"));
+    let res: std::result::Result<i32, std::io::Error> = Err(std::io::Error::other("oh no"));
     let report = res.status(StatusCode::NOT_FOUND).unwrap_err();
     assert_eq!(report.status, StatusCode::NOT_FOUND);
   }

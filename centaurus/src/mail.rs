@@ -207,15 +207,16 @@ mod tests {
 
   #[test]
   fn test_mail_settings_some() {
-    let mut settings = MailSettings::default();
-    settings.smtp_enabled = Some(true);
-    settings.smtp_server = Some("smtp.example.com".into());
-    settings.smtp_port = Some(587);
-    settings.smtp_username = Some("user".into());
-    settings.smtp_password = Some("pass".into());
-    settings.smtp_from_address = Some("test@example.com".into());
-    settings.smtp_from_name = Some("Test".into());
-    settings.smtp_use_tls = Some(true);
+    let settings = MailSettings {
+      smtp_enabled: Some(true),
+      smtp_server: Some("smtp.example.com".into()),
+      smtp_port: Some(587),
+      smtp_username: Some("user".into()),
+      smtp_password: Some("pass".into()),
+      smtp_from_address: Some("test@example.com".into()),
+      smtp_from_name: Some("Test".into()),
+      smtp_use_tls: Some(true),
+    };
 
     let smtp = settings.smtp().unwrap();
     assert_eq!(smtp.server, "smtp.example.com");
@@ -226,25 +227,28 @@ mod tests {
   #[test]
   fn test_mail_settings_enabled_but_incomplete() {
     // Enabled but missing required fields must not yield an SmtpSettings.
-    let mut settings = MailSettings::default();
-    settings.smtp_enabled = Some(true);
-    settings.smtp_server = Some("smtp.example.com".into());
     // port/username/password/from_* deliberately left unset
+    let settings = MailSettings {
+      smtp_enabled: Some(true),
+      smtp_server: Some("smtp.example.com".into()),
+      ..Default::default()
+    };
     assert!(settings.smtp().is_none());
   }
 
   #[test]
   fn test_mail_settings_disabled_ignores_fields() {
     // With smtp_enabled = false, fully-populated fields are still ignored.
-    let mut settings = MailSettings::default();
-    settings.smtp_enabled = Some(false);
-    settings.smtp_server = Some("smtp.example.com".into());
-    settings.smtp_port = Some(587);
-    settings.smtp_username = Some("user".into());
-    settings.smtp_password = Some("pass".into());
-    settings.smtp_from_address = Some("test@example.com".into());
-    settings.smtp_from_name = Some("Test".into());
-    settings.smtp_use_tls = Some(true);
+    let settings = MailSettings {
+      smtp_enabled: Some(false),
+      smtp_server: Some("smtp.example.com".into()),
+      smtp_port: Some(587),
+      smtp_username: Some("user".into()),
+      smtp_password: Some("pass".into()),
+      smtp_from_address: Some("test@example.com".into()),
+      smtp_from_name: Some("Test".into()),
+      smtp_use_tls: Some(true),
+    };
     assert!(settings.smtp().is_none());
   }
 

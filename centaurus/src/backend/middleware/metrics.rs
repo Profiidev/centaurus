@@ -156,6 +156,26 @@ fn content_size(headers: &HeaderMap) -> f64 {
     .unwrap_or(0.0)
 }
 
+fn scheme(req: &Request) -> String {
+  if let Some(scheme) = req.headers().get("X-Forwarded-Prot") {
+    scheme.to_str().unwrap_or("http").to_string()
+  } else if let Some(scheme) = req.headers().get("X-Forwarded-Protocol") {
+    scheme.to_str().unwrap_or("http").to_string()
+  } else if let Some(ssl) = req.headers().get("X-Forwarded-Ssl") {
+    if ssl.to_str().unwrap_or("off") == "on" {
+      "https".to_string()
+    } else {
+      "http".to_string()
+    }
+  } else if let Some(scheme) = req.headers().get("X-Url-Scheme") {
+    scheme.to_str().unwrap_or("http").to_string()
+  } else if let Some(scheme) = req.uri().scheme() {
+    scheme.as_str().to_string()
+  } else {
+    "http".to_string()
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -245,25 +265,5 @@ mod tests {
     assert_eq!(content_size(&headers), 123.0);
     // Missing header defaults to zero.
     assert_eq!(content_size(&HeaderMap::new()), 0.0);
-  }
-}
-
-fn scheme(req: &Request) -> String {
-  if let Some(scheme) = req.headers().get("X-Forwarded-Prot") {
-    scheme.to_str().unwrap_or("http").to_string()
-  } else if let Some(scheme) = req.headers().get("X-Forwarded-Protocol") {
-    scheme.to_str().unwrap_or("http").to_string()
-  } else if let Some(ssl) = req.headers().get("X-Forwarded-Ssl") {
-    if ssl.to_str().unwrap_or("off") == "on" {
-      "https".to_string()
-    } else {
-      "http".to_string()
-    }
-  } else if let Some(scheme) = req.headers().get("X-Url-Scheme") {
-    scheme.to_str().unwrap_or("http").to_string()
-  } else if let Some(scheme) = req.uri().scheme() {
-    scheme.as_str().to_string()
-  } else {
-    "http".to_string()
   }
 }

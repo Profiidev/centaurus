@@ -54,9 +54,11 @@ mod tests {
 
   #[test]
   fn test_validate_sqlite() {
-    let mut config = DBConfig::default();
-    config.database_max_connections = 5;
-    config.database_min_connections = 5;
+    let mut config = DBConfig {
+      database_max_connections: 5,
+      database_min_connections: 5,
+      ..Default::default()
+    };
     config.validate_sqlite();
     assert_eq!(config.database_max_connections, 1);
     assert_eq!(config.database_min_connections, 1);
