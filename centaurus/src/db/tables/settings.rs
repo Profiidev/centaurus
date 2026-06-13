@@ -45,3 +45,41 @@ impl<'db> SettingsTable<'db> {
     Ok(())
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::db::config::DBConfig;
+  use crate::db::init::connect_db;
+  use crate::db::migrations::Migrator;
+  use sea_orm_migration::MigratorTrait;
+  use serde::{Deserialize, Serialize};
+  use schemars::JsonSchema;
+
+  #[derive(Serialize, Deserialize, Default, PartialEq, Debug, JsonSchema)]
+  struct TestSettings {
+    val: String,
+  }
+
+  impl Settings for TestSettings {
+    fn id() -> i32 {
+      99
+    }
+  }
+
+  #[tokio::test]
+  async fn test_settings_table() {
+    let db_config = DBConfig::default();
+    let conn = connect_db(&db_config, "sqlite::memory:").await;
+    Migrator::up(&*conn, None).await.unwrap();
+
+    let table = SettingsTable::new(&conn);
+    let s = TestSettings {
+      val: "test".into(),
+    };
+    table.save_settings(&s).await.unwrap();
+
+    let s2: TestSettings = table.get_settings().await.unwrap();
+    assert_eq!(s, s2);
+  }
+}

@@ -345,3 +345,28 @@ impl StorageConfig {
       && self.s3_host.is_some()
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use tempfile::tempdir;
+
+  #[tokio::test]
+  async fn test_local_storage() {
+    let dir = tempdir().unwrap();
+    let config = StorageConfig {
+      storage_path: dir.path().to_str().unwrap().to_string(),
+      ..Default::default()
+    };
+
+    let storage = FileStorage::init(&config).await.unwrap();
+    assert_eq!(storage.name(), "Local");
+
+    let mut content = b"hello world" as &[u8];
+    storage.save_file(&mut content, "test.txt").await.unwrap();
+    assert!(storage.exists("test.txt").await.unwrap());
+
+    storage.delete_file("test.txt").await.unwrap();
+    assert!(!storage.exists("test.txt").await.unwrap());
+  }
+}

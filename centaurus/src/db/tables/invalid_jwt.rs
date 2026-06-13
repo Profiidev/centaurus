@@ -62,3 +62,32 @@ impl<'db> InvalidJwtTable<'db> {
     Ok(())
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use chrono::Duration;
+  use crate::db::config::DBConfig;
+  use crate::db::init::connect_db;
+  use crate::db::migrations::Migrator;
+  use sea_orm_migration::MigratorTrait;
+
+  #[tokio::test]
+  async fn test_invalid_jwt_table() {
+    let db_config = DBConfig::default();
+    let conn = connect_db(&db_config, "sqlite::memory:").await;
+    Migrator::up(&*conn, None).await.unwrap();
+
+    let table = InvalidJwtTable::new(&conn);
+    let count = Arc::new(AtomicI32::new(0));
+    let token = "test_token".to_string();
+    let exp = Utc::now() + Duration::seconds(3600);
+
+    table
+      .invalidate_jwt(token.clone(), exp, count.clone())
+      .await
+      .unwrap();
+    assert!(!table.is_token_valid(&token).await.unwrap());
+    assert!(table.is_token_valid("other").await.unwrap());
+  }
+}

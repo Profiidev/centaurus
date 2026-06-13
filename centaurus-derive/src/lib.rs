@@ -13,15 +13,15 @@ pub(crate) fn centaurus_path() -> syn::Path {
 
 #[proc_macro_derive(Config, attributes(base, metrics, site, auth, oidc, mail))]
 pub fn derive_config(input: TokenStream) -> TokenStream {
-  config(input)
+  config(input.into()).into()
 }
 
 #[proc_macro_derive(Settings, attributes(settings))]
 pub fn derive_settings(input: TokenStream) -> TokenStream {
-  settings(input)
+  settings(input.into()).into()
 }
 
 #[proc_macro_derive(UpdateMessage, attributes(update_message))]
 pub fn derive_update_message(input: TokenStream) -> TokenStream {
-  update_message(input)
+  update_message(input.into()).into()
 }

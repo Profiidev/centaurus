@@ -33,3 +33,30 @@ impl<'db> KeyTable<'db> {
     Ok(())
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::db::config::DBConfig;
+  use crate::db::init::connect_db;
+  use crate::db::migrations::Migrator;
+  use sea_orm_migration::MigratorTrait;
+
+  #[tokio::test]
+  async fn test_key_table() {
+    let db_config = DBConfig::default();
+    let conn = connect_db(&db_config, "sqlite::memory:").await;
+    Migrator::up(&*conn, None).await.unwrap();
+
+    let table = KeyTable::new(&conn);
+    let id = Uuid::new_v4();
+    table
+      .create_key("test".into(), "private".into(), id)
+      .await
+      .unwrap();
+
+    let key = table.get_key_by_name("test".into()).await.unwrap();
+    assert_eq!(key.id, id);
+    assert_eq!(key.private_key, "private");
+  }
+}

@@ -77,3 +77,23 @@ pub fn hash_secret(pepper: &[u8], salt: &str, passphrase: &[u8]) -> Result<Strin
       .to_string(),
   )
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use rsa::rand_core::OsRng;
+
+  #[tokio::test]
+  async fn test_pw_state_init() {
+    let mut rng = OsRng;
+    let key = RsaPrivateKey::new(&mut rng, 512).unwrap();
+    let state = PasswordState::init(vec![1, 2, 3], key).await;
+    assert!(state.pub_key.contains("BEGIN RSA PUBLIC KEY"));
+  }
+
+  #[test]
+  fn test_hash_secret() {
+    let hash = hash_secret(&[1, 2, 3], "c2FsdHNhbHQ", b"password").unwrap(); // "saltsalt" in base64
+    assert!(hash.starts_with("$argon2id$"));
+  }
+}

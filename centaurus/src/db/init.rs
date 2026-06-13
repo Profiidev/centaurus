@@ -128,3 +128,16 @@ async fn migrate_to_centaurus_migrations(conn: &DatabaseConnection) -> Result<()
 
   Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::db::config::DBConfig;
+
+  #[tokio::test]
+  async fn test_connect_db() {
+    let config = DBConfig::default();
+    let conn = connect_db(&config, "sqlite::memory:").await;
+    assert!(conn.get_database_backend() == DatabaseBackend::Sqlite);
+  }
+}

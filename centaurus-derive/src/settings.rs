@@ -1,11 +1,14 @@
-use proc_macro::TokenStream;
+use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{DeriveInput, Expr, parse_macro_input};
+use syn::{DeriveInput, Expr, parse2};
 
 use crate::centaurus_path;
 
 pub fn settings(input: TokenStream) -> TokenStream {
-  let input = parse_macro_input!(input as DeriveInput);
+  let input = match parse2::<DeriveInput>(input) {
+    Ok(input) => input,
+    Err(err) => return err.to_compile_error(),
+  };
   let name = input.ident.clone();
 
   let mut id_value = None;
@@ -22,7 +25,7 @@ pub fn settings(input: TokenStream) -> TokenStream {
         }
       })
     {
-      return e.to_compile_error().into();
+      return e.to_compile_error();
     }
   }
 
@@ -34,5 +37,21 @@ pub fn settings(input: TokenStream) -> TokenStream {
       }
     }
   }
-  .into()
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn test_settings_derive() {
+    let input = quote! {
+      #[settings(id = 1)]
+      struct MySettings {}
+    };
+    let output = settings(input);
+    let output_str = output.to_string();
+    assert!(output_str.contains("impl centaurus :: db :: settings :: Settings for MySettings"));
+    assert!(output_str.contains("fn id () -> i32 { 1 }"));
+  }
 }

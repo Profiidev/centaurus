@@ -194,3 +194,31 @@ impl MailConfig {
     Ok(())
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn test_mail_settings_none() {
+    let settings = MailSettings::default();
+    assert!(settings.smtp().is_none());
+  }
+
+  #[test]
+  fn test_mail_settings_some() {
+    let mut settings = MailSettings::default();
+    settings.smtp_enabled = Some(true);
+    settings.smtp_server = Some("smtp.example.com".into());
+    settings.smtp_port = Some(587);
+    settings.smtp_username = Some("user".into());
+    settings.smtp_password = Some("pass".into());
+    settings.smtp_from_address = Some("test@example.com".into());
+    settings.smtp_from_name = Some("Test".into());
+    settings.smtp_use_tls = Some(true);
+
+    let smtp = settings.smtp().unwrap();
+    assert_eq!(smtp.server, "smtp.example.com");
+    assert_eq!(smtp.port, 587);
+  }
+}

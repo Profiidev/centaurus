@@ -85,7 +85,8 @@ impl JwtState {
     } else {
       let mut rng = OsRng {};
       info!("Generating new JWT RSA keypair. This may take a few seconds...");
-      let private_key = RsaPrivateKey::new(&mut rng, 4096).expect("Failed to create Rsa key");
+      let bits = if cfg!(feature = "test") { 512 } else { 4096 };
+      let private_key = RsaPrivateKey::new(&mut rng, bits).expect("Failed to create Rsa key");
       let key = private_key
         .to_pkcs1_pem(LineEnding::CRLF)
         .expect("Failed to export private key")
@@ -132,4 +133,27 @@ impl JwtState {
 #[from_request(via(Extension))]
 pub struct JwtInvalidState {
   pub count: Arc<AtomicI32>,
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::db::config::DBConfig;
+  use crate::db::init::connect_db;
+  use crate::db::migrations::Migrator;
+  use sea_orm_migration::MigratorTrait;
+
+  #[tokio::test]
+  async fn test_jwt_state() {
+    let config = AuthConfig::default();
+    let db_config = DBConfig::default();
+    let conn = connect_db(&db_config, "sqlite::memory:").await;
+    Migrator::up(&*conn, None).await.unwrap();
+
+    let state = JwtState::init(&config, &conn).await;
+    let uuid = Uuid::new_v4();
+    let token = state.create_raw_token(uuid).unwrap();
+    let claims = state.validate_token(&token).unwrap();
+    assert_eq!(claims.sub, uuid);
+  }
 }

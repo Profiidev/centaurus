@@ -74,3 +74,22 @@ impl Default for SiteConfig {
     }
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn test_base_config_default() {
+    let config = BaseConfig::default();
+    assert_eq!(config.port, 8000);
+    assert_eq!(config.log_level, LevelFilter::INFO);
+  }
+
+  #[cfg(feature = "config_site")]
+  #[test]
+  fn test_site_config_default() {
+    let config = SiteConfig::default();
+    assert_eq!(config.site_url.as_str(), "http://localhost:8000/");
+  }
+}

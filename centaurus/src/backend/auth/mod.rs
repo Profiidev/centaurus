@@ -97,7 +97,8 @@ pub async fn init_pw_state(config: &AuthConfig, db: &Connection) -> PasswordStat
     info!(
       "Generating new RSA key for password transfer encryption. This may take a few seconds..."
     );
-    let private_key = RsaPrivateKey::new(&mut rng, 4096).expect("Failed to create Rsa key");
+    let bits = if cfg!(feature = "test") { 512 } else { 4096 };
+    let private_key = RsaPrivateKey::new(&mut rng, bits).expect("Failed to create Rsa key");
     let key = private_key
       .to_pkcs1_pem(LineEnding::CRLF)
       .expect("Failed to export private key")

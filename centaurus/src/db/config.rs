@@ -41,3 +41,24 @@ impl DBConfig {
     }
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn test_db_config_default() {
+    let config = DBConfig::default();
+    assert_eq!(config.database_max_connections, 20);
+  }
+
+  #[test]
+  fn test_validate_sqlite() {
+    let mut config = DBConfig::default();
+    config.database_max_connections = 5;
+    config.database_min_connections = 5;
+    config.validate_sqlite();
+    assert_eq!(config.database_max_connections, 1);
+    assert_eq!(config.database_min_connections, 1);
+  }
+}

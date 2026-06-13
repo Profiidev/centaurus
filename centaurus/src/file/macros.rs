@@ -14,6 +14,18 @@ macro_rules! path {
   };
 }
 
+#[cfg(test)]
+mod tests {
+  #[test]
+  fn test_path_macro() {
+    let p = path!("a", "b", "c");
+    assert_eq!(p, std::path::PathBuf::from("a/b/c"));
+
+    let p = path!();
+    assert_eq!(p, std::path::PathBuf::new());
+  }
+}
+
 #[macro_export]
 macro_rules! overwrite_with_env_config {
   ($config:ident, $env_config:ident, $($field:ident),*,,$($bool_field:ident),*) => {

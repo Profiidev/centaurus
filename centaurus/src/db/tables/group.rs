@@ -364,3 +364,30 @@ impl<'db> GroupTable<'db> {
     Ok(())
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::db::config::DBConfig;
+  use crate::db::init::connect_db;
+  use crate::db::migrations::Migrator;
+  use sea_orm_migration::MigratorTrait;
+
+  #[tokio::test]
+  async fn test_group_table() {
+    let db_config = DBConfig::default();
+    let conn = connect_db(&db_config, "sqlite::memory:").await;
+    Migrator::up(&*conn, None).await.unwrap();
+
+    let table = GroupTable::new(&conn);
+    let id = table.create_group("admin".into()).await.unwrap();
+    table
+      .add_permissions_to_group(id, vec!["read".into(), "write".into()])
+      .await
+      .unwrap();
+
+    let perms = table.get_group_permissions(id).await.unwrap();
+    assert_eq!(perms.len(), 2);
+    assert!(perms.contains(&"read".into()));
+  }
+}

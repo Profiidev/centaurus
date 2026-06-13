@@ -344,3 +344,38 @@ impl<'db> UserTable<'db> {
     Ok(count)
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::db::config::DBConfig;
+  use crate::db::init::connect_db;
+  use crate::db::migrations::Migrator;
+  use sea_orm_migration::MigratorTrait;
+
+  #[tokio::test]
+  async fn test_user_table() {
+    let db_config = DBConfig::default();
+    let conn = connect_db(&db_config, "sqlite::memory:").await;
+    Migrator::up(&*conn, None).await.unwrap();
+
+    let table = UserTable::new(&conn);
+    let id = table
+      .create_user(
+        "test".into(),
+        "test@example.com".into(),
+        "pass".into(),
+        "salt".into(),
+        false,
+      )
+      .await
+      .unwrap();
+
+    let user = table.get_user_by_id(id).await.unwrap();
+    assert_eq!(user.name, "test");
+    assert_eq!(user.email, "test@example.com");
+
+    let count = table.count_users().await.unwrap();
+    assert_eq!(count, 1);
+  }
+}
