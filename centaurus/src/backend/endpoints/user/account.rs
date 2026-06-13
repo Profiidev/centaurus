@@ -12,6 +12,8 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use tower_governor::GovernorLayer;
 
+#[cfg(feature = "avatar")]
+use crate::error::ErrorReportStatusExt;
 use crate::{
   backend::{
     auth::{jwt_auth::JwtAuth, pw_state::PasswordState},
@@ -101,8 +103,12 @@ async fn update_avatar<T: UpdateMessage>(
     bail!(PAYLOAD_TOO_LARGE, "Avatar size exceeds 10MB limit");
   }
 
-  let raw_data = BASE64_STANDARD.decode(data.avatar)?;
-  let img = image::load_from_memory(&raw_data)?;
+  // Malformed client input (bad base64 or an undecodable image) is a 400, not
+  // a 500 — consistent with the other base64 inputs in this crate.
+  let raw_data = BASE64_STANDARD
+    .decode(data.avatar)
+    .status(http::StatusCode::BAD_REQUEST)?;
+  let img = image::load_from_memory(&raw_data).status(http::StatusCode::BAD_REQUEST)?;
   let img = img.resize_exact(128, 128, FilterType::Lanczos3);
 
   let mut buf = Cursor::new(Vec::new());

@@ -353,3 +353,122 @@ impl aide::OperationOutput for ErrorReport {
     ]
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[cfg(feature = "http")]
+  #[test]
+  fn test_anyhow_macro() {
+    let report = anyhow!("test error");
+    assert_eq!(report.status, StatusCode::BAD_REQUEST);
+    assert_eq!(format!("{}", report), "test error");
+  }
+
+  #[cfg(feature = "http")]
+  #[test]
+  fn test_bail_macro() {
+    fn failing_func() -> Result<()> {
+      bail!(INTERNAL_SERVER_ERROR, "failed");
+    }
+
+    let res = failing_func();
+    assert!(res.is_err());
+    let err = res.unwrap_err();
+    assert_eq!(err.status, StatusCode::INTERNAL_SERVER_ERROR);
+  }
+
+  #[cfg(feature = "http")]
+  #[test]
+  fn test_error_report_status_ext() {
+    let res: std::result::Result<i32, std::io::Error> = Err(std::io::Error::other("oh no"));
+    let report = res.status(StatusCode::NOT_FOUND).unwrap_err();
+    assert_eq!(report.status, StatusCode::NOT_FOUND);
+  }
+
+  #[cfg(feature = "http")]
+  #[test]
+  fn test_status_passes_ok_through() {
+    let res: std::result::Result<i32, std::io::Error> = Ok(5);
+    assert_eq!(res.status(StatusCode::NOT_FOUND).unwrap(), 5);
+  }
+
+  #[cfg(feature = "http")]
+  #[test]
+  fn test_status_context_wraps_message() {
+    let res: std::result::Result<(), std::io::Error> = Err(std::io::Error::other("inner"));
+    let report = res
+      .status_context(StatusCode::NOT_FOUND, "outer context")
+      .unwrap_err();
+    assert_eq!(report.status, StatusCode::NOT_FOUND);
+    // The context message is prepended to the underlying error.
+    assert!(format!("{}", report).contains("outer context"));
+  }
+
+  #[cfg(feature = "http")]
+  #[test]
+  fn test_option_status_ext() {
+    let none: Option<i32> = None;
+    assert_eq!(
+      none.status(StatusCode::NOT_FOUND).unwrap_err().status,
+      StatusCode::NOT_FOUND
+    );
+    let some: Option<i32> = Some(9);
+    assert_eq!(some.status(StatusCode::NOT_FOUND).unwrap(), 9);
+
+    let none: Option<i32> = None;
+    let report = none
+      .status_context(StatusCode::FORBIDDEN, "missing")
+      .unwrap_err();
+    assert_eq!(report.status, StatusCode::FORBIDDEN);
+    assert!(format!("{}", report).contains("missing"));
+  }
+
+  #[test]
+  fn test_context_ext_wraps() {
+    let res: std::result::Result<(), std::io::Error> = Err(std::io::Error::other("root cause"));
+    let report = res.context("while doing thing").unwrap_err();
+    let rendered = format!("{}", report);
+    // wrap_err makes the new message the outermost display value.
+    assert!(rendered.contains("while doing thing"));
+  }
+
+  #[cfg(feature = "http")]
+  #[test]
+  fn test_from_io_error_is_internal() {
+    // io::Error maps to 500 via impl_from_error.
+    let report: ErrorReport = std::io::Error::other("boom").into();
+    assert_eq!(report.status, StatusCode::INTERNAL_SERVER_ERROR);
+  }
+
+  #[cfg(feature = "http")]
+  #[test]
+  fn test_from_parse_int_is_bad_request() {
+    let err = "x".parse::<i32>().unwrap_err();
+    let report: ErrorReport = err.into();
+    assert_eq!(report.status, StatusCode::BAD_REQUEST);
+  }
+
+  #[cfg(feature = "http")]
+  #[test]
+  fn test_from_eyre_report_defaults_bad_request() {
+    let report: ErrorReport = eyre::eyre!("plain").into();
+    assert_eq!(report.status, StatusCode::BAD_REQUEST);
+  }
+
+  #[cfg(feature = "backend")]
+  #[test]
+  fn test_into_response_uses_status() {
+    let report = anyhow!(FORBIDDEN, "nope");
+    assert_eq!(report.into_response().status(), StatusCode::FORBIDDEN);
+  }
+
+  #[cfg(feature = "http")]
+  #[test]
+  fn test_anyhow_with_explicit_status_and_format() {
+    let report = anyhow!(NOT_FOUND, "missing {}", 42);
+    assert_eq!(report.status, StatusCode::NOT_FOUND);
+    assert_eq!(format!("{}", report), "missing 42");
+  }
+}

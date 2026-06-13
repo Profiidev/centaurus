@@ -276,3 +276,58 @@ async fn init_oidc(
 
   Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::db::config::DBConfig;
+  use crate::db::init::{Connection, connect_db};
+  use crate::db::migrations::Migrator;
+  use sea_orm_migration::MigratorTrait;
+
+  async fn db() -> Connection {
+    let conn = connect_db(&DBConfig::default(), "sqlite::memory:").await;
+    Migrator::up(&*conn, None).await.unwrap();
+    conn
+  }
+
+  #[tokio::test]
+  async fn test_create_admin_group_creates_then_updates() {
+    let conn = db().await;
+
+    // First call: no admin group exists ⇒ it is created with all permissions.
+    create_admin_group(&conn, vec!["a", "b"], None)
+      .await
+      .unwrap();
+    let gid = conn.setup().get_admin_group_id().await.unwrap().unwrap();
+    let perms = conn.group().get_group_permissions(gid).await.unwrap();
+    assert_eq!(perms.len(), 2);
+    assert_eq!(
+      conn.group().group_info(gid).await.unwrap().unwrap().name,
+      "Admin"
+    );
+
+    // Second call: the group exists ⇒ missing permissions are added and the
+    // name is updated, but the group id is preserved.
+    create_admin_group(&conn, vec!["a", "b", "c"], Some("Root".into()))
+      .await
+      .unwrap();
+    assert_eq!(conn.setup().get_admin_group_id().await.unwrap(), Some(gid));
+    let perms = conn.group().get_group_permissions(gid).await.unwrap();
+    assert_eq!(perms.len(), 3);
+    assert!(perms.contains(&"c".to_string()));
+    assert_eq!(
+      conn.group().group_info(gid).await.unwrap().unwrap().name,
+      "Root"
+    );
+
+    // Third call with no new permissions exercises the "no missing perms" branch.
+    create_admin_group(&conn, vec!["a", "b", "c"], None)
+      .await
+      .unwrap();
+    assert_eq!(
+      conn.group().get_group_permissions(gid).await.unwrap().len(),
+      3
+    );
+  }
+}

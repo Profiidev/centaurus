@@ -24,3 +24,16 @@ pub fn init_password(link: &str, password: &str) -> String {
   "#
   )
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn test_init_password_embeds_password_and_link() {
+    let html = init_password("https://app", "hunter2");
+    assert!(html.contains("hunter2"));
+    assert!(html.contains(r#"href="https://app""#));
+    assert!(html.contains("Initialize Password"));
+  }
+}

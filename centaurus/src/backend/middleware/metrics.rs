@@ -175,3 +175,95 @@ fn scheme(req: &Request) -> String {
     "http".to_string()
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use axum::body::Body;
+  use http::Request;
+  use tower::ServiceExt;
+
+  fn finish(router: BackendRouter) -> axum::Router {
+    #[cfg(feature = "openapi")]
+    {
+      router.finish_api(&mut aide::openapi::OpenApi::default())
+    }
+    #[cfg(not(feature = "openapi"))]
+    {
+      router
+    }
+  }
+
+  // nextest runs each test in its own process, so installing the global
+  // Prometheus recorder here is safe.
+  #[tokio::test]
+  async fn test_metrics_pipeline_records_and_renders() {
+    let handle = init_metrics("test_service".into());
+
+    let router = BackendRouter::new().route("/ping", get(async || "pong"));
+    let router = metrics_route(router, "/metrics");
+    let router = metrics_middleware(router, "test".into(), vec![("env".into(), "ci".into())]);
+    let router = metrics(router, "test".into(), handle);
+    let app = finish(router);
+
+    // A normal request flows through request_metrics and succeeds.
+    let response = app
+      .clone()
+      .oneshot(
+        Request::builder()
+          .uri("/ping")
+          .header(http::header::CONTENT_LENGTH, "3")
+          .body(Body::empty())
+          .unwrap(),
+      )
+      .await
+      .unwrap();
+    assert_eq!(response.status(), http::StatusCode::OK);
+
+    // The metrics endpoint renders the Prometheus exposition format including
+    // our recorded counters.
+    let response = app
+      .oneshot(
+        Request::builder()
+          .uri("/metrics")
+          .body(Body::empty())
+          .unwrap(),
+      )
+      .await
+      .unwrap();
+    assert_eq!(response.status(), http::StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+      .await
+      .unwrap();
+    let text = String::from_utf8_lossy(&body);
+    assert!(text.contains("test_http_requests_total"));
+  }
+
+  #[test]
+  fn test_scheme_prefers_forwarded_headers() {
+    let req = Request::builder()
+      .header("X-Forwarded-Ssl", "on")
+      .body(Body::empty())
+      .unwrap();
+    assert_eq!(scheme(&req), "https");
+
+    let req = Request::builder()
+      .header("X-Url-Scheme", "https")
+      .body(Body::empty())
+      .unwrap();
+    assert_eq!(scheme(&req), "https");
+
+    // Falls back to plain http when nothing indicates otherwise.
+    let req = Request::builder().uri("/x").body(Body::empty()).unwrap();
+    assert_eq!(scheme(&req), "http");
+  }
+
+  #[test]
+  fn test_content_size_parses_header() {
+    let mut headers = HeaderMap::new();
+    headers.insert(http::header::CONTENT_LENGTH, "123".parse().unwrap());
+    assert_eq!(content_size(&headers), 123.0);
+    // Missing header defaults to zero.
+    assert_eq!(content_size(&HeaderMap::new()), 0.0);
+  }
+}

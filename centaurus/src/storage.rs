@@ -345,3 +345,113 @@ impl StorageConfig {
       && self.s3_host.is_some()
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use tempfile::tempdir;
+
+  async fn read_body(body: Body) -> Vec<u8> {
+    axum::body::to_bytes(body, usize::MAX)
+      .await
+      .unwrap()
+      .to_vec()
+  }
+
+  #[tokio::test]
+  async fn test_local_storage() {
+    let dir = tempdir().unwrap();
+    let config = StorageConfig {
+      storage_path: dir.path().to_str().unwrap().to_string(),
+      ..Default::default()
+    };
+
+    let storage = FileStorage::init(&config).await.unwrap();
+    assert_eq!(storage.name(), "Local");
+
+    let mut content = b"hello world" as &[u8];
+    storage.save_file(&mut content, "test.txt").await.unwrap();
+    assert!(storage.exists("test.txt").await.unwrap());
+
+    storage.delete_file("test.txt").await.unwrap();
+    assert!(!storage.exists("test.txt").await.unwrap());
+  }
+
+  #[tokio::test]
+  async fn test_local_get_file_full_and_range() {
+    let dir = tempdir().unwrap();
+    let storage = FileStorage::Local(dir.path().to_path_buf());
+
+    let mut content = b"0123456789" as &[u8];
+    storage.save_file(&mut content, "data.bin").await.unwrap();
+
+    // Full read returns the whole file.
+    let body = storage.get_file("data.bin", None).await.unwrap();
+    assert_eq!(read_body(body).await, b"0123456789");
+
+    // A byte range returns only the requested slice (inclusive bounds).
+    let body = storage.get_file("data.bin", Some((2, 5))).await.unwrap();
+    assert_eq!(read_body(body).await, b"2345");
+  }
+
+  #[tokio::test]
+  async fn test_local_get_missing_file_is_not_found() {
+    let dir = tempdir().unwrap();
+    let storage = FileStorage::Local(dir.path().to_path_buf());
+    let err = storage.get_file("nope", None).await.unwrap_err();
+    assert_eq!(err.status, StatusCode::NOT_FOUND);
+  }
+
+  #[tokio::test]
+  async fn test_delete_missing_file_is_ok() {
+    let dir = tempdir().unwrap();
+    let storage = FileStorage::Local(dir.path().to_path_buf());
+    // Deleting a non-existent file is a no-op success.
+    assert!(storage.delete_file("ghost").await.is_ok());
+  }
+
+  #[test]
+  fn test_storage_config_use_s3() {
+    let mut config = StorageConfig {
+      storage_path: "/tmp".into(),
+      ..Default::default()
+    };
+    assert!(!config.use_s3());
+    // Partial S3 config is still not "use s3".
+    config.s3_bucket = Some("b".into());
+    assert!(!config.use_s3());
+
+    // Fully specified S3 config flips the switch.
+    config.s3_region = Some("r".into());
+    config.s3_host = Some("h".into());
+    config.s3_access_key = Some("a".into());
+    config.s3_secret_key = Some("s".into());
+    assert!(config.use_s3());
+    // validate() must not panic on a complete config.
+    config.validate();
+  }
+
+  #[test]
+  #[should_panic(expected = "STORAGE_PATH is not set")]
+  fn test_storage_config_validate_panics_without_path() {
+    let config = StorageConfig::default();
+    config.validate();
+  }
+
+  #[tokio::test]
+  async fn test_s3_init_unreachable_endpoint_errors() {
+    // A fully-specified but unreachable S3 endpoint exercises the S3 init path
+    // (credentials, path-style, client build) and fails at the bucket check.
+    let config = StorageConfig {
+      storage_path: String::new(),
+      s3_bucket: Some("bucket".into()),
+      s3_region: Some("us-east-1".into()),
+      s3_host: Some("http://127.0.0.1:9".into()),
+      s3_access_key: Some("key".into()),
+      s3_secret_key: Some("secret".into()),
+      s3_force_path_style: true,
+    };
+    assert!(config.use_s3());
+    assert!(FileStorage::init(&config).await.is_err());
+  }
+}

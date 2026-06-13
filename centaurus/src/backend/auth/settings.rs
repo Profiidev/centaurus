@@ -105,3 +105,35 @@ impl Default for AuthConfig {
     }
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn test_auth_config_default() {
+    let config = AuthConfig::default();
+    assert_eq!(config.auth_issuer, "centaurus_auth");
+  }
+
+  #[test]
+  fn test_oidc_settings_none() {
+    let settings = UserSettings::default();
+    assert!(settings.oidc_settings().is_none());
+  }
+
+  #[test]
+  fn test_oidc_settings_some() {
+    let settings = UserSettings {
+      oidc_enabled: Some(true),
+      oidc_issuer: Some(Url::parse("http://issuer.com").unwrap()),
+      oidc_client_id: Some("client".to_string()),
+      oidc_client_secret: Some("secret".to_string()),
+      ..Default::default()
+    };
+
+    let oidc = settings.oidc_settings().unwrap();
+    assert_eq!(oidc.issuer.as_str(), "http://issuer.com/");
+    assert_eq!(oidc.client_id, "client");
+  }
+}

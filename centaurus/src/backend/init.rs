@@ -64,3 +64,16 @@ pub async fn shutdown_signal() {
       _ = terminate => {},
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[tokio::test]
+  async fn test_listener_setup_binds_ephemeral_port() {
+    // Port 0 lets the OS choose a free port; the bound listener exposes it.
+    let listener = listener_setup(0).await;
+    let addr = listener.local_addr().unwrap();
+    assert_ne!(addr.port(), 0);
+  }
+}

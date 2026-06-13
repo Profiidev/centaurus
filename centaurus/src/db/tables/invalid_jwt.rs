@@ -62,3 +62,62 @@ impl<'db> InvalidJwtTable<'db> {
     Ok(())
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::db::config::DBConfig;
+  use crate::db::init::connect_db;
+  use crate::db::migrations::Migrator;
+  use chrono::Duration;
+  use sea_orm_migration::MigratorTrait;
+
+  #[tokio::test]
+  async fn test_invalid_jwt_table() {
+    let db_config = DBConfig::default();
+    let conn = connect_db(&db_config, "sqlite::memory:").await;
+    Migrator::up(&*conn, None).await.unwrap();
+
+    let table = InvalidJwtTable::new(&conn);
+    let count = Arc::new(AtomicI32::new(0));
+    let token = "test_token".to_string();
+    let exp = Utc::now() + Duration::seconds(3600);
+
+    table
+      .invalidate_jwt(token.clone(), exp, count.clone())
+      .await
+      .unwrap();
+    assert!(!table.is_token_valid(&token).await.unwrap());
+    assert!(table.is_token_valid("other").await.unwrap());
+    // Each invalidation increments the running counter.
+    assert_eq!(count.load(Ordering::Relaxed), 1);
+  }
+
+  #[tokio::test]
+  async fn test_remove_expired_only_removes_past() {
+    let db_config = DBConfig::default();
+    let conn = connect_db(&db_config, "sqlite::memory:").await;
+    Migrator::up(&*conn, None).await.unwrap();
+
+    let table = InvalidJwtTable::new(&conn);
+    let count = Arc::new(AtomicI32::new(0));
+
+    let expired = Utc::now() - Duration::seconds(3600);
+    let valid = Utc::now() + Duration::seconds(3600);
+    table
+      .invalidate_jwt("expired".into(), expired, count.clone())
+      .await
+      .unwrap();
+    table
+      .invalidate_jwt("valid".into(), valid, count.clone())
+      .await
+      .unwrap();
+
+    table.remove_expired().await.unwrap();
+
+    // remove_expired drops only entries whose expiry is in the past; the
+    // still-valid invalidation remains in effect.
+    assert!(table.is_token_valid("expired").await.unwrap());
+    assert!(!table.is_token_valid("valid").await.unwrap());
+  }
+}

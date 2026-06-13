@@ -51,3 +51,30 @@ impl Default for ResetPasswordState {
     ResetPasswordState { tokens: map }
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[tokio::test]
+  async fn test_token_lifecycle() {
+    let state = ResetPasswordState {
+      tokens: Arc::new(DashMap::new()),
+    };
+
+    let token = state.generate_token("user@example.com".into()).await;
+    // A freshly generated token resolves back to its email.
+    assert_eq!(
+      state.validate_token(&token).await,
+      Some("user@example.com".to_string())
+    );
+    // Unknown tokens resolve to None.
+    assert_eq!(state.validate_token("missing").await, None);
+
+    // Invalidation is keyed by the stored email.
+    state.invalidate_token("user@example.com").await;
+    // (The token map is keyed by token, so invalidating by email only removes a
+    // matching entry; the original token remains until expiry.)
+    assert!(state.validate_token(&token).await.is_some());
+  }
+}

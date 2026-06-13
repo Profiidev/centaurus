@@ -706,3 +706,459 @@ async fn sync_image<T: UpdateMessage>(
     Ok(())
   });
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::backend::auth::settings::AuthConfig;
+  use crate::backend::endpoints::websocket::state::{UpdateMessage, UpdateState, Updater};
+  use crate::db::{config::DBConfig, init::connect_db, migrations::Migrator};
+  use axum::response::IntoResponse;
+  use axum::routing::{get, post};
+  use sea_orm_migration::MigratorTrait;
+  use serde::{Deserialize, Serialize};
+  use serde_json::json;
+
+  #[derive(Serialize, Deserialize, Clone, Debug)]
+  enum Msg {
+    A,
+  }
+  impl UpdateMessage for Msg {
+    fn settings() -> Self {
+      Msg::A
+    }
+    fn group(_: Uuid) -> Self {
+      Msg::A
+    }
+    fn user(_: Uuid) -> Self {
+      Msg::A
+    }
+    fn user_permissions() -> Self {
+      Msg::A
+    }
+  }
+
+  /// A minimal mock OIDC provider: discovery + JWKS + a redirecting authorize
+  /// endpoint. Returns its base URL.
+  async fn mock_idp() -> String {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());
+
+    let disco_base = base.clone();
+    let app = axum::Router::new()
+      .route(
+        "/.well-known/openid-configuration",
+        get(move || {
+          let base = disco_base.clone();
+          async move {
+            axum::Json(json!({
+              "issuer": base,
+              "authorization_endpoint": format!("{base}/authorize"),
+              "token_endpoint": format!("{base}/token"),
+              "userinfo_endpoint": format!("{base}/userinfo"),
+              "jwks_uri": format!("{base}/jwks"),
+            }))
+          }
+        }),
+      )
+      .route(
+        "/jwks",
+        get(|| async {
+          axum::Json(json!({"keys":[{"kty":"RSA","kid":"test","alg":"RS256","use":"sig","n":"AQAB","e":"AQAB"}]}))
+        }),
+      )
+      .route(
+        "/authorize",
+        post(|| async { (StatusCode::FOUND, [(LOCATION, "https://idp.example/redirect")]) }),
+      );
+
+    tokio::spawn(async move {
+      axum::serve(listener, app).await.unwrap();
+    });
+
+    base
+  }
+
+  fn settings(issuer: &str, pkce: bool) -> OidcSettings {
+    OidcSettings {
+      issuer: Url::parse(issuer).unwrap(),
+      client_id: "client".into(),
+      client_secret: "secret".into(),
+      scopes: vec!["openid".into(), "profile".into()],
+      group_sync: false,
+      group_claim: "groups".into(),
+      pkce,
+      image_sync: false,
+      create_user: false,
+    }
+  }
+
+  async fn db() -> Connection {
+    let conn = connect_db(&DBConfig::default(), "sqlite::memory:").await;
+    Migrator::up(&*conn, None).await.unwrap();
+    conn
+  }
+
+  #[tokio::test]
+  async fn test_try_init_is_enabled_deactivate() {
+    let base = mock_idp().await;
+    let conn = db().await;
+    let state = OidcState::new(&conn, None).await;
+
+    assert!(!state.is_enabled().await);
+    state.try_init(&settings(&base, true)).await.unwrap();
+    assert!(state.is_enabled().await);
+    state.deactivate().await;
+    assert!(!state.is_enabled().await);
+  }
+
+  #[tokio::test]
+  async fn test_try_init_unreachable_issuer_errors() {
+    let conn = db().await;
+    let state = OidcState::new(&conn, None).await;
+    // Nothing listens on port 9 ⇒ discovery fails ⇒ state stays disabled.
+    assert!(
+      state
+        .try_init(&settings("http://127.0.0.1:9", false))
+        .await
+        .is_err()
+    );
+    assert!(!state.is_enabled().await);
+  }
+
+  #[tokio::test]
+  async fn test_oidc_url_builds_redirect_with_pkce() {
+    let base = mock_idp().await;
+    let conn = db().await;
+    let state = OidcState::new(&conn, None).await;
+    state.try_init(&settings(&base, true)).await.unwrap();
+
+    let jwt = JwtState::init(&AuthConfig::default(), &conn).await;
+    let (cookies, axum::Json(resp)) = oidc_url(state.clone(), jwt, CookieJar::new())
+      .await
+      .unwrap();
+
+    // The provider's Location is surfaced and the state cookie is set.
+    assert_eq!(resp.url, "https://idp.example/redirect");
+    assert!(cookies.get(OIDC_STATE).is_some());
+    // A pending state + nonce were registered for the later callback.
+    assert_eq!(state.state.len(), 1);
+    assert_eq!(state.nonce.len(), 1);
+  }
+
+  #[tokio::test]
+  async fn test_oidc_url_unconfigured_is_bad_request() {
+    let conn = db().await;
+    let state = OidcState::new(&conn, None).await;
+    let jwt = JwtState::init(&AuthConfig::default(), &conn).await;
+    let err = match oidc_url(state, jwt, CookieJar::new()).await {
+      Err(e) => e,
+      Ok(_) => panic!("expected error when OIDC is unconfigured"),
+    };
+    assert_eq!(err.status, StatusCode::BAD_REQUEST);
+  }
+
+  async fn callback_location(
+    state: OidcState,
+    query: OidcCallbackQuery,
+    cookies: CookieJar,
+    conn: &Connection,
+  ) -> String {
+    let jwt = JwtState::init(&AuthConfig::default(), conn).await;
+    let updater: Updater<Msg> = UpdateState::<Msg>::init().await.1;
+    let out = oidc_callback::<Msg>(
+      axum::extract::Query(query),
+      state,
+      cookies,
+      conn.clone(),
+      SiteConfig::default(),
+      jwt,
+      updater,
+    )
+    .await
+    .unwrap();
+    let resp = out.into_response();
+    resp
+      .headers()
+      .get(LOCATION)
+      .unwrap()
+      .to_str()
+      .unwrap()
+      .to_string()
+  }
+
+  #[tokio::test]
+  async fn test_callback_unconfigured_redirects_with_error() {
+    let conn = db().await;
+    let state = OidcState::new(&conn, None).await;
+    let loc = callback_location(
+      state,
+      OidcCallbackQuery {
+        code: None,
+        state: None,
+        error: None,
+      },
+      CookieJar::new(),
+      &conn,
+    )
+    .await;
+    assert!(loc.contains("error=oidc_not_configured"));
+  }
+
+  #[tokio::test]
+  async fn test_callback_provider_error_is_propagated() {
+    let base = mock_idp().await;
+    let conn = db().await;
+    let state = OidcState::new(&conn, None).await;
+    state.try_init(&settings(&base, false)).await.unwrap();
+
+    let loc = callback_location(
+      state,
+      OidcCallbackQuery {
+        code: None,
+        state: None,
+        error: Some("access_denied".into()),
+      },
+      CookieJar::new(),
+      &conn,
+    )
+    .await;
+    assert!(loc.contains("error=access_denied"));
+  }
+
+  #[tokio::test]
+  async fn test_callback_missing_state_is_invalid() {
+    let base = mock_idp().await;
+    let conn = db().await;
+    let state = OidcState::new(&conn, None).await;
+    state.try_init(&settings(&base, false)).await.unwrap();
+
+    let loc = callback_location(
+      state,
+      OidcCallbackQuery {
+        code: Some("abc".into()),
+        state: None,
+        error: None,
+      },
+      CookieJar::new(),
+      &conn,
+    )
+    .await;
+    assert!(loc.contains("error=invalid_state"));
+  }
+
+  #[tokio::test]
+  async fn test_callback_full_login_creates_user() {
+    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
+    use rsa::pkcs1::EncodeRsaPrivateKey;
+    use rsa::pkcs8::LineEnding;
+    use rsa::traits::PublicKeyParts;
+    use rsa::{RsaPrivateKey, RsaPublicKey};
+    use std::sync::{Arc, Mutex};
+
+    // Generate the IdP signing key and expose its public part as a JWK.
+    let priv_key = RsaPrivateKey::new(&mut OsRng, 2048).unwrap();
+    let pub_key = RsaPublicKey::from(&priv_key);
+    let n = BASE64_URL_SAFE_NO_PAD.encode(pub_key.n().to_bytes_be());
+    let e = BASE64_URL_SAFE_NO_PAD.encode(pub_key.e().to_bytes_be());
+    let enc_key =
+      EncodingKey::from_rsa_pem(priv_key.to_pkcs1_pem(LineEnding::LF).unwrap().as_bytes()).unwrap();
+
+    // Shared slot so the /token endpoint can return an id_token we build *after*
+    // learning the nonce from oidc_url.
+    let token_slot = Arc::new(Mutex::new(String::new()));
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());
+    let disco_base = base.clone();
+    let jwk = json!({"keys":[{"kty":"RSA","kid":"test","alg":"RS256","use":"sig","n":n,"e":e}]});
+    let slot = token_slot.clone();
+    let app = axum::Router::new()
+      .route(
+        "/.well-known/openid-configuration",
+        get(move || {
+          let base = disco_base.clone();
+          async move {
+            axum::Json(json!({
+              "issuer": base,
+              "authorization_endpoint": format!("{base}/authorize"),
+              "token_endpoint": format!("{base}/token"),
+              "userinfo_endpoint": format!("{base}/userinfo"),
+              "jwks_uri": format!("{base}/jwks"),
+            }))
+          }
+        }),
+      )
+      .route(
+        "/jwks",
+        get(move || {
+          let jwk = jwk.clone();
+          async move { axum::Json(jwk) }
+        }),
+      )
+      .route(
+        "/authorize",
+        post(|| async {
+          (
+            StatusCode::FOUND,
+            [(LOCATION, "https://idp.example/redirect")],
+          )
+        }),
+      )
+      .route(
+        "/token",
+        post(move || {
+          let slot = slot.clone();
+          async move { axum::Json(json!({"id_token": slot.lock().unwrap().clone()})) }
+        }),
+      )
+      .route(
+        "/userinfo",
+        get(|| async { axum::Json(json!({"email":"oidc@example.com","name":"OIDC User"})) }),
+      );
+    tokio::spawn(async move {
+      axum::serve(listener, app).await.unwrap();
+    });
+
+    let conn = db().await;
+    // An admin group must exist for the initial OIDC user to be placed into.
+    let group = conn.group().create_group("Admin".into()).await.unwrap();
+    conn.setup().set_admin_group_created(group).await.unwrap();
+
+    let oidc_settings = OidcSettings {
+      issuer: Url::parse(&base).unwrap(),
+      client_id: "client".into(),
+      client_secret: "secret".into(),
+      scopes: vec!["openid".into()],
+      group_sync: false,
+      group_claim: "groups".into(),
+      pkce: false,
+      image_sync: false,
+      create_user: true,
+    };
+
+    let state = OidcState::new(&conn, None).await;
+    state.try_init(&oidc_settings).await.unwrap();
+    let jwt = JwtState::init(&AuthConfig::default(), &conn).await;
+
+    // 1. Begin the flow: registers a state + nonce and sets the state cookie.
+    let (cookies, _) = oidc_url(state.clone(), jwt.clone(), CookieJar::new())
+      .await
+      .unwrap();
+    let state_id = *state.state.iter().next().unwrap().key();
+    let nonce = *state.nonce.iter().next().unwrap().key();
+
+    // 2. Mint an id_token carrying the matching nonce, signed by the IdP key.
+    let exp = chrono::Utc::now().timestamp() + 3600;
+    let claims = json!({
+      "iss": base,
+      "aud": "client",
+      "sub": "subject-1",
+      "nonce": nonce.to_string(),
+      "exp": exp,
+    });
+    let mut header = Header::new(Algorithm::RS256);
+    header.kid = Some("test".into());
+    *token_slot.lock().unwrap() = encode(&header, &claims, &enc_key).unwrap();
+
+    // 3. Complete the callback with the matching code + state + cookie.
+    let updater: Updater<Msg> = UpdateState::<Msg>::init().await.1;
+    let out = oidc_callback::<Msg>(
+      axum::extract::Query(OidcCallbackQuery {
+        code: Some("auth-code".into()),
+        state: Some(state_id),
+        error: None,
+      }),
+      state.clone(),
+      cookies,
+      conn.clone(),
+      SiteConfig::default(),
+      jwt,
+      updater,
+    )
+    .await
+    .unwrap();
+
+    let resp = out.into_response();
+    let loc = resp.headers().get(LOCATION).unwrap().to_str().unwrap();
+    // Successful login redirects to the app root without an error.
+    assert!(!loc.contains("error="), "unexpected error redirect: {loc}");
+
+    // The user was provisioned and added to the admin group; setup is complete.
+    let user = conn
+      .user()
+      .try_get_user_by_email("oidc@example.com")
+      .await
+      .unwrap()
+      .expect("OIDC user should have been created");
+    assert!(user.oidc_user);
+    assert!(conn.setup().is_setup().await.unwrap());
+    assert!(conn.group().is_in_group(group, user.id).await.unwrap());
+  }
+
+  #[tokio::test]
+  async fn test_callback_token_endpoint_error() {
+    // A mock IdP whose token endpoint rejects the exchange.
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());
+    let disco_base = base.clone();
+    let app = axum::Router::new()
+      .route(
+        "/.well-known/openid-configuration",
+        get(move || {
+          let base = disco_base.clone();
+          async move {
+            axum::Json(json!({
+              "issuer": base,
+              "authorization_endpoint": format!("{base}/authorize"),
+              "token_endpoint": format!("{base}/token"),
+              "userinfo_endpoint": format!("{base}/userinfo"),
+              "jwks_uri": format!("{base}/jwks"),
+            }))
+          }
+        }),
+      )
+      .route(
+        "/jwks",
+        get(|| async {
+          axum::Json(json!({"keys":[{"kty":"RSA","kid":"test","alg":"RS256","use":"sig","n":"AQAB","e":"AQAB"}]}))
+        }),
+      )
+      .route(
+        "/authorize",
+        post(|| async { (StatusCode::FOUND, [(LOCATION, "https://idp.example/redirect")]) }),
+      )
+      .route(
+        "/token",
+        post(|| async {
+          (StatusCode::BAD_REQUEST, axum::Json(json!({"error":"bad_grant"})))
+        }),
+      );
+    tokio::spawn(async move {
+      axum::serve(listener, app).await.unwrap();
+    });
+
+    let conn = db().await;
+    let state = OidcState::new(&conn, None).await;
+    state.try_init(&settings(&base, false)).await.unwrap();
+    let jwt = JwtState::init(&AuthConfig::default(), &conn).await;
+    let (cookies, _) = oidc_url(state.clone(), jwt.clone(), CookieJar::new())
+      .await
+      .unwrap();
+    let state_id = *state.state.iter().next().unwrap().key();
+
+    let loc = callback_location(
+      state,
+      OidcCallbackQuery {
+        code: Some("code".into()),
+        state: Some(state_id),
+        error: None,
+      },
+      cookies,
+      &conn,
+    )
+    .await;
+    // The provider's structured error is surfaced to the login page.
+    assert!(loc.contains("error=bad_grant"), "got {loc}");
+  }
+}

@@ -84,3 +84,73 @@ fn subdomain_from_host(host: &str) -> Option<String> {
   let domain = addr::parse_domain_name(host).ok()?;
   domain.prefix().map(|s| s.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use axum::body::Body;
+
+  #[test]
+  fn test_subdomain_from_host() {
+    assert_eq!(
+      subdomain_from_host("tenant.example.com"),
+      Some("tenant".to_string())
+    );
+    assert_eq!(
+      subdomain_from_host("a.b.example.com"),
+      Some("a.b".to_string())
+    );
+    // A bare registrable domain has no prefix/subdomain.
+    assert_eq!(subdomain_from_host("example.com"), None);
+  }
+
+  fn request_with_host(host: &str, path: &str) -> Request {
+    Request::builder()
+      .uri(path)
+      .header("host", host)
+      .body(Body::empty())
+      .unwrap()
+  }
+
+  #[test]
+  fn test_modify_req_with_prefix() {
+    // Site at app.example.com → prefix "app". Tenant requests arrive as
+    // <tenant>.app.example.com and must be rewritten to /<tenant><path>.
+    let url = Url::parse("https://app.example.com").unwrap();
+    let router = HostRouter::new(Router::new(), url, "/{subdomain}{path}".into());
+
+    let mut req = request_with_host("tenant.app.example.com", "/dashboard");
+    assert!(router.modify_req(&mut req).is_some());
+    assert_eq!(req.uri().path(), "/tenant/dashboard");
+  }
+
+  #[test]
+  fn test_modify_req_without_prefix() {
+    // Site at example.com → empty prefix. The full subdomain is the tenant.
+    let url = Url::parse("https://example.com").unwrap();
+    let router = HostRouter::new(Router::new(), url, "/{subdomain}{path}".into());
+
+    let mut req = request_with_host("tenant.example.com", "/x");
+    assert!(router.modify_req(&mut req).is_some());
+    assert_eq!(req.uri().path(), "/tenant/x");
+  }
+
+  #[test]
+  fn test_modify_req_no_subdomain_is_noop() {
+    let url = Url::parse("https://app.example.com").unwrap();
+    let router = HostRouter::new(Router::new(), url, "/{subdomain}{path}".into());
+
+    // A request whose host lacks the configured suffix is left untouched.
+    let mut req = request_with_host("example.com", "/unchanged");
+    assert!(router.modify_req(&mut req).is_none());
+    assert_eq!(req.uri().path(), "/unchanged");
+  }
+
+  #[test]
+  #[should_panic]
+  fn test_new_panics_without_domain_host() {
+    // An IP-based site URL has no domain host and must be rejected.
+    let url = Url::parse("https://127.0.0.1:8000").unwrap();
+    let _ = HostRouter::new(Router::new(), url, "/{subdomain}{path}".into());
+  }
+}

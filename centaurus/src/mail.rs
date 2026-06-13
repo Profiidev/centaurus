@@ -194,3 +194,108 @@ impl MailConfig {
     Ok(())
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn test_mail_settings_none() {
+    let settings = MailSettings::default();
+    assert!(settings.smtp().is_none());
+  }
+
+  #[test]
+  fn test_mail_settings_some() {
+    let settings = MailSettings {
+      smtp_enabled: Some(true),
+      smtp_server: Some("smtp.example.com".into()),
+      smtp_port: Some(587),
+      smtp_username: Some("user".into()),
+      smtp_password: Some("pass".into()),
+      smtp_from_address: Some("test@example.com".into()),
+      smtp_from_name: Some("Test".into()),
+      smtp_use_tls: Some(true),
+    };
+
+    let smtp = settings.smtp().unwrap();
+    assert_eq!(smtp.server, "smtp.example.com");
+    assert_eq!(smtp.port, 587);
+    assert!(smtp.use_tls);
+  }
+
+  #[test]
+  fn test_mail_settings_enabled_but_incomplete() {
+    // Enabled but missing required fields must not yield an SmtpSettings.
+    // port/username/password/from_* deliberately left unset
+    let settings = MailSettings {
+      smtp_enabled: Some(true),
+      smtp_server: Some("smtp.example.com".into()),
+      ..Default::default()
+    };
+    assert!(settings.smtp().is_none());
+  }
+
+  #[test]
+  fn test_mail_settings_disabled_ignores_fields() {
+    // With smtp_enabled = false, fully-populated fields are still ignored.
+    let settings = MailSettings {
+      smtp_enabled: Some(false),
+      smtp_server: Some("smtp.example.com".into()),
+      smtp_port: Some(587),
+      smtp_username: Some("user".into()),
+      smtp_password: Some("pass".into()),
+      smtp_from_address: Some("test@example.com".into()),
+      smtp_from_name: Some("Test".into()),
+      smtp_use_tls: Some(true),
+    };
+    assert!(settings.smtp().is_none());
+  }
+
+  #[tokio::test]
+  async fn test_mailer_inactive_without_config() {
+    // A mailer built from default (disabled) settings is inactive and
+    // refuses to send.
+    let mailer = Mailer::new(MailSettings::default()).await;
+    assert!(!mailer.is_active().await);
+    assert!(
+      mailer
+        .send_mail("u".into(), "u@example.com".into(), "s".into(), "b".into())
+        .await
+        .is_err()
+    );
+  }
+
+  #[tokio::test]
+  async fn test_mailer_init_and_deactivate() {
+    let smtp = SmtpSettings {
+      server: "smtp.example.com".into(),
+      port: 587,
+      username: "user".into(),
+      password: "pass".into(),
+      from_address: "test@example.com".into(),
+      from_name: "Test".into(),
+      use_tls: true,
+    };
+    let mailer = Mailer(Arc::new(Mutex::new(None)));
+    mailer.try_init(&smtp).await.unwrap();
+    assert!(mailer.is_active().await);
+
+    mailer.deactivate().await;
+    assert!(!mailer.is_active().await);
+  }
+
+  #[test]
+  fn test_mail_config_rejects_invalid_from_address() {
+    let smtp = SmtpSettings {
+      server: "smtp.example.com".into(),
+      port: 587,
+      username: "user".into(),
+      password: "pass".into(),
+      from_address: "not-an-email".into(),
+      from_name: "Test".into(),
+      use_tls: true,
+    };
+    assert!(MailConfig::new(&smtp).is_err());
+  }
+}

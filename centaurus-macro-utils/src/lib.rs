@@ -1,8 +1,6 @@
-extern crate proc_macro;
-
 use std::{env, path::PathBuf};
 
-use proc_macro::TokenStream;
+use proc_macro2::TokenStream;
 use toml_edit::{DocumentMut, Item};
 
 const CENTAURUS: &str = "centaurus";
@@ -92,9 +90,89 @@ impl Manifest {
 }
 
 fn try_parse_str<T: syn::parse::Parse>(path: &str) -> Option<T> {
-  syn::parse(path.parse::<TokenStream>().ok()?).ok()
+  syn::parse2(path.parse::<TokenStream>().ok()?).ok()
 }
 
 fn parse_str<T: syn::parse::Parse>(path: &str) -> T {
   try_parse_str(path).unwrap()
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn test_crate_name() {
+    let manifest = Manifest::crate_name("test-crate");
+    assert_eq!(manifest.crate_name, "test-crate");
+  }
+
+  #[test]
+  fn test_default_no_panic() {
+    let _ = Manifest::default();
+  }
+
+  #[test]
+  fn test_try_get_path_package_name() {
+    let toml = r#"
+            [package]
+            name = "my-package"
+        "#;
+    let doc = toml.parse::<DocumentMut>().unwrap();
+    let manifest = Manifest {
+      doc,
+      crate_name: "centaurus".to_string(),
+    };
+
+    let path = manifest.try_get_path("my-package").unwrap();
+    assert_eq!(quote::quote!(#path).to_string(), "crate");
+  }
+
+  #[test]
+  fn test_try_get_path_dependency() {
+    let toml = r#"
+            [dependencies]
+            centaurus = "0.1"
+        "#;
+    let doc = toml.parse::<DocumentMut>().unwrap();
+    let manifest = Manifest {
+      doc,
+      crate_name: "centaurus".to_string(),
+    };
+
+    let path = manifest.try_get_path("centaurus").unwrap();
+    assert_eq!(quote::quote!(#path).to_string(), "centaurus");
+  }
+
+  #[test]
+  fn test_try_get_path_dependency_package() {
+    let toml = r#"
+            [dependencies]
+            centaurus = { package = "centaurus_core", version = "0.1" }
+        "#;
+    let doc = toml.parse::<DocumentMut>().unwrap();
+    let manifest = Manifest {
+      doc,
+      crate_name: "centaurus".to_string(),
+    };
+
+    let path = manifest.try_get_path("centaurus").unwrap();
+    assert_eq!(quote::quote!(#path).to_string(), "centaurus_core");
+  }
+
+  #[test]
+  fn test_try_get_path_module() {
+    let toml = r#"
+            [dependencies]
+            centaurus = "0.1"
+        "#;
+    let doc = toml.parse::<DocumentMut>().unwrap();
+    let manifest = Manifest {
+      doc,
+      crate_name: "centaurus".to_string(),
+    };
+
+    let path = manifest.try_get_path("centaurus-auth").unwrap();
+    assert_eq!(quote::quote!(#path).to_string(), "centaurus :: auth");
+  }
 }

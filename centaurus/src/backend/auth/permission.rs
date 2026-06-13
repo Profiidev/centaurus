@@ -68,3 +68,75 @@ permission!(GroupEdit, "group:edit");
 // Users
 permission!(UserView, "user:view");
 permission!(UserEdit, "user:edit");
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::db::config::DBConfig;
+  use crate::db::init::{Connection, connect_db};
+  use crate::db::migrations::Migrator;
+  use crate::db::tables::ConnectionExt;
+  use http::request::Parts;
+  use sea_orm_migration::MigratorTrait;
+
+  async fn db() -> Connection {
+    let conn = connect_db(&DBConfig::default(), "sqlite::memory:").await;
+    Migrator::up(&*conn, None).await.unwrap();
+    conn
+  }
+
+  fn empty_parts() -> Parts {
+    http::Request::builder().body(()).unwrap().into_parts().0
+  }
+
+  #[test]
+  fn test_permissions_list_is_complete() {
+    let perms = permissions();
+    assert!(perms.contains(&"settings:view"));
+    assert!(perms.contains(&"user:edit"));
+    assert_eq!(perms.len(), 6);
+    // NoPerm has an empty name.
+    assert_eq!(NoPerm::name(), "");
+  }
+
+  #[tokio::test]
+  async fn test_noperm_requires_existing_user() {
+    let conn = db().await;
+    let parts = empty_parts();
+    let uid = conn
+      .user()
+      .create_user("u".into(), "u@x.com".into(), "h".into(), "s".into(), false)
+      .await
+      .unwrap();
+
+    assert!(NoPerm::check(&conn, uid, &parts).await.is_ok());
+    assert!(NoPerm::check(&conn, Uuid::new_v4(), &parts).await.is_err());
+  }
+
+  #[tokio::test]
+  async fn test_named_permission_check() {
+    let conn = db().await;
+    let parts = empty_parts();
+    let uid = conn
+      .user()
+      .create_user("u".into(), "u@x.com".into(), "h".into(), "s".into(), false)
+      .await
+      .unwrap();
+
+    // Missing the permission ⇒ forbidden.
+    assert!(UserView::check(&conn, uid, &parts).await.is_err());
+
+    let group = conn.group().create_group("g".into()).await.unwrap();
+    conn
+      .group()
+      .add_permissions_to_group(group, vec!["user:view".into()])
+      .await
+      .unwrap();
+    conn
+      .group()
+      .add_users_to_group(group, vec![uid])
+      .await
+      .unwrap();
+    assert!(UserView::check(&conn, uid, &parts).await.is_ok());
+  }
+}

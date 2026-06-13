@@ -344,3 +344,231 @@ impl<'db> UserTable<'db> {
     Ok(count)
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::db::config::DBConfig;
+  use crate::db::init::{Connection, connect_db};
+  use crate::db::migrations::Migrator;
+  use crate::db::tables::group::GroupTable;
+  use sea_orm_migration::MigratorTrait;
+
+  async fn setup() -> Connection {
+    let db_config = DBConfig::default();
+    let conn = connect_db(&db_config, "sqlite::memory:").await;
+    Migrator::up(&*conn, None).await.unwrap();
+    conn
+  }
+
+  async fn make_user(table: &UserTable<'_>, name: &str) -> Uuid {
+    table
+      .create_user(
+        name.into(),
+        format!("{name}@example.com"),
+        "pass".into(),
+        "salt".into(),
+        false,
+      )
+      .await
+      .unwrap()
+  }
+
+  #[tokio::test]
+  async fn test_user_table() {
+    let conn = setup().await;
+
+    let table = UserTable::new(&conn);
+    let id = make_user(&table, "test").await;
+
+    let user = table.get_user_by_id(id).await.unwrap();
+    assert_eq!(user.name, "test");
+    assert_eq!(user.email, "test@example.com");
+
+    let count = table.count_users().await.unwrap();
+    assert_eq!(count, 1);
+  }
+
+  #[tokio::test]
+  async fn test_lookup_by_email() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let id = make_user(&table, "lookup").await;
+
+    let user = table.get_user_by_email("lookup@example.com").await.unwrap();
+    assert_eq!(user.id, id);
+
+    // The Option variant returns None instead of erroring for unknown emails.
+    assert!(
+      table
+        .try_get_user_by_email("missing@example.com")
+        .await
+        .unwrap()
+        .is_none()
+    );
+    assert!(
+      table
+        .get_user_by_email("missing@example.com")
+        .await
+        .is_err()
+    );
+  }
+
+  #[tokio::test]
+  async fn test_missing_user_errors() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    assert!(table.get_user_by_id(Uuid::new_v4()).await.is_err());
+    // user_info resolves to None rather than erroring for an unknown id.
+    assert!(table.user_info(Uuid::new_v4()).await.unwrap().is_none());
+  }
+
+  #[tokio::test]
+  async fn test_update_fields() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let id = table
+      .create_user(
+        "orig".into(),
+        "orig@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+      )
+      .await
+      .unwrap();
+
+    table.update_user_name(id, "renamed".into()).await.unwrap();
+    table
+      .update_user_password(id, "newpw".into())
+      .await
+      .unwrap();
+    assert!(table.to_local_user(id).await.is_ok());
+
+    let user = table.get_user_by_id(id).await.unwrap();
+    assert_eq!(user.name, "renamed");
+    assert_eq!(user.password, "newpw");
+    // to_local_user must clear the oidc flag.
+    assert!(!user.oidc_user);
+  }
+
+  #[tokio::test]
+  async fn test_change_email_lowercases() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let id = make_user(&table, "case").await;
+
+    // change_email normalizes to lowercase regardless of input casing.
+    table
+      .change_email(id, "MixedCase@Example.COM".into())
+      .await
+      .unwrap();
+    let user = table.get_user_by_id(id).await.unwrap();
+    assert_eq!(user.email, "mixedcase@example.com");
+  }
+
+  #[tokio::test]
+  async fn test_groups_and_info() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let group_table = GroupTable::new(&conn);
+    let id = make_user(&table, "member").await;
+    let group = group_table.create_group("grp".into()).await.unwrap();
+    group_table
+      .add_users_to_group(group, vec![id])
+      .await
+      .unwrap();
+    group_table
+      .add_permissions_to_group(group, vec!["perm".into()])
+      .await
+      .unwrap();
+
+    let groups = table.get_user_groups(id).await.unwrap();
+    assert_eq!(groups.len(), 1);
+    assert_eq!(groups[0].uuid, group);
+
+    let info = table.user_info(id).await.unwrap().unwrap();
+    assert_eq!(info.groups.len(), 1);
+    assert_eq!(info.permissions, vec!["perm".to_string()]);
+
+    // clear_user_groups removes membership without deleting the user.
+    table.clear_user_groups(id).await.unwrap();
+    assert!(table.get_user_groups(id).await.unwrap().is_empty());
+    assert!(table.get_user_by_id(id).await.is_ok());
+  }
+
+  #[tokio::test]
+  async fn test_edit_user_replaces_groups() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let group_table = GroupTable::new(&conn);
+    let id = make_user(&table, "edit").await;
+    let g1 = group_table.create_group("g1".into()).await.unwrap();
+    let g2 = group_table.create_group("g2".into()).await.unwrap();
+
+    table
+      .edit_user(id, "newname".into(), vec![g1])
+      .await
+      .unwrap();
+    assert_eq!(table.get_user_by_id(id).await.unwrap().name, "newname");
+    assert_eq!(table.get_user_groups(id).await.unwrap().len(), 1);
+
+    // Re-editing replaces the previous group set entirely.
+    table
+      .edit_user(id, "newname".into(), vec![g2])
+      .await
+      .unwrap();
+    let groups = table.get_user_groups(id).await.unwrap();
+    assert_eq!(groups.len(), 1);
+    assert_eq!(groups[0].uuid, g2);
+
+    // Editing with an empty group list clears membership.
+    table.edit_user(id, "newname".into(), vec![]).await.unwrap();
+    assert!(table.get_user_groups(id).await.unwrap().is_empty());
+  }
+
+  #[tokio::test]
+  async fn test_list_users() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    make_user(&table, "u1").await;
+    make_user(&table, "u2").await;
+
+    assert_eq!(table.count_users().await.unwrap(), 2);
+    assert_eq!(table.list_users().await.unwrap().len(), 2);
+    assert_eq!(table.list_users_simple().await.unwrap().len(), 2);
+  }
+
+  #[tokio::test]
+  async fn test_delete_user() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let id = make_user(&table, "del").await;
+
+    table.delete_user(id).await.unwrap();
+    assert_eq!(table.count_users().await.unwrap(), 0);
+    // Deleting an already-absent user is idempotent (no error).
+    table.delete_user(id).await.unwrap();
+  }
+
+  #[cfg(feature = "avatar")]
+  #[tokio::test]
+  async fn test_avatar_roundtrip() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let id = make_user(&table, "avatar").await;
+
+    table.update_user_avatar(id, vec![1, 2, 3]).await.unwrap();
+    assert_eq!(
+      table.get_user_avatar(id).await.unwrap(),
+      Some(vec![1, 2, 3])
+    );
+
+    // Updating again overwrites the stored avatar.
+    table.update_user_avatar(id, vec![4, 5]).await.unwrap();
+    assert_eq!(table.get_user_avatar(id).await.unwrap(), Some(vec![4, 5]));
+
+    table.reset_avatar(id).await.unwrap();
+    assert_eq!(table.get_user_avatar(id).await.unwrap(), None);
+  }
+}

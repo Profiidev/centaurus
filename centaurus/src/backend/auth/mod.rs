@@ -97,7 +97,8 @@ pub async fn init_pw_state(config: &AuthConfig, db: &Connection) -> PasswordStat
     info!(
       "Generating new RSA key for password transfer encryption. This may take a few seconds..."
     );
-    let private_key = RsaPrivateKey::new(&mut rng, 4096).expect("Failed to create Rsa key");
+    let bits = if cfg!(feature = "test") { 512 } else { 4096 };
+    let private_key = RsaPrivateKey::new(&mut rng, bits).expect("Failed to create Rsa key");
     let key = private_key
       .to_pkcs1_pem(LineEnding::CRLF)
       .expect("Failed to export private key")
@@ -113,4 +114,27 @@ pub async fn init_pw_state(config: &AuthConfig, db: &Connection) -> PasswordStat
 
   let pepper = config.auth_pepper.as_bytes().to_vec();
   PasswordState::init(pepper, key).await
+}
+
+#[cfg(all(test, feature = "endpoints"))]
+mod tests {
+  use super::*;
+  use crate::db::config::DBConfig;
+  use crate::db::init::connect_db;
+  use crate::db::migrations::Migrator;
+  use sea_orm_migration::MigratorTrait;
+
+  #[tokio::test]
+  async fn test_init_pw_state_reuses_persisted_key() {
+    let config = AuthConfig::default();
+    let conn = connect_db(&DBConfig::default(), "sqlite::memory:").await;
+    Migrator::up(&*conn, None).await.unwrap();
+
+    // First call generates and persists a key.
+    let first = init_pw_state(&config, &conn).await;
+    // Second call must load the *same* key from the database rather than
+    // generating a new one, so the exported public keys match.
+    let second = init_pw_state(&config, &conn).await;
+    assert_eq!(first.pub_key, second.pub_key);
+  }
 }

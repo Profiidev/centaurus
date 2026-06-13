@@ -64,3 +64,30 @@ async fn handler(state: ProxyState, mut req: Request) -> Result<Response, Status
       .into_response(),
   )
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::backend::BackendRouter;
+  use axum::body::Body;
+  use http::Request;
+  use tower::ServiceExt;
+
+  #[tokio::test]
+  async fn test_proxy_to_dead_upstream_is_bad_gateway() {
+    // Port 9 (discard) refuses connections ⇒ the proxy maps the client error to
+    // 502 Bad Gateway.
+    let router = BackendRouter::new().proxy("/".into(), "http://127.0.0.1:9/".into());
+
+    #[cfg(feature = "openapi")]
+    let app = router.finish_api(&mut aide::openapi::OpenApi::default());
+    #[cfg(not(feature = "openapi"))]
+    let app = router;
+
+    let response = app
+      .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+      .await
+      .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+  }
+}

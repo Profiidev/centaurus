@@ -85,7 +85,8 @@ impl JwtState {
     } else {
       let mut rng = OsRng {};
       info!("Generating new JWT RSA keypair. This may take a few seconds...");
-      let private_key = RsaPrivateKey::new(&mut rng, 4096).expect("Failed to create Rsa key");
+      let bits = if cfg!(feature = "test") { 512 } else { 4096 };
+      let private_key = RsaPrivateKey::new(&mut rng, bits).expect("Failed to create Rsa key");
       let key = private_key
         .to_pkcs1_pem(LineEnding::CRLF)
         .expect("Failed to export private key")
@@ -132,4 +133,73 @@ impl JwtState {
 #[from_request(via(Extension))]
 pub struct JwtInvalidState {
   pub count: Arc<AtomicI32>,
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::db::config::DBConfig;
+  use crate::db::init::connect_db;
+  use crate::db::migrations::Migrator;
+  use sea_orm_migration::MigratorTrait;
+
+  #[tokio::test]
+  async fn test_jwt_state() {
+    let config = AuthConfig::default();
+    let db_config = DBConfig::default();
+    let conn = connect_db(&db_config, "sqlite::memory:").await;
+    Migrator::up(&*conn, None).await.unwrap();
+
+    let state = JwtState::init(&config, &conn).await;
+    let uuid = Uuid::new_v4();
+    let token = state.create_raw_token(uuid).unwrap();
+    let claims = state.validate_token(&token).unwrap();
+    assert_eq!(claims.sub, uuid);
+    assert_eq!(claims.iss, config.auth_issuer);
+  }
+
+  async fn test_state() -> JwtState {
+    let config = AuthConfig::default();
+    let db_config = DBConfig::default();
+    let conn = connect_db(&db_config, "sqlite::memory:").await;
+    Migrator::up(&*conn, None).await.unwrap();
+    JwtState::init(&config, &conn).await
+  }
+
+  #[tokio::test]
+  async fn test_validate_rejects_garbage_token() {
+    let state = test_state().await;
+    assert!(state.validate_token("not.a.jwt").is_err());
+  }
+
+  #[tokio::test]
+  async fn test_validate_rejects_foreign_signature() {
+    // A token signed by an independently-initialised state must not validate.
+    let state_a = test_state().await;
+    let state_b = test_state().await;
+    let token = state_a.create_raw_token(Uuid::new_v4()).unwrap();
+    assert!(state_b.validate_token(&token).is_err());
+  }
+
+  #[tokio::test]
+  async fn test_create_cookie_attributes() {
+    let state = test_state().await;
+    let cookie = state.create_cookie(JWT_COOKIE_NAME, "value".into());
+    assert_eq!(cookie.name(), JWT_COOKIE_NAME);
+    assert_eq!(cookie.value(), "value");
+    assert_eq!(cookie.http_only(), Some(true));
+    assert_eq!(cookie.secure(), Some(true));
+    assert_eq!(cookie.path(), Some("/"));
+  }
+
+  #[tokio::test]
+  async fn test_create_token_uses_jwt_cookie_name() {
+    let state = test_state().await;
+    let uuid = Uuid::new_v4();
+    let cookie = state.create_token(uuid).unwrap();
+    assert_eq!(cookie.name(), JWT_COOKIE_NAME);
+    // The cookie's value must be a token that validates back to the same user.
+    let claims = state.validate_token(cookie.value()).unwrap();
+    assert_eq!(claims.sub, uuid);
+  }
 }

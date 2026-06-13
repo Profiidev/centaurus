@@ -11,3 +11,6 @@ pub mod setup;
 pub mod user;
 #[cfg(feature = "endpoints")]
 pub mod websocket;
+
+#[cfg(all(test, feature = "endpoints"))]
+mod integration_tests;
