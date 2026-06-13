@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-06-13
+
+### 🧪 Testing
+
+- Added baseic tests
+- Added more test coverage
+
+### ⚙️ Miscellaneous Tasks
+
+- Fix code style issues with rustfmt
+
+
+
 ## [0.1.4] - 2026-05-25
 
 ### 🚀 Features

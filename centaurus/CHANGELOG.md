@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.6] - 2026-06-13
+
+### 🐛 Bug Fixes
+
+- Clippy lints in tests
+
+### 🧪 Testing
+
+- Added baseic tests
+- Added endpoint tests
+- Added more test coverage
+
+### ⚙️ Miscellaneous Tasks
+
+- Fix code style issues with rustfmt
+
+
+
 ## [0.14.5] - 2026-06-09
 
 ### 🐛 Bug Fixes
