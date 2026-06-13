@@ -82,4 +82,39 @@ mod tests {
     let s2: TestSettings = table.get_settings().await.unwrap();
     assert_eq!(s, s2);
   }
+
+  #[tokio::test]
+  async fn test_settings_default_when_absent() {
+    let db_config = DBConfig::default();
+    let conn = connect_db(&db_config, "sqlite::memory:").await;
+    Migrator::up(&*conn, None).await.unwrap();
+
+    let table = SettingsTable::new(&conn);
+    // Reading settings that were never saved yields the type's default.
+    let s: TestSettings = table.get_settings().await.unwrap();
+    assert_eq!(s, TestSettings::default());
+  }
+
+  #[tokio::test]
+  async fn test_settings_overwrite() {
+    let db_config = DBConfig::default();
+    let conn = connect_db(&db_config, "sqlite::memory:").await;
+    Migrator::up(&*conn, None).await.unwrap();
+
+    let table = SettingsTable::new(&conn);
+    table
+      .save_settings(&TestSettings { val: "first".into() })
+      .await
+      .unwrap();
+    table
+      .save_settings(&TestSettings {
+        val: "second".into(),
+      })
+      .await
+      .unwrap();
+
+    // Saving the same id twice updates in place rather than duplicating.
+    let s: TestSettings = table.get_settings().await.unwrap();
+    assert_eq!(s.val, "second");
+  }
 }

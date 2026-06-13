@@ -96,4 +96,56 @@ mod tests {
     let hash = hash_secret(&[1, 2, 3], "c2FsdHNhbHQ", b"password").unwrap(); // "saltsalt" in base64
     assert!(hash.starts_with("$argon2id$"));
   }
+
+  #[test]
+  fn test_hash_secret_is_deterministic() {
+    // The same pepper/salt/passphrase always produces the same hash, while a
+    // different pepper produces a different one.
+    let a = hash_secret(&[1, 2, 3], "c2FsdHNhbHQ", b"password").unwrap();
+    let b = hash_secret(&[1, 2, 3], "c2FsdHNhbHQ", b"password").unwrap();
+    assert_eq!(a, b);
+
+    let c = hash_secret(&[9, 9, 9], "c2FsdHNhbHQ", b"password").unwrap();
+    assert_ne!(a, c);
+  }
+
+  #[tokio::test]
+  async fn test_decrypt_roundtrip() {
+    let mut rng = OsRng;
+    let key = RsaPrivateKey::new(&mut rng, 512).unwrap();
+    let pub_key = RsaPublicKey::from(&key);
+    let state = PasswordState::init(vec![1, 2, 3], key).await;
+
+    let ciphertext = pub_key
+      .encrypt(&mut rng, Pkcs1v15Encrypt, b"secret-message")
+      .unwrap();
+    assert_eq!(state.decrypt(&ciphertext).unwrap(), b"secret-message");
+  }
+
+  #[tokio::test]
+  async fn test_pw_hash_matches_raw() {
+    let mut rng = OsRng;
+    let key = RsaPrivateKey::new(&mut rng, 512).unwrap();
+    let pub_key = RsaPublicKey::from(&key);
+    let state = PasswordState::init(vec![7], key).await;
+
+    // pw_hash decrypts a base64'd RSA-encrypted password; the resulting hash
+    // must equal hashing the plaintext directly.
+    let ciphertext = pub_key
+      .encrypt(&mut rng, Pkcs1v15Encrypt, b"hunter2")
+      .unwrap();
+    let encoded = BASE64_STANDARD.encode(&ciphertext);
+
+    let from_encrypted = state.pw_hash("c2FsdHNhbHQ", &encoded).unwrap();
+    let from_raw = state.pw_hash_raw("c2FsdHNhbHQ", "hunter2").unwrap();
+    assert_eq!(from_encrypted, from_raw);
+  }
+
+  #[tokio::test]
+  async fn test_pw_hash_rejects_invalid_base64() {
+    let mut rng = OsRng;
+    let key = RsaPrivateKey::new(&mut rng, 512).unwrap();
+    let state = PasswordState::init(vec![1], key).await;
+    assert!(state.pw_hash("c2FsdHNhbHQ", "!!!not base64!!!").is_err());
+  }
 }

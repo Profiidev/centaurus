@@ -30,3 +30,25 @@ impl Redirect {
     }
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn test_found_sets_location_and_status() {
+    let response = Redirect::found("https://example.com/next".into()).into_response();
+
+    assert_eq!(response.status(), StatusCode::FOUND);
+    assert_eq!(
+      response.headers().get(LOCATION).unwrap(),
+      "https://example.com/next"
+    );
+  }
+
+  #[test]
+  #[should_panic(expected = "not a redirection status code")]
+  fn test_non_redirect_status_panics() {
+    Redirect::with_status_code(StatusCode::OK, "/x");
+  }
+}

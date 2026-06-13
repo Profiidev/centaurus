@@ -26,3 +26,37 @@ impl<T: Debug + Serialize> IntoResponse for TokenRes<T> {
       .unwrap()
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use http::StatusCode;
+
+  #[derive(Debug, Serialize)]
+  struct Payload {
+    id: u32,
+  }
+
+  #[tokio::test]
+  async fn test_token_res_sets_no_cache_headers() {
+    let response = TokenRes(Payload { id: 7 }).into_response();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers().get(CACHE_CONTROL).unwrap(), "no-store");
+    assert_eq!(response.headers().get(PRAGMA).unwrap(), "no-cache");
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+      .await
+      .unwrap();
+    assert_eq!(&body[..], br#"{"id":7}"#);
+  }
+
+  #[tokio::test]
+  async fn test_token_res_unit_serializes_to_null() {
+    let response = TokenRes(()).into_response();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+      .await
+      .unwrap();
+    assert_eq!(&body[..], b"null");
+  }
+}

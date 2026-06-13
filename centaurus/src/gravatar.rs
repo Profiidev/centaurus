@@ -12,9 +12,19 @@ mod tests {
   fn test_get_gravatar_url() {
     let email = "MyEmailAddress@example.com ";
     let url = get_gravatar_url(email);
-    // md5 of "myemailaddress@example.com" is 0bc83662c1404f56f140683641328" - wait let's calculate
-    // actually just check if it contains the md5 hash.
-    assert!(url.contains("https://www.gravatar.com/avatar/"));
-    assert!(url.contains("?s=128&d=404"));
+    // Per the Gravatar spec the email is trimmed and lowercased before hashing.
+    // md5("myemailaddress@example.com") = 0bc83cb571cd1c50ba6f3e8a78ef1346
+    assert_eq!(
+      url,
+      "https://www.gravatar.com/avatar/0bc83cb571cd1c50ba6f3e8a78ef1346?s=128&d=404"
+    );
+  }
+
+  #[test]
+  fn test_gravatar_url_is_case_and_whitespace_invariant() {
+    // Normalization means casing and surrounding whitespace don't change the URL.
+    let canonical = get_gravatar_url("user@example.com");
+    assert_eq!(get_gravatar_url("  USER@Example.COM  "), canonical);
+    assert_eq!(get_gravatar_url("User@Example.Com"), canonical);
   }
 }
