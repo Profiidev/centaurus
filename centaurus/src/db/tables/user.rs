@@ -406,7 +406,12 @@ mod tests {
         .unwrap()
         .is_none()
     );
-    assert!(table.get_user_by_email("missing@example.com").await.is_err());
+    assert!(
+      table
+        .get_user_by_email("missing@example.com")
+        .await
+        .is_err()
+    );
   }
 
   #[tokio::test]
@@ -469,7 +474,10 @@ mod tests {
     let group_table = GroupTable::new(&conn);
     let id = make_user(&table, "member").await;
     let group = group_table.create_group("grp".into()).await.unwrap();
-    group_table.add_users_to_group(group, vec![id]).await.unwrap();
+    group_table
+      .add_users_to_group(group, vec![id])
+      .await
+      .unwrap();
     group_table
       .add_permissions_to_group(group, vec!["perm".into()])
       .await
@@ -498,12 +506,18 @@ mod tests {
     let g1 = group_table.create_group("g1".into()).await.unwrap();
     let g2 = group_table.create_group("g2".into()).await.unwrap();
 
-    table.edit_user(id, "newname".into(), vec![g1]).await.unwrap();
+    table
+      .edit_user(id, "newname".into(), vec![g1])
+      .await
+      .unwrap();
     assert_eq!(table.get_user_by_id(id).await.unwrap().name, "newname");
     assert_eq!(table.get_user_groups(id).await.unwrap().len(), 1);
 
     // Re-editing replaces the previous group set entirely.
-    table.edit_user(id, "newname".into(), vec![g2]).await.unwrap();
+    table
+      .edit_user(id, "newname".into(), vec![g2])
+      .await
+      .unwrap();
     let groups = table.get_user_groups(id).await.unwrap();
     assert_eq!(groups.len(), 1);
     assert_eq!(groups[0].uuid, g2);

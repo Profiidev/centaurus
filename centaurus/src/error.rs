@@ -382,7 +382,8 @@ mod tests {
   #[cfg(feature = "http")]
   #[test]
   fn test_error_report_status_ext() {
-    let res: std::result::Result<i32, std::io::Error> = Err(std::io::Error::new(std::io::ErrorKind::Other, "oh no"));
+    let res: std::result::Result<i32, std::io::Error> =
+      Err(std::io::Error::new(std::io::ErrorKind::Other, "oh no"));
     let report = res.status(StatusCode::NOT_FOUND).unwrap_err();
     assert_eq!(report.status, StatusCode::NOT_FOUND);
   }
@@ -397,8 +398,7 @@ mod tests {
   #[cfg(feature = "http")]
   #[test]
   fn test_status_context_wraps_message() {
-    let res: std::result::Result<(), std::io::Error> =
-      Err(std::io::Error::other("inner"));
+    let res: std::result::Result<(), std::io::Error> = Err(std::io::Error::other("inner"));
     let report = res
       .status_context(StatusCode::NOT_FOUND, "outer context")
       .unwrap_err();
@@ -428,8 +428,7 @@ mod tests {
 
   #[test]
   fn test_context_ext_wraps() {
-    let res: std::result::Result<(), std::io::Error> =
-      Err(std::io::Error::other("root cause"));
+    let res: std::result::Result<(), std::io::Error> = Err(std::io::Error::other("root cause"));
     let report = res.context("while doing thing").unwrap_err();
     let rendered = format!("{}", report);
     // wrap_err makes the new message the outermost display value.

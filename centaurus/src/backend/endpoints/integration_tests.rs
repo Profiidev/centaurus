@@ -130,7 +130,12 @@ impl TestApp {
   /// Create the admin group with every permission and return a user in it.
   async fn admin_user(&self, name: &str) -> Uuid {
     let perms: Vec<String> = permissions().into_iter().map(|p| p.to_string()).collect();
-    let group = self.conn.group().create_group("Admin".into()).await.unwrap();
+    let group = self
+      .conn
+      .group()
+      .create_group("Admin".into())
+      .await
+      .unwrap();
     self
       .conn
       .setup()
@@ -323,7 +328,12 @@ async fn auth_key_returns_public_key() {
   let app = TestApp::new().await;
   let (status, body) = app.send(Method::GET, "/auth/password", None, None).await;
   assert_eq!(status, StatusCode::OK);
-  assert!(body["key"].as_str().unwrap().contains("BEGIN RSA PUBLIC KEY"));
+  assert!(
+    body["key"]
+      .as_str()
+      .unwrap()
+      .contains("BEGIN RSA PUBLIC KEY")
+  );
 }
 
 #[tokio::test]
@@ -712,7 +722,13 @@ async fn management_convert_oidc_user() {
   let oidc_uid = app
     .conn
     .user()
-    .create_user("oidc".into(), "oidc@example.com".into(), "h".into(), SALT.into(), true)
+    .create_user(
+      "oidc".into(),
+      "oidc@example.com".into(),
+      "h".into(),
+      SALT.into(),
+      true,
+    )
     .await
     .unwrap();
   let (status, _) = app
@@ -724,7 +740,15 @@ async fn management_convert_oidc_user() {
     )
     .await;
   assert_eq!(status, StatusCode::OK);
-  assert!(!app.conn.user().get_user_by_id(oidc_uid).await.unwrap().oidc_user);
+  assert!(
+    !app
+      .conn
+      .user()
+      .get_user_by_id(oidc_uid)
+      .await
+      .unwrap()
+      .oidc_user
+  );
 
   let (status, _) = app
     .send(
@@ -758,7 +782,15 @@ async fn account_avatar_update_and_invalid() {
     )
     .await;
   assert_eq!(status, StatusCode::OK);
-  assert!(app.conn.user().get_user_avatar(uid).await.unwrap().is_some());
+  assert!(
+    app
+      .conn
+      .user()
+      .get_user_avatar(uid)
+      .await
+      .unwrap()
+      .is_some()
+  );
 
   // Garbage that is not valid base64 is rejected as a bad request (not a 500).
   let (status, _) = app
@@ -860,7 +892,12 @@ async fn edit_user_cannot_grant_unheld_permissions() {
 
   // An editor that only holds `user:edit`.
   let editor = app.local_user("editor", "pw").await;
-  let editor_group = app.conn.group().create_group("editors".into()).await.unwrap();
+  let editor_group = app
+    .conn
+    .group()
+    .create_group("editors".into())
+    .await
+    .unwrap();
   app
     .conn
     .group()
@@ -981,7 +1018,13 @@ async fn group_cannot_delete_admin_group() {
   let app = TestApp::new().await;
   let admin = app.admin_user("admin").await;
   let token = app.token(admin);
-  let admin_group = app.conn.setup().get_admin_group_id().await.unwrap().unwrap();
+  let admin_group = app
+    .conn
+    .setup()
+    .get_admin_group_id()
+    .await
+    .unwrap()
+    .unwrap();
   let (status, _) = app
     .send(
       Method::DELETE,
@@ -1124,7 +1167,13 @@ async fn websocket_delivers_targeted_update() {
 
   let uid = conn
     .user()
-    .create_user("ws".into(), "ws@example.com".into(), "h".into(), SALT.into(), false)
+    .create_user(
+      "ws".into(),
+      "ws@example.com".into(),
+      "h".into(),
+      SALT.into(),
+      false,
+    )
     .await
     .unwrap();
   let token = jwt.create_raw_token(uid).unwrap();

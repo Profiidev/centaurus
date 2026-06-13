@@ -249,11 +249,16 @@ mod tests {
     let conn = db().await;
 
     // First call: no admin group exists ⇒ it is created with all permissions.
-    create_admin_group(&conn, vec!["a", "b"], None).await.unwrap();
+    create_admin_group(&conn, vec!["a", "b"], None)
+      .await
+      .unwrap();
     let gid = conn.setup().get_admin_group_id().await.unwrap().unwrap();
     let perms = conn.group().get_group_permissions(gid).await.unwrap();
     assert_eq!(perms.len(), 2);
-    assert_eq!(conn.group().group_info(gid).await.unwrap().unwrap().name, "Admin");
+    assert_eq!(
+      conn.group().group_info(gid).await.unwrap().unwrap().name,
+      "Admin"
+    );
 
     // Second call: the group exists ⇒ missing permissions are added and the
     // name is updated, but the group id is preserved.
@@ -264,10 +269,15 @@ mod tests {
     let perms = conn.group().get_group_permissions(gid).await.unwrap();
     assert_eq!(perms.len(), 3);
     assert!(perms.contains(&"c".to_string()));
-    assert_eq!(conn.group().group_info(gid).await.unwrap().unwrap().name, "Root");
+    assert_eq!(
+      conn.group().group_info(gid).await.unwrap().unwrap().name,
+      "Root"
+    );
 
     // Third call with no new permissions exercises the "no missing perms" branch.
-    create_admin_group(&conn, vec!["a", "b", "c"], None).await.unwrap();
+    create_admin_group(&conn, vec!["a", "b", "c"], None)
+      .await
+      .unwrap();
     assert_eq!(
       conn.group().get_group_permissions(gid).await.unwrap().len(),
       3

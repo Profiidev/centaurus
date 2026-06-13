@@ -43,7 +43,10 @@ mod tests {
     tracing::info!("hello from test");
     tracing::dispatcher::get_default(|d| {
       // A real (non no-op) subscriber is now the default.
-      assert!(d.downcast_ref::<tracing::subscriber::NoSubscriber>().is_none());
+      assert!(
+        d.downcast_ref::<tracing::subscriber::NoSubscriber>()
+          .is_none()
+      );
     });
   }
 }

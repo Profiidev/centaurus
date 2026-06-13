@@ -208,7 +208,9 @@ mod tests {
     // When features are enabled, it should succeed if all fields are present
     if !output_str.contains("compile_error") {
       assert!(output_str.contains("impl centaurus :: backend :: config :: Config for MyConfig"));
-      assert!(output_str.contains("fn base (& self) -> & centaurus :: backend :: config :: BaseConfig"));
+      assert!(
+        output_str.contains("fn base (& self) -> & centaurus :: backend :: config :: BaseConfig")
+      );
     }
   }
 

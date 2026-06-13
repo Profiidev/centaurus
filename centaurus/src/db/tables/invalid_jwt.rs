@@ -66,10 +66,10 @@ impl<'db> InvalidJwtTable<'db> {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use chrono::Duration;
   use crate::db::config::DBConfig;
   use crate::db::init::connect_db;
   use crate::db::migrations::Migrator;
+  use chrono::Duration;
   use sea_orm_migration::MigratorTrait;
 
   #[tokio::test]

@@ -352,7 +352,10 @@ mod tests {
   use tempfile::tempdir;
 
   async fn read_body(body: Body) -> Vec<u8> {
-    axum::body::to_bytes(body, usize::MAX).await.unwrap().to_vec()
+    axum::body::to_bytes(body, usize::MAX)
+      .await
+      .unwrap()
+      .to_vec()
   }
 
   #[tokio::test]

@@ -834,7 +834,9 @@ mod tests {
     state.try_init(&settings(&base, true)).await.unwrap();
 
     let jwt = JwtState::init(&AuthConfig::default(), &conn).await;
-    let (cookies, axum::Json(resp)) = oidc_url(state.clone(), jwt, CookieJar::new()).await.unwrap();
+    let (cookies, axum::Json(resp)) = oidc_url(state.clone(), jwt, CookieJar::new())
+      .await
+      .unwrap();
 
     // The provider's Location is surfaced and the state cookie is set.
     assert_eq!(resp.url, "https://idp.example/redirect");
@@ -959,10 +961,8 @@ mod tests {
     let pub_key = RsaPublicKey::from(&priv_key);
     let n = BASE64_URL_SAFE_NO_PAD.encode(pub_key.n().to_bytes_be());
     let e = BASE64_URL_SAFE_NO_PAD.encode(pub_key.e().to_bytes_be());
-    let enc_key = EncodingKey::from_rsa_pem(
-      priv_key.to_pkcs1_pem(LineEnding::LF).unwrap().as_bytes(),
-    )
-    .unwrap();
+    let enc_key =
+      EncodingKey::from_rsa_pem(priv_key.to_pkcs1_pem(LineEnding::LF).unwrap().as_bytes()).unwrap();
 
     // Shared slot so the /token endpoint can return an id_token we build *after*
     // learning the nonce from oidc_url.
@@ -989,10 +989,21 @@ mod tests {
           }
         }),
       )
-      .route("/jwks", get(move || { let jwk = jwk.clone(); async move { axum::Json(jwk) } }))
+      .route(
+        "/jwks",
+        get(move || {
+          let jwk = jwk.clone();
+          async move { axum::Json(jwk) }
+        }),
+      )
       .route(
         "/authorize",
-        post(|| async { (StatusCode::FOUND, [(LOCATION, "https://idp.example/redirect")]) }),
+        post(|| async {
+          (
+            StatusCode::FOUND,
+            [(LOCATION, "https://idp.example/redirect")],
+          )
+        }),
       )
       .route(
         "/token",
@@ -1003,9 +1014,7 @@ mod tests {
       )
       .route(
         "/userinfo",
-        get(|| async {
-          axum::Json(json!({"email":"oidc@example.com","name":"OIDC User"}))
-        }),
+        get(|| async { axum::Json(json!({"email":"oidc@example.com","name":"OIDC User"})) }),
       );
     tokio::spawn(async move {
       axum::serve(listener, app).await.unwrap();

@@ -86,11 +86,7 @@ mod tests {
   }
 
   fn empty_parts() -> Parts {
-    http::Request::builder()
-      .body(())
-      .unwrap()
-      .into_parts()
-      .0
+    http::Request::builder().body(()).unwrap().into_parts().0
   }
 
   #[test]
@@ -136,7 +132,11 @@ mod tests {
       .add_permissions_to_group(group, vec!["user:view".into()])
       .await
       .unwrap();
-    conn.group().add_users_to_group(group, vec![uid]).await.unwrap();
+    conn
+      .group()
+      .add_users_to_group(group, vec![uid])
+      .await
+      .unwrap();
     assert!(UserView::check(&conn, uid, &parts).await.is_ok());
   }
 }

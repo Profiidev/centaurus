@@ -466,7 +466,12 @@ mod tests {
     // A user's effective permissions equal the union of their groups' permissions.
     let perms = table.get_user_permissions(user).await.unwrap();
     assert_eq!(perms.len(), 2);
-    assert!(table.user_hash_permissions(user, "user:edit").await.unwrap());
+    assert!(
+      table
+        .user_hash_permissions(user, "user:edit")
+        .await
+        .unwrap()
+    );
     assert!(
       !table
         .user_hash_permissions(user, "user:delete")
@@ -477,12 +482,14 @@ mod tests {
     // A user with no groups has no permissions.
     let lonely = make_user(&conn, "lonely").await;
     assert!(table.get_user_permissions(lonely).await.unwrap().is_empty());
-    assert!(!table.user_hash_permissions(lonely, "user:edit").await.unwrap());
+    assert!(
+      !table
+        .user_hash_permissions(lonely, "user:edit")
+        .await
+        .unwrap()
+    );
 
-    let group_perms = table
-      .get_groups_permissions(vec![group])
-      .await
-      .unwrap();
+    let group_perms = table.get_groups_permissions(vec![group]).await.unwrap();
     assert_eq!(group_perms.len(), 2);
   }
 

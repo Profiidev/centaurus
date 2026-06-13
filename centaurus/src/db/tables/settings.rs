@@ -52,9 +52,9 @@ mod tests {
   use crate::db::config::DBConfig;
   use crate::db::init::connect_db;
   use crate::db::migrations::Migrator;
+  use schemars::JsonSchema;
   use sea_orm_migration::MigratorTrait;
   use serde::{Deserialize, Serialize};
-  use schemars::JsonSchema;
 
   #[derive(Serialize, Deserialize, Default, PartialEq, Debug, JsonSchema)]
   struct TestSettings {
@@ -74,9 +74,7 @@ mod tests {
     Migrator::up(&*conn, None).await.unwrap();
 
     let table = SettingsTable::new(&conn);
-    let s = TestSettings {
-      val: "test".into(),
-    };
+    let s = TestSettings { val: "test".into() };
     table.save_settings(&s).await.unwrap();
 
     let s2: TestSettings = table.get_settings().await.unwrap();
@@ -103,7 +101,9 @@ mod tests {
 
     let table = SettingsTable::new(&conn);
     table
-      .save_settings(&TestSettings { val: "first".into() })
+      .save_settings(&TestSettings {
+        val: "first".into(),
+      })
       .await
       .unwrap();
     table

@@ -12,6 +12,8 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use tower_governor::GovernorLayer;
 
+#[cfg(feature = "avatar")]
+use crate::error::ErrorReportStatusExt;
 use crate::{
   backend::{
     auth::{jwt_auth::JwtAuth, pw_state::PasswordState},
@@ -25,8 +27,6 @@ use crate::{
   db::{init::Connection, tables::ConnectionExt},
   error::Result,
 };
-#[cfg(feature = "avatar")]
-use crate::error::ErrorReportStatusExt;
 
 pub fn router<T: UpdateMessage>(rate_limiter: &mut RateLimiter) -> ApiRouter {
   let router = ApiRouter::new()

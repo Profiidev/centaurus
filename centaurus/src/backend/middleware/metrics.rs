@@ -203,7 +203,12 @@ mod tests {
     // The metrics endpoint renders the Prometheus exposition format including
     // our recorded counters.
     let response = app
-      .oneshot(Request::builder().uri("/metrics").body(Body::empty()).unwrap())
+      .oneshot(
+        Request::builder()
+          .uri("/metrics")
+          .body(Body::empty())
+          .unwrap(),
+      )
       .await
       .unwrap();
     assert_eq!(response.status(), http::StatusCode::OK);

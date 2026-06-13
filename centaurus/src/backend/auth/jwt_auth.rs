@@ -146,7 +146,11 @@ mod tests {
       .add_permissions_to_group(group, vec!["user:edit".into()])
       .await
       .unwrap();
-    conn.group().add_users_to_group(group, vec![uid]).await.unwrap();
+    conn
+      .group()
+      .add_users_to_group(group, vec![uid])
+      .await
+      .unwrap();
     assert!(check_user::<UserEdit>(&conn, uid).await.is_ok());
   }
 }

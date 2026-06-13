@@ -76,7 +76,12 @@ mod tests {
     let app = finish(logging(router, |path| path.starts_with("/api")));
 
     let response = app
-      .oneshot(Request::builder().uri("/api/x").body(Body::empty()).unwrap())
+      .oneshot(
+        Request::builder()
+          .uri("/api/x")
+          .body(Body::empty())
+          .unwrap(),
+      )
       .await
       .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -92,7 +97,12 @@ mod tests {
     let router = BackendRouter::new().route("/other", get(|| async { "y" }));
     let app = finish(logging(router, |path| path.starts_with("/api")));
     let response = app
-      .oneshot(Request::builder().uri("/other").body(Body::empty()).unwrap())
+      .oneshot(
+        Request::builder()
+          .uri("/other")
+          .body(Body::empty())
+          .unwrap(),
+      )
       .await
       .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
