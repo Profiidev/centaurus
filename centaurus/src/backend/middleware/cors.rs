@@ -25,3 +25,30 @@ pub fn cors(config: &BaseConfig) -> Result<CorsLayer> {
 
   Ok(cors.allow_origin(origins))
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn test_cors_builds_with_default_config() {
+    // Empty allowed_origins yields a single empty origin entry but still builds.
+    let config = BaseConfig::default();
+    assert!(cors(&config).is_ok());
+  }
+
+  #[test]
+  fn test_cors_with_valid_origin() {
+    let mut config = BaseConfig::default();
+    config.allowed_origins = "https://example.com".into();
+    assert!(cors(&config).is_ok());
+  }
+
+  #[test]
+  fn test_cors_rejects_invalid_origin() {
+    let mut config = BaseConfig::default();
+    // A newline is not a valid header value byte.
+    config.allowed_origins = "https://ok.com,bad\norigin".into();
+    assert!(cors(&config).is_err());
+  }
+}

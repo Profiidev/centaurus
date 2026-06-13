@@ -140,4 +140,20 @@ mod tests {
     let conn = connect_db(&config, "sqlite::memory:").await;
     assert!(conn.get_database_backend() == DatabaseBackend::Sqlite);
   }
+
+  #[tokio::test]
+  async fn test_init_db_runs_migrations() {
+    use crate::db::migrations::Migrator;
+    use sea_orm::EntityTrait;
+
+    let config = DBConfig::default();
+    // init_db applies all migrations; the user table must then be queryable.
+    let conn = init_db::<Migrator>(&config, "sqlite::memory:").await;
+    assert!(
+      crate::db::entities::user::Entity::find()
+        .all(&*conn)
+        .await
+        .is_ok()
+    );
+  }
 }

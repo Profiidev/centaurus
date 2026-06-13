@@ -95,3 +95,58 @@ pub async fn check_user<P: Permission>(db: &Connection, user: Uuid) -> Result<()
 
   Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::backend::auth::permission::UserEdit;
+  use crate::db::config::DBConfig;
+  use crate::db::init::connect_db;
+  use crate::db::migrations::Migrator;
+  use sea_orm_migration::MigratorTrait;
+
+  async fn db() -> Connection {
+    let conn = connect_db(&DBConfig::default(), "sqlite::memory:").await;
+    Migrator::up(&*conn, None).await.unwrap();
+    conn
+  }
+
+  #[allow(deprecated)]
+  #[tokio::test]
+  async fn test_check_user_no_permission_required() {
+    let conn = db().await;
+    let uid = conn
+      .user()
+      .create_user("u".into(), "u@x.com".into(), "h".into(), "s".into(), false)
+      .await
+      .unwrap();
+
+    // NoPerm only requires that the user exists.
+    assert!(check_user::<NoPerm>(&conn, uid).await.is_ok());
+    assert!(check_user::<NoPerm>(&conn, Uuid::new_v4()).await.is_err());
+  }
+
+  #[allow(deprecated)]
+  #[tokio::test]
+  async fn test_check_user_with_permission() {
+    let conn = db().await;
+    let uid = conn
+      .user()
+      .create_user("u".into(), "u@x.com".into(), "h".into(), "s".into(), false)
+      .await
+      .unwrap();
+
+    // Without the permission the check fails...
+    assert!(check_user::<UserEdit>(&conn, uid).await.is_err());
+
+    // ...and succeeds once granted via a group.
+    let group = conn.group().create_group("g".into()).await.unwrap();
+    conn
+      .group()
+      .add_permissions_to_group(group, vec!["user:edit".into()])
+      .await
+      .unwrap();
+    conn.group().add_users_to_group(group, vec![uid]).await.unwrap();
+    assert!(check_user::<UserEdit>(&conn, uid).await.is_ok());
+  }
+}

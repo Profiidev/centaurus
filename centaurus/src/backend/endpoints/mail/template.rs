@@ -57,6 +57,36 @@ pub fn test_email(link: &str) -> String {
   )
 }
 
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn test_reset_link_embeds_urls() {
+    let html = reset_link("https://app/reset?token=abc", "https://app");
+    assert!(html.contains("https://app/reset?token=abc"));
+    assert!(html.contains(r#"href="https://app""#));
+    assert!(html.contains("Password Reset"));
+  }
+
+  #[test]
+  fn test_test_email_embeds_link() {
+    let html = test_email("https://app");
+    assert!(html.contains("Test Email"));
+    assert!(html.contains(r#"href="https://app""#));
+  }
+
+  #[test]
+  fn test_confirm_code_old_vs_new() {
+    let old = confirm_code(&"123456".to_string(), true, "https://app");
+    assert!(old.contains("123456"));
+    assert!(old.contains("your old email"));
+
+    let new = confirm_code(&"654321".to_string(), false, "https://app");
+    assert!(new.contains("your new email"));
+  }
+}
+
 pub fn confirm_code(code: &String, old: bool, link: &str) -> String {
   let old = if old { "old" } else { "new" };
 

@@ -101,4 +101,65 @@ mod tests {
     ));
     assert!(output_str.contains("fn settings () -> Self { Self :: Settings }"));
   }
+
+  #[test]
+  fn test_update_message_rejects_non_enum() {
+    let input = quote! {
+      struct NotAnEnum {
+        field: u32,
+      }
+    };
+    assert!(
+      update_message(input)
+        .to_string()
+        .contains("UpdateMessage derive only supports enums")
+    );
+  }
+
+  #[test]
+  fn test_update_message_missing_settings_variant() {
+    let input = quote! {
+      enum MyUpdate {
+        #[update_message(group)]
+        Group { uuid: uuid::Uuid },
+        #[update_message(user)]
+        User { uuid: uuid::Uuid },
+        #[update_message(user_permissions)]
+        Permissions,
+      }
+    };
+    assert!(
+      update_message(input)
+        .to_string()
+        .contains("Missing #[update_message(settings)] variant")
+    );
+  }
+
+  #[test]
+  fn test_update_message_missing_user_variant() {
+    let input = quote! {
+      enum MyUpdate {
+        #[update_message(settings)]
+        Settings,
+        #[update_message(group)]
+        Group { uuid: uuid::Uuid },
+        #[update_message(user_permissions)]
+        Permissions,
+      }
+    };
+    assert!(
+      update_message(input)
+        .to_string()
+        .contains("Missing #[update_message(user)] variant")
+    );
+  }
+
+  #[test]
+  fn test_update_message_invalid_tokens() {
+    assert!(
+      update_message(quote! { not valid })
+        .to_string()
+        .contains("error")
+    );
+  }
 }

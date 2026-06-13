@@ -49,3 +49,52 @@ async fn uri_middleware(
   response.extensions_mut().insert(uri);
   response
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use axum::{body::Body, routing::get};
+  use http::{Request, StatusCode};
+  use tower::ServiceExt;
+
+  fn finish(router: BackendRouter) -> axum::Router {
+    #[cfg(feature = "openapi")]
+    {
+      router.finish_api(&mut aide::openapi::OpenApi::default())
+    }
+    #[cfg(not(feature = "openapi"))]
+    {
+      router
+    }
+  }
+
+  #[tokio::test]
+  async fn test_logging_layer_passes_requests_through() {
+    // The logging layers must be transparent: the wrapped handler still runs
+    // and its response is returned unchanged.
+    let router = BackendRouter::new().route("/api/x", get(|| async { "ok" }));
+    let app = finish(logging(router, |path| path.starts_with("/api")));
+
+    let response = app
+      .oneshot(Request::builder().uri("/api/x").body(Body::empty()).unwrap())
+      .await
+      .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+      .await
+      .unwrap();
+    assert_eq!(&body[..], b"ok");
+  }
+
+  #[tokio::test]
+  async fn test_logging_layer_with_non_matching_filter() {
+    // Exercise the branch where the filter returns false.
+    let router = BackendRouter::new().route("/other", get(|| async { "y" }));
+    let app = finish(logging(router, |path| path.starts_with("/api")));
+    let response = app
+      .oneshot(Request::builder().uri("/other").body(Body::empty()).unwrap())
+      .await
+      .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+  }
+}

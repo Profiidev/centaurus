@@ -143,3 +143,73 @@ impl<T: UpdateMessage> Updater<T> {
       .await;
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use serde::Deserialize;
+
+  #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+  enum Msg {
+    Ping(u8),
+  }
+
+  impl UpdateMessage for Msg {
+    fn settings() -> Self {
+      Msg::Ping(0)
+    }
+    fn group(_: Uuid) -> Self {
+      Msg::Ping(1)
+    }
+    fn user(_: Uuid) -> Self {
+      Msg::Ping(2)
+    }
+    fn user_permissions() -> Self {
+      Msg::Ping(3)
+    }
+  }
+
+  #[tokio::test]
+  async fn test_send_to_targets_single_user() {
+    let (state, updater) = UpdateState::<Msg>::init().await;
+    let user = Uuid::new_v4();
+    let other = Uuid::new_v4();
+
+    let (_id, mut rx) = state.create_session(user).await;
+    let (_id2, mut rx_other) = state.create_session(other).await;
+
+    updater.send_to(user, Msg::Ping(42)).await;
+
+    // The targeted user receives the message...
+    assert_eq!(rx.recv().await, Some(Msg::Ping(42)));
+    // ...and the other user does not (channel is still empty).
+    assert!(rx_other.try_recv().is_err());
+  }
+
+  #[tokio::test]
+  async fn test_broadcast_reaches_all_sessions() {
+    let (state, updater) = UpdateState::<Msg>::init().await;
+    let user = Uuid::new_v4();
+    let (_a, mut rx_a) = state.create_session(user).await;
+    let (_b, mut rx_b) = state.create_session(user).await;
+
+    updater.broadcast(Msg::Ping(7)).await;
+
+    assert_eq!(rx_a.recv().await, Some(Msg::Ping(7)));
+    assert_eq!(rx_b.recv().await, Some(Msg::Ping(7)));
+  }
+
+  #[tokio::test]
+  async fn test_remove_session_stops_delivery() {
+    let (state, updater) = UpdateState::<Msg>::init().await;
+    let user = Uuid::new_v4();
+    let (id, mut rx) = state.create_session(user).await;
+
+    state.remove_session(&user, &id).await;
+    updater.send_to(user, Msg::Ping(1)).await;
+
+    // After removal the (now-orphaned) receiver gets nothing.
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    assert!(rx.try_recv().is_err());
+  }
+}

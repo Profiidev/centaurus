@@ -37,3 +37,35 @@ impl StateExtractExt for Request {
       .0
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use axum::body::Body;
+
+  #[derive(Clone, Debug, PartialEq)]
+  struct MyState(u32);
+
+  #[tokio::test]
+  async fn test_extract_present_state() {
+    let mut parts = Request::builder()
+      .extension(MyState(7))
+      .body(Body::empty())
+      .unwrap()
+      .into_parts()
+      .0;
+    let state: MyState = parts.extract_state().await;
+    assert_eq!(state, MyState(7));
+  }
+
+  #[tokio::test]
+  #[should_panic(expected = "Failed to extract state")]
+  async fn test_extract_missing_state_panics() {
+    let mut parts = Request::builder()
+      .body(Body::empty())
+      .unwrap()
+      .into_parts()
+      .0;
+    let _: MyState = parts.extract_state().await;
+  }
+}

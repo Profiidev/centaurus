@@ -126,4 +126,44 @@ mod tests {
     let rejection = XmlRejection::InvalidXml(err);
     assert_eq!(rejection.into_response().status(), StatusCode::BAD_REQUEST);
   }
+
+  fn xml_request(body: &'static [u8]) -> Request {
+    Request::builder()
+      .header(CONTENT_TYPE, "application/xml")
+      .body(axum::body::Body::from(body))
+      .unwrap()
+  }
+
+  #[tokio::test]
+  async fn test_from_request_parses_valid_xml() {
+    let body = b"<Sample><name>hi</name><value>5</value></Sample>";
+    let Xml(parsed): Xml<Sample> =
+      <Xml<Sample> as FromRequest<()>>::from_request(xml_request(body), &())
+        .await
+        .unwrap();
+    assert_eq!(parsed.value, 5);
+  }
+
+  #[tokio::test]
+  async fn test_from_request_rejects_invalid_xml() {
+    let res = <Xml<Sample> as FromRequest<()>>::from_request(xml_request(b"<bad"), &()).await;
+    assert!(res.is_err());
+  }
+
+  #[tokio::test]
+  async fn test_optional_from_request_yields_none_on_invalid() {
+    // The optional extractor swallows parse errors and returns None.
+    let res: Option<Xml<Sample>> =
+      <Xml<Sample> as OptionalFromRequest<()>>::from_request(xml_request(b"<bad"), &())
+        .await
+        .unwrap();
+    assert!(res.is_none());
+
+    let body = b"<Sample><name>x</name><value>1</value></Sample>";
+    let res: Option<Xml<Sample>> =
+      <Xml<Sample> as OptionalFromRequest<()>>::from_request(xml_request(body), &())
+        .await
+        .unwrap();
+    assert!(res.is_some());
+  }
 }

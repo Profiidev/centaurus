@@ -223,4 +223,174 @@ mod tests {
     let output_str = output.to_string();
     assert!(output_str.contains("No field with #[base] attribute found"));
   }
+
+  #[test]
+  fn test_config_derive_full_with_oidc_and_mail() {
+    let input = quote! {
+      struct MyConfig {
+        #[base]
+        base: BaseConfig,
+        #[metrics]
+        metrics: MetricsConfig,
+        #[site]
+        site: SiteConfig,
+        #[auth]
+        auth: AuthConfig,
+        #[oidc]
+        oidc: UserSettings,
+        #[mail]
+        mail: MailSettings,
+      }
+    };
+    let output = config(input).to_string();
+    assert!(!output.contains("compile_error"));
+    // The optional oidc/mail accessors are generated when their fields exist.
+    assert!(output.contains("fn oidc"));
+    assert!(output.contains("fn mail"));
+  }
+
+  #[test]
+  fn test_config_derive_duplicate_base_errors() {
+    let input = quote! {
+      struct MyConfig {
+        #[base]
+        a: BaseConfig,
+        #[base]
+        b: BaseConfig,
+      }
+    };
+    assert!(
+      config(input)
+        .to_string()
+        .contains("Multiple fields with #[base] attribute found")
+    );
+  }
+
+  #[test]
+  fn test_config_derive_duplicate_oidc_errors() {
+    let input = quote! {
+      struct MyConfig {
+        #[base]
+        base: BaseConfig,
+        #[oidc]
+        a: UserSettings,
+        #[oidc]
+        b: UserSettings,
+      }
+    };
+    assert!(
+      config(input)
+        .to_string()
+        .contains("Multiple fields with #[oidc] attribute found")
+    );
+  }
+
+  #[test]
+  fn test_config_derive_duplicate_mail_errors() {
+    let input = quote! {
+      struct MyConfig {
+        #[base]
+        base: BaseConfig,
+        #[mail]
+        a: MailSettings,
+        #[mail]
+        b: MailSettings,
+      }
+    };
+    assert!(
+      config(input)
+        .to_string()
+        .contains("Multiple fields with #[mail] attribute found")
+    );
+  }
+
+  #[test]
+  fn test_config_derive_rejects_enum() {
+    let input = quote! {
+      enum NotAStruct {
+        A,
+      }
+    };
+    assert!(
+      config(input)
+        .to_string()
+        .contains("Config can only be derived for structs with named fields")
+    );
+  }
+
+  #[test]
+  fn test_config_derive_rejects_tuple_struct() {
+    let input = quote! {
+      struct Tuple(u32, u32);
+    };
+    assert!(
+      config(input)
+        .to_string()
+        .contains("Config can only be derived for structs with named fields")
+    );
+  }
+
+  #[test]
+  fn test_config_derive_invalid_tokens() {
+    // A parse failure is surfaced as a compile error rather than panicking.
+    let input = quote! { this is not valid rust };
+    assert!(config(input).to_string().contains("error"));
+  }
+
+  // Feature-gated "missing field" branches. With the corresponding feature
+  // enabled, omitting the field must produce a targeted error.
+  #[cfg(feature = "metrics")]
+  #[test]
+  fn test_config_derive_missing_metrics_field() {
+    let input = quote! {
+      struct MyConfig {
+        #[base]
+        base: BaseConfig,
+      }
+    };
+    assert!(
+      config(input)
+        .to_string()
+        .contains("No field with #[metrics] attribute found")
+    );
+  }
+
+  #[cfg(feature = "site")]
+  #[test]
+  fn test_config_derive_missing_site_field() {
+    // Provide metrics (if required) but omit site.
+    let input = quote! {
+      struct MyConfig {
+        #[base]
+        base: BaseConfig,
+        #[metrics]
+        metrics: MetricsConfig,
+      }
+    };
+    assert!(
+      config(input)
+        .to_string()
+        .contains("No field with #[site] attribute found")
+    );
+  }
+
+  #[cfg(feature = "auth")]
+  #[test]
+  fn test_config_derive_missing_auth_field() {
+    let input = quote! {
+      struct MyConfig {
+        #[base]
+        base: BaseConfig,
+        #[metrics]
+        metrics: MetricsConfig,
+        #[site]
+        site: SiteConfig,
+      }
+    };
+    assert!(
+      config(input)
+        .to_string()
+        .contains("No field with #[auth] attribute found")
+    );
+  }
 }
