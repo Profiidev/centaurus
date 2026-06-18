@@ -380,6 +380,45 @@ impl<'db> UserTable<'db> {
     let count = user::Entity::find().count(self.db).await?;
     Ok(count)
   }
+
+  /// Sync name, email, and OIDC flag from the provider. Returns true if any field changed.
+  pub async fn sync_from_oidc(&self, id: Uuid, name: &str, email: &str) -> Result<bool> {
+    let user = self.get_user_by_id(id).await?;
+    let email = email.to_lowercase();
+
+    let name_changed = user.name != name;
+    let email_changed = user.email != email;
+
+    let email_conflict = if email_changed {
+      matches!(
+        self.try_get_user_by_email(&email).await?,
+        Some(other) if other.id != id
+      )
+    } else {
+      false
+    };
+
+    if email_conflict {
+      tracing::warn!(
+        "OIDC email {email} is already used by another user, skipping email sync for user {id}"
+      );
+    }
+
+    if !name_changed && (!email_changed || email_conflict) {
+      return Ok(false);
+    }
+
+    let mut active: user::ActiveModel = user.into();
+    if name_changed {
+      active.name = Set(name.to_string());
+    }
+    if email_changed && !email_conflict {
+      active.email = Set(email);
+    }
+    active.update(self.db).await?;
+
+    Ok(true)
+  }
 }
 
 #[cfg(test)]
@@ -837,6 +876,96 @@ mod tests {
       .unwrap();
 
     assert_eq!(table.list_users_simple().await.unwrap().len(), 2);
+  }
+
+  #[tokio::test]
+  async fn test_sync_from_oidc_updates_name_and_email() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let id = table
+      .create_user(
+        "old".into(),
+        "old@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        Some("subject-1".into()),
+      )
+      .await
+      .unwrap();
+
+    assert!(
+      table
+        .sync_from_oidc(id, "New Name", "new@example.com")
+        .await
+        .unwrap()
+    );
+
+    let user = table.get_user_by_id(id).await.unwrap();
+    assert_eq!(user.name, "New Name");
+    assert_eq!(user.email, "new@example.com");
+  }
+
+  #[tokio::test]
+  async fn test_sync_from_oidc_skips_conflicting_email() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let id = table
+      .create_user(
+        "user".into(),
+        "user@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        Some("subject-1".into()),
+      )
+      .await
+      .unwrap();
+    table
+      .create_user(
+        "other".into(),
+        "taken@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        None,
+      )
+      .await
+      .unwrap();
+
+    assert!(
+      !table
+        .sync_from_oidc(id, "user", "taken@example.com")
+        .await
+        .unwrap()
+    );
+
+    let user = table.get_user_by_id(id).await.unwrap();
+    assert_eq!(user.email, "user@example.com");
+  }
+
+  #[tokio::test]
+  async fn test_sync_from_oidc_noop_when_unchanged() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let id = table
+      .create_user(
+        "same".into(),
+        "same@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        None,
+      )
+      .await
+      .unwrap();
+
+    assert!(
+      !table
+        .sync_from_oidc(id, "same", "same@example.com")
+        .await
+        .unwrap()
+    );
   }
 
   #[tokio::test]

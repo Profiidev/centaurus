@@ -557,19 +557,7 @@ async fn check_code<T: UpdateMessage>(
   let res: AuthInfo = res.json().await?;
 
   if let Some(user) = db.user().resolve_oidc_user(&res.sub, &res.email).await? {
-    sync_groups(user.id, &res, &config, db, updater.clone()).await?;
-    #[cfg(feature = "avatar")]
-    if config.image_sync {
-      sync_image(
-        user.id,
-        res.picture,
-        db.clone(),
-        token,
-        config.client.clone(),
-        updater,
-      )
-      .await;
-    }
+    sync_oidc_user(user.id, &res, &config, db, token, updater).await?;
 
     debug!("OIDC user authenticated: {}", user.id);
     cookies = cookies.add(jwt.create_token(user.id)?);
@@ -592,19 +580,7 @@ async fn check_code<T: UpdateMessage>(
       Some(res.sub.clone()),
     )
     .await?;
-  sync_groups(user, &res, &config, db, updater.clone()).await?;
-  #[cfg(feature = "avatar")]
-  if config.image_sync {
-    sync_image(
-      user,
-      res.picture,
-      db.clone(),
-      token,
-      config.client.clone(),
-      updater,
-    )
-    .await;
-  }
+  sync_oidc_user(user, &res, &config, db, token, updater).await?;
 
   if !db.setup().is_setup().await? || db.user().count_users().await? == 1 {
     let Some(admin_group_id) = db.setup().get_admin_group_id().await? else {
@@ -647,6 +623,40 @@ impl AuthInfo {
     }
     Vec::new()
   }
+}
+
+async fn sync_oidc_user<T: UpdateMessage>(
+  user_id: Uuid,
+  auth: &AuthInfo,
+  config: &OidcConfig,
+  db: &Connection,
+  token: String,
+  updater: Updater<T>,
+) -> Result<()> {
+  if db
+    .user()
+    .sync_from_oidc(user_id, &auth.name, &auth.email)
+    .await?
+  {
+    updater.send_to(user_id, T::user(user_id)).await;
+  }
+
+  sync_groups(user_id, auth, config, db, updater.clone()).await?;
+
+  #[cfg(feature = "avatar")]
+  if config.image_sync {
+    sync_image(
+      user_id,
+      auth.picture.clone(),
+      db.clone(),
+      token,
+      config.client.clone(),
+      updater,
+    )
+    .await;
+  }
+
+  Ok(())
 }
 
 async fn sync_groups<T: UpdateMessage>(
@@ -1283,7 +1293,8 @@ mod tests {
     assert!(!loc.contains("error="), "unexpected error redirect: {loc}");
 
     let user = conn.user().get_user_by_id(user_id).await.unwrap();
-    assert_eq!(user.email, "old@example.com");
+    assert_eq!(user.email, "new@example.com");
+    assert_eq!(user.name, "OIDC User");
     assert_eq!(user.oidc_subject, Some("subject-1".into()));
   }
 
@@ -1314,6 +1325,37 @@ mod tests {
 
     let user = conn.user().get_user_by_id(user_id).await.unwrap();
     assert_eq!(user.oidc_subject, Some("subject-1".into()));
+    assert_eq!(user.name, "OIDC User");
+  }
+
+  #[tokio::test]
+  async fn test_callback_email_match_marks_local_user_as_oidc() {
+    let conn = db().await;
+    let user_id = conn
+      .user()
+      .create_user(
+        "local".into(),
+        "local@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        false,
+        None,
+      )
+      .await
+      .unwrap();
+
+    let idp = signing_idp(json!({
+      "sub": "subject-1",
+      "email": "local@example.com",
+      "name": "OIDC User"
+    }))
+    .await;
+    let loc = run_oidc_callback(&conn, &idp, false, "subject-1").await;
+    assert!(!loc.contains("error="), "unexpected error redirect: {loc}");
+
+    let user = conn.user().get_user_by_id(user_id).await.unwrap();
+    assert_eq!(user.oidc_subject, Some("subject-1".into()));
+    assert_eq!(user.name, "OIDC User");
   }
 
   #[tokio::test]
