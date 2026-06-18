@@ -969,6 +969,155 @@ mod tests {
   }
 
   #[tokio::test]
+  async fn test_sync_from_oidc_updates_name_only() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let id = table
+      .create_user(
+        "old".into(),
+        "keep@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        Some("subject-1".into()),
+      )
+      .await
+      .unwrap();
+
+    assert!(
+      table
+        .sync_from_oidc(id, "New Name", "keep@example.com")
+        .await
+        .unwrap()
+    );
+
+    let user = table.get_user_by_id(id).await.unwrap();
+    assert_eq!(user.name, "New Name");
+    assert_eq!(user.email, "keep@example.com");
+  }
+
+  #[tokio::test]
+  async fn test_sync_from_oidc_updates_email_only() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let id = table
+      .create_user(
+        "keep".into(),
+        "old@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        Some("subject-1".into()),
+      )
+      .await
+      .unwrap();
+
+    assert!(
+      table
+        .sync_from_oidc(id, "keep", "new@example.com")
+        .await
+        .unwrap()
+    );
+
+    let user = table.get_user_by_id(id).await.unwrap();
+    assert_eq!(user.name, "keep");
+    assert_eq!(user.email, "new@example.com");
+  }
+
+  #[tokio::test]
+  async fn test_sync_from_oidc_lowercases_email() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let id = table
+      .create_user(
+        "user".into(),
+        "old@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        Some("subject-1".into()),
+      )
+      .await
+      .unwrap();
+
+    assert!(
+      table
+        .sync_from_oidc(id, "user", "New@Example.COM")
+        .await
+        .unwrap()
+    );
+
+    let user = table.get_user_by_id(id).await.unwrap();
+    assert_eq!(user.email, "new@example.com");
+  }
+
+  #[tokio::test]
+  async fn test_sync_from_oidc_noop_when_email_differs_only_in_case() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let id = table
+      .create_user(
+        "same".into(),
+        "same@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        None,
+      )
+      .await
+      .unwrap();
+
+    assert!(
+      !table
+        .sync_from_oidc(id, "same", "SAME@EXAMPLE.COM")
+        .await
+        .unwrap()
+    );
+
+    let user = table.get_user_by_id(id).await.unwrap();
+    assert_eq!(user.email, "same@example.com");
+  }
+
+  #[tokio::test]
+  async fn test_sync_from_oidc_updates_name_but_skips_conflicting_email() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let id = table
+      .create_user(
+        "old".into(),
+        "user@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        Some("subject-1".into()),
+      )
+      .await
+      .unwrap();
+    table
+      .create_user(
+        "other".into(),
+        "taken@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        None,
+      )
+      .await
+      .unwrap();
+
+    assert!(
+      table
+        .sync_from_oidc(id, "New Name", "taken@example.com")
+        .await
+        .unwrap()
+    );
+
+    let user = table.get_user_by_id(id).await.unwrap();
+    assert_eq!(user.name, "New Name");
+    assert_eq!(user.email, "user@example.com");
+  }
+
+  #[tokio::test]
   async fn test_delete_user() {
     let conn = setup().await;
     let table = UserTable::new(&conn);

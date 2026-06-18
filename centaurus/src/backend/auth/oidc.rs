@@ -1299,6 +1299,50 @@ mod tests {
   }
 
   #[tokio::test]
+  async fn test_callback_subject_match_skips_email_taken_by_other_user() {
+    let conn = db().await;
+    let user_id = conn
+      .user()
+      .create_user(
+        "existing".into(),
+        "old@example.com".into(),
+        String::new(),
+        "salt".into(),
+        true,
+        Some("subject-1".into()),
+      )
+      .await
+      .unwrap();
+    conn
+      .user()
+      .create_user(
+        "other".into(),
+        "taken@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        false,
+        None,
+      )
+      .await
+      .unwrap();
+
+    let idp = signing_idp(json!({
+      "sub": "subject-1",
+      "email": "taken@example.com",
+      "name": "OIDC User"
+    }))
+    .await;
+    let loc = run_oidc_callback(&conn, &idp, false, "subject-1").await;
+    assert!(!loc.contains("error="), "unexpected error redirect: {loc}");
+
+    // Login succeeds, name syncs, but the conflicting email is left untouched.
+    let user = conn.user().get_user_by_id(user_id).await.unwrap();
+    assert_eq!(user.name, "OIDC User");
+    assert_eq!(user.email, "old@example.com");
+    assert_eq!(user.oidc_subject, Some("subject-1".into()));
+  }
+
+  #[tokio::test]
   async fn test_callback_email_match_backfills_subject() {
     let conn = db().await;
     let user_id = conn
