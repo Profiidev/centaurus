@@ -325,16 +325,8 @@ async fn reset_user_password(
   auth: JwtAuth<UserEdit>,
   db: Connection,
   state: PasswordState,
-  mailer: Mailer,
   Json(req): Json<ResetUserPassword>,
 ) -> Result<()> {
-  if mailer.is_active().await {
-    bail!(
-      BAD_REQUEST,
-      "Cannot reset password when mail service is active"
-    );
-  }
-
   let self_permissions = db.group().get_user_permissions(auth.user_id).await?;
   let target_permissions = db.group().get_user_permissions(req.uuid).await?;
 

@@ -57,17 +57,9 @@ struct ChangeUserEmail {
 async fn change_user_email<T: UpdateMessage>(
   auth: JwtAuth<UserEdit>,
   db: Connection,
-  mailer: Mailer,
   updater: Updater<T>,
   Json(req): Json<ChangeUserEmail>,
 ) -> Result<()> {
-  if mailer.is_active().await {
-    bail!(
-      BAD_REQUEST,
-      "Cannot change email when mail service is active"
-    );
-  }
-
   if req.new_email.is_empty() {
     bail!(BAD_REQUEST, "New email cannot be empty");
   }
