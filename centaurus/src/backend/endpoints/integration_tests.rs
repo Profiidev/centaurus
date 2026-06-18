@@ -172,6 +172,7 @@ impl TestApp {
         hash,
         SALT.into(),
         false,
+        None,
       )
       .await
       .unwrap()
@@ -728,6 +729,7 @@ async fn management_convert_oidc_user() {
       "h".into(),
       SALT.into(),
       true,
+      None,
     )
     .await
     .unwrap();
@@ -1173,6 +1175,7 @@ async fn websocket_delivers_targeted_update() {
       "h".into(),
       SALT.into(),
       false,
+      None,
     )
     .await
     .unwrap();

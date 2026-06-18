@@ -146,6 +146,7 @@ async fn complete_setup(
       hash,
       salt,
       false,
+      None,
     )
     .await?;
   db.group()

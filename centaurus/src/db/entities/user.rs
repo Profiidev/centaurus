@@ -11,6 +11,8 @@ pub struct Model {
   pub password: String,
   pub salt: String,
   pub oidc_user: bool,
+  #[sea_orm(unique, nullable)]
+  pub oidc_subject: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

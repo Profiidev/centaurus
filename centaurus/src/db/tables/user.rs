@@ -53,6 +53,7 @@ impl<'db> UserTable<'db> {
     password: String,
     salt: String,
     oidc_user: bool,
+    oidc_subject: Option<String>,
   ) -> Result<Uuid> {
     use sea_orm::IntoActiveModel;
 
@@ -91,6 +92,7 @@ impl<'db> UserTable<'db> {
       password,
       salt,
       oidc_user,
+      oidc_subject,
     }
     .into_active_model();
 
@@ -117,6 +119,41 @@ impl<'db> UserTable<'db> {
         .one(self.db)
         .await?,
     )
+  }
+
+  pub async fn try_get_user_by_oidc_subject(&self, subject: &str) -> Result<Option<user::Model>> {
+    Ok(
+      user::Entity::find()
+        .filter(user::Column::OidcSubject.eq(subject.to_string()))
+        .one(self.db)
+        .await?,
+    )
+  }
+
+  pub async fn set_oidc_subject(&self, id: Uuid, subject: String) -> Result<user::Model> {
+    let mut user: user::ActiveModel = self.get_user_by_id(id).await?.into();
+
+    user.oidc_subject = Set(Some(subject));
+
+    Ok(user.update(self.db).await?)
+  }
+
+  pub async fn resolve_oidc_user(&self, subject: &str, email: &str) -> Result<Option<user::Model>> {
+    if let Some(user) = self.try_get_user_by_oidc_subject(subject).await? {
+      return Ok(Some(user));
+    }
+
+    let Some(user) = self.try_get_user_by_email(email).await? else {
+      return Ok(None);
+    };
+
+    match &user.oidc_subject {
+      None => Ok(Some(
+        self.set_oidc_subject(user.id, subject.to_string()).await?,
+      )),
+      Some(stored) if stored == subject => Ok(Some(user)),
+      Some(_) => Ok(None),
+    }
   }
 
   pub async fn get_user_by_email(&self, email: &str) -> Result<user::Model> {
@@ -369,6 +406,7 @@ mod tests {
         "pass".into(),
         "salt".into(),
         false,
+        None,
       )
       .await
       .unwrap()
@@ -434,6 +472,7 @@ mod tests {
         "pw".into(),
         "salt".into(),
         true,
+        None,
       )
       .await
       .unwrap();
@@ -537,6 +576,80 @@ mod tests {
     assert_eq!(table.count_users().await.unwrap(), 2);
     assert_eq!(table.list_users().await.unwrap().len(), 2);
     assert_eq!(table.list_users_simple().await.unwrap().len(), 2);
+  }
+
+  #[tokio::test]
+  async fn test_resolve_oidc_user_by_subject() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let id = table
+      .create_user(
+        "subj".into(),
+        "subj@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        Some("subject-1".into()),
+      )
+      .await
+      .unwrap();
+
+    let user = table
+      .resolve_oidc_user("subject-1", "other@example.com")
+      .await
+      .unwrap()
+      .unwrap();
+    assert_eq!(user.id, id);
+  }
+
+  #[tokio::test]
+  async fn test_resolve_oidc_user_email_backfill() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let id = table
+      .create_user(
+        "backfill".into(),
+        "backfill@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        None,
+      )
+      .await
+      .unwrap();
+
+    let user = table
+      .resolve_oidc_user("subject-1", "backfill@example.com")
+      .await
+      .unwrap()
+      .unwrap();
+    assert_eq!(user.id, id);
+    assert_eq!(user.oidc_subject, Some("subject-1".into()));
+  }
+
+  #[tokio::test]
+  async fn test_resolve_oidc_user_conflicting_subject() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    table
+      .create_user(
+        "conflict".into(),
+        "conflict@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        Some("stored-subject".into()),
+      )
+      .await
+      .unwrap();
+
+    assert!(
+      table
+        .resolve_oidc_user("new-subject", "conflict@example.com")
+        .await
+        .unwrap()
+        .is_none()
+    );
   }
 
   #[tokio::test]

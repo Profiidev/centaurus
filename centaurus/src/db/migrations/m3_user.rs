@@ -80,6 +80,7 @@ pub enum User {
   Password,
   Salt,
   OidcUser,
+  OidcSubject,
 }
 
 #[cfg(feature = "avatar")]
