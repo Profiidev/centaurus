@@ -6,6 +6,7 @@ pub mod m2_settings;
 pub mod m3_user;
 pub mod m4_groups;
 pub mod m5_setup;
+pub mod m6_user_oidc_subject;
 
 pub struct Migrator;
 
@@ -19,6 +20,7 @@ impl MigratorTrait for Migrator {
       Box::new(m3_user::Migration),
       Box::new(m4_groups::Migration),
       Box::new(m5_setup::Migration),
+      Box::new(m6_user_oidc_subject::Migration),
     ]
   }
 }

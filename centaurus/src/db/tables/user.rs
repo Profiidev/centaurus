@@ -53,6 +53,7 @@ impl<'db> UserTable<'db> {
     password: String,
     salt: String,
     oidc_user: bool,
+    oidc_subject: Option<String>,
   ) -> Result<Uuid> {
     use sea_orm::IntoActiveModel;
 
@@ -91,6 +92,7 @@ impl<'db> UserTable<'db> {
       password,
       salt,
       oidc_user,
+      oidc_subject,
     }
     .into_active_model();
 
@@ -117,6 +119,41 @@ impl<'db> UserTable<'db> {
         .one(self.db)
         .await?,
     )
+  }
+
+  pub async fn try_get_user_by_oidc_subject(&self, subject: &str) -> Result<Option<user::Model>> {
+    Ok(
+      user::Entity::find()
+        .filter(user::Column::OidcSubject.eq(subject.to_string()))
+        .one(self.db)
+        .await?,
+    )
+  }
+
+  pub async fn set_oidc_subject(&self, id: Uuid, subject: String) -> Result<user::Model> {
+    let mut user: user::ActiveModel = self.get_user_by_id(id).await?.into();
+
+    user.oidc_subject = Set(Some(subject));
+
+    Ok(user.update(self.db).await?)
+  }
+
+  pub async fn resolve_oidc_user(&self, subject: &str, email: &str) -> Result<Option<user::Model>> {
+    if let Some(user) = self.try_get_user_by_oidc_subject(subject).await? {
+      return Ok(Some(user));
+    }
+
+    let Some(user) = self.try_get_user_by_email(email).await? else {
+      return Ok(None);
+    };
+
+    match &user.oidc_subject {
+      None => Ok(Some(
+        self.set_oidc_subject(user.id, subject.to_string()).await?,
+      )),
+      Some(stored) if stored == subject => Ok(Some(user)),
+      Some(_) => Ok(None),
+    }
   }
 
   pub async fn get_user_by_email(&self, email: &str) -> Result<user::Model> {
@@ -343,6 +380,45 @@ impl<'db> UserTable<'db> {
     let count = user::Entity::find().count(self.db).await?;
     Ok(count)
   }
+
+  /// Sync name, email, and OIDC flag from the provider. Returns true if any field changed.
+  pub async fn sync_from_oidc(&self, id: Uuid, name: &str, email: &str) -> Result<bool> {
+    let user = self.get_user_by_id(id).await?;
+    let email = email.to_lowercase();
+
+    let name_changed = user.name != name;
+    let email_changed = user.email != email;
+
+    let email_conflict = if email_changed {
+      matches!(
+        self.try_get_user_by_email(&email).await?,
+        Some(other) if other.id != id
+      )
+    } else {
+      false
+    };
+
+    if email_conflict {
+      tracing::warn!(
+        "OIDC email {email} is already used by another user, skipping email sync for user {id}"
+      );
+    }
+
+    if !name_changed && (!email_changed || email_conflict) {
+      return Ok(false);
+    }
+
+    let mut active: user::ActiveModel = user.into();
+    if name_changed {
+      active.name = Set(name.to_string());
+    }
+    if email_changed && !email_conflict {
+      active.email = Set(email);
+    }
+    active.update(self.db).await?;
+
+    Ok(true)
+  }
 }
 
 #[cfg(test)]
@@ -369,6 +445,7 @@ mod tests {
         "pass".into(),
         "salt".into(),
         false,
+        None,
       )
       .await
       .unwrap()
@@ -434,6 +511,7 @@ mod tests {
         "pw".into(),
         "salt".into(),
         true,
+        None,
       )
       .await
       .unwrap();
@@ -537,6 +615,506 @@ mod tests {
     assert_eq!(table.count_users().await.unwrap(), 2);
     assert_eq!(table.list_users().await.unwrap().len(), 2);
     assert_eq!(table.list_users_simple().await.unwrap().len(), 2);
+  }
+
+  #[tokio::test]
+  async fn test_resolve_oidc_user_by_subject() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let id = table
+      .create_user(
+        "subj".into(),
+        "subj@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        Some("subject-1".into()),
+      )
+      .await
+      .unwrap();
+
+    let user = table
+      .resolve_oidc_user("subject-1", "other@example.com")
+      .await
+      .unwrap()
+      .unwrap();
+    assert_eq!(user.id, id);
+  }
+
+  #[tokio::test]
+  async fn test_resolve_oidc_user_email_backfill() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let id = table
+      .create_user(
+        "backfill".into(),
+        "backfill@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        None,
+      )
+      .await
+      .unwrap();
+
+    let user = table
+      .resolve_oidc_user("subject-1", "backfill@example.com")
+      .await
+      .unwrap()
+      .unwrap();
+    assert_eq!(user.id, id);
+    assert_eq!(user.oidc_subject, Some("subject-1".into()));
+  }
+
+  #[tokio::test]
+  async fn test_resolve_oidc_user_conflicting_subject() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    table
+      .create_user(
+        "conflict".into(),
+        "conflict@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        Some("stored-subject".into()),
+      )
+      .await
+      .unwrap();
+
+    assert!(
+      table
+        .resolve_oidc_user("new-subject", "conflict@example.com")
+        .await
+        .unwrap()
+        .is_none()
+    );
+  }
+
+  #[tokio::test]
+  async fn test_resolve_oidc_user_no_match() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    table
+      .create_user(
+        "other".into(),
+        "other@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        Some("subject-1".into()),
+      )
+      .await
+      .unwrap();
+
+    assert!(
+      table
+        .resolve_oidc_user("unknown-subject", "unknown@example.com")
+        .await
+        .unwrap()
+        .is_none()
+    );
+  }
+
+  #[tokio::test]
+  async fn test_resolve_oidc_user_subject_precedence_over_email() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let subject_id = table
+      .create_user(
+        "by-subject".into(),
+        "subject@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        Some("subject-1".into()),
+      )
+      .await
+      .unwrap();
+    let email_id = table
+      .create_user(
+        "by-email".into(),
+        "email@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        None,
+      )
+      .await
+      .unwrap();
+
+    // subject matches one user while the email belongs to a different user:
+    // the subject match must win and the email user must stay untouched.
+    let user = table
+      .resolve_oidc_user("subject-1", "email@example.com")
+      .await
+      .unwrap()
+      .unwrap();
+    assert_eq!(user.id, subject_id);
+
+    let email_user = table.get_user_by_id(email_id).await.unwrap();
+    assert_eq!(email_user.oidc_subject, None);
+  }
+
+  #[tokio::test]
+  async fn test_try_get_user_by_oidc_subject() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let id = table
+      .create_user(
+        "subj".into(),
+        "subj@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        Some("subject-1".into()),
+      )
+      .await
+      .unwrap();
+
+    assert_eq!(
+      table
+        .try_get_user_by_oidc_subject("subject-1")
+        .await
+        .unwrap()
+        .unwrap()
+        .id,
+      id
+    );
+    assert!(
+      table
+        .try_get_user_by_oidc_subject("missing")
+        .await
+        .unwrap()
+        .is_none()
+    );
+  }
+
+  #[tokio::test]
+  async fn test_set_oidc_subject() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let id = table
+      .create_user(
+        "user".into(),
+        "user@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        None,
+      )
+      .await
+      .unwrap();
+
+    let updated = table
+      .set_oidc_subject(id, "subject-1".into())
+      .await
+      .unwrap();
+    assert_eq!(updated.oidc_subject, Some("subject-1".into()));
+    assert_eq!(
+      table.get_user_by_id(id).await.unwrap().oidc_subject,
+      Some("subject-1".into())
+    );
+  }
+
+  #[tokio::test]
+  async fn test_create_user_duplicate_oidc_subject_fails() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    table
+      .create_user(
+        "first".into(),
+        "first@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        Some("subject-1".into()),
+      )
+      .await
+      .unwrap();
+
+    assert!(
+      table
+        .create_user(
+          "second".into(),
+          "second@example.com".into(),
+          "pw".into(),
+          "salt".into(),
+          true,
+          Some("subject-1".into()),
+        )
+        .await
+        .is_err()
+    );
+  }
+
+  #[tokio::test]
+  async fn test_create_user_allows_multiple_null_subjects() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    table
+      .create_user(
+        "first".into(),
+        "first@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        false,
+        None,
+      )
+      .await
+      .unwrap();
+    table
+      .create_user(
+        "second".into(),
+        "second@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        false,
+        None,
+      )
+      .await
+      .unwrap();
+
+    assert_eq!(table.list_users_simple().await.unwrap().len(), 2);
+  }
+
+  #[tokio::test]
+  async fn test_sync_from_oidc_updates_name_and_email() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let id = table
+      .create_user(
+        "old".into(),
+        "old@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        Some("subject-1".into()),
+      )
+      .await
+      .unwrap();
+
+    assert!(
+      table
+        .sync_from_oidc(id, "New Name", "new@example.com")
+        .await
+        .unwrap()
+    );
+
+    let user = table.get_user_by_id(id).await.unwrap();
+    assert_eq!(user.name, "New Name");
+    assert_eq!(user.email, "new@example.com");
+  }
+
+  #[tokio::test]
+  async fn test_sync_from_oidc_skips_conflicting_email() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let id = table
+      .create_user(
+        "user".into(),
+        "user@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        Some("subject-1".into()),
+      )
+      .await
+      .unwrap();
+    table
+      .create_user(
+        "other".into(),
+        "taken@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        None,
+      )
+      .await
+      .unwrap();
+
+    assert!(
+      !table
+        .sync_from_oidc(id, "user", "taken@example.com")
+        .await
+        .unwrap()
+    );
+
+    let user = table.get_user_by_id(id).await.unwrap();
+    assert_eq!(user.email, "user@example.com");
+  }
+
+  #[tokio::test]
+  async fn test_sync_from_oidc_noop_when_unchanged() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let id = table
+      .create_user(
+        "same".into(),
+        "same@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        None,
+      )
+      .await
+      .unwrap();
+
+    assert!(
+      !table
+        .sync_from_oidc(id, "same", "same@example.com")
+        .await
+        .unwrap()
+    );
+  }
+
+  #[tokio::test]
+  async fn test_sync_from_oidc_updates_name_only() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let id = table
+      .create_user(
+        "old".into(),
+        "keep@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        Some("subject-1".into()),
+      )
+      .await
+      .unwrap();
+
+    assert!(
+      table
+        .sync_from_oidc(id, "New Name", "keep@example.com")
+        .await
+        .unwrap()
+    );
+
+    let user = table.get_user_by_id(id).await.unwrap();
+    assert_eq!(user.name, "New Name");
+    assert_eq!(user.email, "keep@example.com");
+  }
+
+  #[tokio::test]
+  async fn test_sync_from_oidc_updates_email_only() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let id = table
+      .create_user(
+        "keep".into(),
+        "old@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        Some("subject-1".into()),
+      )
+      .await
+      .unwrap();
+
+    assert!(
+      table
+        .sync_from_oidc(id, "keep", "new@example.com")
+        .await
+        .unwrap()
+    );
+
+    let user = table.get_user_by_id(id).await.unwrap();
+    assert_eq!(user.name, "keep");
+    assert_eq!(user.email, "new@example.com");
+  }
+
+  #[tokio::test]
+  async fn test_sync_from_oidc_lowercases_email() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let id = table
+      .create_user(
+        "user".into(),
+        "old@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        Some("subject-1".into()),
+      )
+      .await
+      .unwrap();
+
+    assert!(
+      table
+        .sync_from_oidc(id, "user", "New@Example.COM")
+        .await
+        .unwrap()
+    );
+
+    let user = table.get_user_by_id(id).await.unwrap();
+    assert_eq!(user.email, "new@example.com");
+  }
+
+  #[tokio::test]
+  async fn test_sync_from_oidc_noop_when_email_differs_only_in_case() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let id = table
+      .create_user(
+        "same".into(),
+        "same@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        None,
+      )
+      .await
+      .unwrap();
+
+    assert!(
+      !table
+        .sync_from_oidc(id, "same", "SAME@EXAMPLE.COM")
+        .await
+        .unwrap()
+    );
+
+    let user = table.get_user_by_id(id).await.unwrap();
+    assert_eq!(user.email, "same@example.com");
+  }
+
+  #[tokio::test]
+  async fn test_sync_from_oidc_updates_name_but_skips_conflicting_email() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let id = table
+      .create_user(
+        "old".into(),
+        "user@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        Some("subject-1".into()),
+      )
+      .await
+      .unwrap();
+    table
+      .create_user(
+        "other".into(),
+        "taken@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        None,
+      )
+      .await
+      .unwrap();
+
+    assert!(
+      table
+        .sync_from_oidc(id, "New Name", "taken@example.com")
+        .await
+        .unwrap()
+    );
+
+    let user = table.get_user_by_id(id).await.unwrap();
+    assert_eq!(user.name, "New Name");
+    assert_eq!(user.email, "user@example.com");
   }
 
   #[tokio::test]

@@ -389,6 +389,7 @@ mod tests {
         "pass".into(),
         "salt".into(),
         false,
+        None,
       )
       .await
       .unwrap()

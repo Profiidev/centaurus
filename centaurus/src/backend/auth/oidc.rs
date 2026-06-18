@@ -428,6 +428,7 @@ struct TokenRes {
 
 #[derive(Deserialize)]
 pub struct AuthInfo {
+  pub sub: String,
   pub email: String,
   pub name: String,
   pub picture: Option<String>,
@@ -555,20 +556,8 @@ async fn check_code<T: UpdateMessage>(
   }
   let res: AuthInfo = res.json().await?;
 
-  if let Some(user) = db.user().try_get_user_by_email(&res.email).await? {
-    sync_groups(user.id, &res, &config, db, updater.clone()).await?;
-    #[cfg(feature = "avatar")]
-    if config.image_sync {
-      sync_image(
-        user.id,
-        res.picture,
-        db.clone(),
-        token,
-        config.client.clone(),
-        updater,
-      )
-      .await;
-    }
+  if let Some(user) = db.user().resolve_oidc_user(&res.sub, &res.email).await? {
+    sync_oidc_user(user.id, &res, &config, db, token, updater).await?;
 
     debug!("OIDC user authenticated: {}", user.id);
     cookies = cookies.add(jwt.create_token(user.id)?);
@@ -588,21 +577,10 @@ async fn check_code<T: UpdateMessage>(
       String::new(),
       SaltString::generate(OsRng {}).to_string(),
       true,
+      Some(res.sub.clone()),
     )
     .await?;
-  sync_groups(user, &res, &config, db, updater.clone()).await?;
-  #[cfg(feature = "avatar")]
-  if config.image_sync {
-    sync_image(
-      user,
-      res.picture,
-      db.clone(),
-      token,
-      config.client.clone(),
-      updater,
-    )
-    .await;
-  }
+  sync_oidc_user(user, &res, &config, db, token, updater).await?;
 
   if !db.setup().is_setup().await? || db.user().count_users().await? == 1 {
     let Some(admin_group_id) = db.setup().get_admin_group_id().await? else {
@@ -645,6 +623,40 @@ impl AuthInfo {
     }
     Vec::new()
   }
+}
+
+async fn sync_oidc_user<T: UpdateMessage>(
+  user_id: Uuid,
+  auth: &AuthInfo,
+  config: &OidcConfig,
+  db: &Connection,
+  #[allow(unused)] token: String,
+  updater: Updater<T>,
+) -> Result<()> {
+  if db
+    .user()
+    .sync_from_oidc(user_id, &auth.name, &auth.email)
+    .await?
+  {
+    updater.send_to(user_id, T::user(user_id)).await;
+  }
+
+  sync_groups(user_id, auth, config, db, updater.clone()).await?;
+
+  #[cfg(feature = "avatar")]
+  if config.image_sync {
+    sync_image(
+      user_id,
+      auth.picture.clone(),
+      db.clone(),
+      token,
+      config.client.clone(),
+      updater,
+    )
+    .await;
+  }
+
+  Ok(())
 }
 
 async fn sync_groups<T: UpdateMessage>(
@@ -718,6 +730,7 @@ mod tests {
   use sea_orm_migration::MigratorTrait;
   use serde::{Deserialize, Serialize};
   use serde_json::json;
+  use std::sync::{Arc, Mutex};
 
   #[derive(Serialize, Deserialize, Clone, Debug)]
   enum Msg {
@@ -797,6 +810,157 @@ mod tests {
     let conn = connect_db(&DBConfig::default(), "sqlite::memory:").await;
     Migrator::up(&*conn, None).await.unwrap();
     conn
+  }
+
+  struct SigningIdp {
+    base: String,
+    token_slot: Arc<Mutex<String>>,
+    enc_key: jsonwebtoken::EncodingKey,
+  }
+
+  async fn signing_idp(userinfo: serde_json::Value) -> SigningIdp {
+    use jsonwebtoken::EncodingKey;
+    use rsa::pkcs1::EncodeRsaPrivateKey;
+    use rsa::pkcs8::LineEnding;
+    use rsa::traits::PublicKeyParts;
+    use rsa::{RsaPrivateKey, RsaPublicKey};
+
+    let priv_key = RsaPrivateKey::new(&mut OsRng, 2048).unwrap();
+    let pub_key = RsaPublicKey::from(&priv_key);
+    let n = BASE64_URL_SAFE_NO_PAD.encode(pub_key.n().to_bytes_be());
+    let e = BASE64_URL_SAFE_NO_PAD.encode(pub_key.e().to_bytes_be());
+    let enc_key =
+      EncodingKey::from_rsa_pem(priv_key.to_pkcs1_pem(LineEnding::LF).unwrap().as_bytes()).unwrap();
+    let token_slot = Arc::new(Mutex::new(String::new()));
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());
+    let disco_base = base.clone();
+    let jwk = json!({"keys":[{"kty":"RSA","kid":"test","alg":"RS256","use":"sig","n":n,"e":e}]});
+    let slot = token_slot.clone();
+    let app = axum::Router::new()
+      .route(
+        "/.well-known/openid-configuration",
+        get(move || {
+          let base = disco_base.clone();
+          async move {
+            axum::Json(json!({
+              "issuer": base,
+              "authorization_endpoint": format!("{base}/authorize"),
+              "token_endpoint": format!("{base}/token"),
+              "userinfo_endpoint": format!("{base}/userinfo"),
+              "jwks_uri": format!("{base}/jwks"),
+            }))
+          }
+        }),
+      )
+      .route(
+        "/jwks",
+        get(move || {
+          let jwk = jwk.clone();
+          async move { axum::Json(jwk) }
+        }),
+      )
+      .route(
+        "/authorize",
+        post(|| async {
+          (
+            StatusCode::FOUND,
+            [(LOCATION, "https://idp.example/redirect")],
+          )
+        }),
+      )
+      .route(
+        "/token",
+        post(move || {
+          let slot = slot.clone();
+          async move { axum::Json(json!({"id_token": slot.lock().unwrap().clone()})) }
+        }),
+      )
+      .route(
+        "/userinfo",
+        get(move || {
+          let userinfo = userinfo.clone();
+          async move { axum::Json(userinfo) }
+        }),
+      );
+    tokio::spawn(async move {
+      axum::serve(listener, app).await.unwrap();
+    });
+
+    SigningIdp {
+      base,
+      token_slot,
+      enc_key,
+    }
+  }
+
+  async fn run_oidc_callback(
+    conn: &Connection,
+    idp: &SigningIdp,
+    create_user: bool,
+    id_token_sub: &str,
+  ) -> String {
+    use jsonwebtoken::{Algorithm, Header, encode};
+
+    let oidc_settings = OidcSettings {
+      issuer: Url::parse(&idp.base).unwrap(),
+      client_id: "client".into(),
+      client_secret: "secret".into(),
+      scopes: vec!["openid".into()],
+      group_sync: false,
+      group_claim: "groups".into(),
+      pkce: false,
+      image_sync: false,
+      create_user,
+    };
+
+    let state = OidcState::new(conn, None).await;
+    state.try_init(&oidc_settings).await.unwrap();
+    let jwt = JwtState::init(&AuthConfig::default(), conn).await;
+    let (cookies, _) = oidc_url(state.clone(), jwt.clone(), CookieJar::new())
+      .await
+      .unwrap();
+    let state_id = *state.state.iter().next().unwrap().key();
+    let nonce = *state.nonce.iter().next().unwrap().key();
+
+    let exp = chrono::Utc::now().timestamp() + 3600;
+    let claims = json!({
+      "iss": idp.base,
+      "aud": "client",
+      "sub": id_token_sub,
+      "nonce": nonce.to_string(),
+      "exp": exp,
+    });
+    let mut header = Header::new(Algorithm::RS256);
+    header.kid = Some("test".into());
+    *idp.token_slot.lock().unwrap() = encode(&header, &claims, &idp.enc_key).unwrap();
+
+    let updater: Updater<Msg> = UpdateState::<Msg>::init().await.1;
+    let out = oidc_callback::<Msg>(
+      axum::extract::Query(OidcCallbackQuery {
+        code: Some("auth-code".into()),
+        state: Some(state_id),
+        error: None,
+      }),
+      state,
+      cookies,
+      conn.clone(),
+      SiteConfig::default(),
+      jwt,
+      updater,
+    )
+    .await
+    .unwrap();
+
+    out
+      .into_response()
+      .headers()
+      .get(LOCATION)
+      .unwrap()
+      .to_str()
+      .unwrap()
+      .to_string()
   }
 
   #[tokio::test]
@@ -1014,7 +1178,13 @@ mod tests {
       )
       .route(
         "/userinfo",
-        get(|| async { axum::Json(json!({"email":"oidc@example.com","name":"OIDC User"})) }),
+        get(|| async {
+          axum::Json(json!({
+            "sub": "subject-1",
+            "email": "oidc@example.com",
+            "name": "OIDC User"
+          }))
+        }),
       );
     tokio::spawn(async move {
       axum::serve(listener, app).await.unwrap();
@@ -1092,8 +1262,199 @@ mod tests {
       .unwrap()
       .expect("OIDC user should have been created");
     assert!(user.oidc_user);
+    assert_eq!(user.oidc_subject, Some("subject-1".into()));
     assert!(conn.setup().is_setup().await.unwrap());
     assert!(conn.group().is_in_group(group, user.id).await.unwrap());
+  }
+
+  #[tokio::test]
+  async fn test_callback_matches_existing_user_by_subject() {
+    let conn = db().await;
+    let user_id = conn
+      .user()
+      .create_user(
+        "existing".into(),
+        "old@example.com".into(),
+        String::new(),
+        "salt".into(),
+        true,
+        Some("subject-1".into()),
+      )
+      .await
+      .unwrap();
+
+    let idp = signing_idp(json!({
+      "sub": "subject-1",
+      "email": "new@example.com",
+      "name": "OIDC User"
+    }))
+    .await;
+    let loc = run_oidc_callback(&conn, &idp, false, "subject-1").await;
+    assert!(!loc.contains("error="), "unexpected error redirect: {loc}");
+
+    let user = conn.user().get_user_by_id(user_id).await.unwrap();
+    assert_eq!(user.email, "new@example.com");
+    assert_eq!(user.name, "OIDC User");
+    assert_eq!(user.oidc_subject, Some("subject-1".into()));
+  }
+
+  #[tokio::test]
+  async fn test_callback_subject_match_skips_email_taken_by_other_user() {
+    let conn = db().await;
+    let user_id = conn
+      .user()
+      .create_user(
+        "existing".into(),
+        "old@example.com".into(),
+        String::new(),
+        "salt".into(),
+        true,
+        Some("subject-1".into()),
+      )
+      .await
+      .unwrap();
+    conn
+      .user()
+      .create_user(
+        "other".into(),
+        "taken@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        false,
+        None,
+      )
+      .await
+      .unwrap();
+
+    let idp = signing_idp(json!({
+      "sub": "subject-1",
+      "email": "taken@example.com",
+      "name": "OIDC User"
+    }))
+    .await;
+    let loc = run_oidc_callback(&conn, &idp, false, "subject-1").await;
+    assert!(!loc.contains("error="), "unexpected error redirect: {loc}");
+
+    // Login succeeds, name syncs, but the conflicting email is left untouched.
+    let user = conn.user().get_user_by_id(user_id).await.unwrap();
+    assert_eq!(user.name, "OIDC User");
+    assert_eq!(user.email, "old@example.com");
+    assert_eq!(user.oidc_subject, Some("subject-1".into()));
+  }
+
+  #[tokio::test]
+  async fn test_callback_email_match_backfills_subject() {
+    let conn = db().await;
+    let user_id = conn
+      .user()
+      .create_user(
+        "existing".into(),
+        "oidc@example.com".into(),
+        String::new(),
+        "salt".into(),
+        true,
+        None,
+      )
+      .await
+      .unwrap();
+
+    let idp = signing_idp(json!({
+      "sub": "subject-1",
+      "email": "oidc@example.com",
+      "name": "OIDC User"
+    }))
+    .await;
+    let loc = run_oidc_callback(&conn, &idp, false, "subject-1").await;
+    assert!(!loc.contains("error="), "unexpected error redirect: {loc}");
+
+    let user = conn.user().get_user_by_id(user_id).await.unwrap();
+    assert_eq!(user.oidc_subject, Some("subject-1".into()));
+    assert_eq!(user.name, "OIDC User");
+  }
+
+  #[tokio::test]
+  async fn test_callback_email_match_marks_local_user_as_oidc() {
+    let conn = db().await;
+    let user_id = conn
+      .user()
+      .create_user(
+        "local".into(),
+        "local@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        false,
+        None,
+      )
+      .await
+      .unwrap();
+
+    let idp = signing_idp(json!({
+      "sub": "subject-1",
+      "email": "local@example.com",
+      "name": "OIDC User"
+    }))
+    .await;
+    let loc = run_oidc_callback(&conn, &idp, false, "subject-1").await;
+    assert!(!loc.contains("error="), "unexpected error redirect: {loc}");
+
+    let user = conn.user().get_user_by_id(user_id).await.unwrap();
+    assert_eq!(user.oidc_subject, Some("subject-1".into()));
+    assert_eq!(user.name, "OIDC User");
+  }
+
+  #[tokio::test]
+  async fn test_callback_email_match_conflicting_subject_rejected() {
+    let conn = db().await;
+    conn
+      .user()
+      .create_user(
+        "existing".into(),
+        "oidc@example.com".into(),
+        String::new(),
+        "salt".into(),
+        true,
+        Some("other-subject".into()),
+      )
+      .await
+      .unwrap();
+
+    let idp = signing_idp(json!({
+      "sub": "subject-1",
+      "email": "oidc@example.com",
+      "name": "OIDC User"
+    }))
+    .await;
+    let loc = run_oidc_callback(&conn, &idp, false, "subject-1").await;
+    assert!(
+      loc.contains("error=user_not_found"),
+      "expected user_not_found, got {loc}"
+    );
+  }
+
+  #[tokio::test]
+  async fn test_callback_no_match_create_user_disabled() {
+    let conn = db().await;
+
+    let idp = signing_idp(json!({
+      "sub": "subject-1",
+      "email": "nobody@example.com",
+      "name": "OIDC User"
+    }))
+    .await;
+    // No existing user matches by subject or email, and user creation is off.
+    let loc = run_oidc_callback(&conn, &idp, false, "subject-1").await;
+    assert!(
+      loc.contains("error=user_not_found"),
+      "expected user_not_found, got {loc}"
+    );
+    assert!(
+      conn
+        .user()
+        .try_get_user_by_oidc_subject("subject-1")
+        .await
+        .unwrap()
+        .is_none()
+    );
   }
 
   #[tokio::test]

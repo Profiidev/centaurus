@@ -181,6 +181,7 @@ async fn create_user<T: UpdateMessage>(
       password_hash,
       salt,
       false,
+      None,
     )
     .await?;
   if mailer.is_active().await {

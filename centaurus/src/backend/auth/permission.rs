@@ -105,7 +105,14 @@ mod tests {
     let parts = empty_parts();
     let uid = conn
       .user()
-      .create_user("u".into(), "u@x.com".into(), "h".into(), "s".into(), false)
+      .create_user(
+        "u".into(),
+        "u@x.com".into(),
+        "h".into(),
+        "s".into(),
+        false,
+        None,
+      )
       .await
       .unwrap();
 
@@ -119,7 +126,14 @@ mod tests {
     let parts = empty_parts();
     let uid = conn
       .user()
-      .create_user("u".into(), "u@x.com".into(), "h".into(), "s".into(), false)
+      .create_user(
+        "u".into(),
+        "u@x.com".into(),
+        "h".into(),
+        "s".into(),
+        false,
+        None,
+      )
       .await
       .unwrap();
 
