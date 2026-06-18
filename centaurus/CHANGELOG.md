@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-06-18
+
+### 🚀 Features
+
+- Match oidc user by subject and not email
+- Sync email and username on oidc login
+
+### 🐛 Bug Fixes
+
+- Always allow admins to change email
+- Unused param
+
+### 🧪 Testing
+
+- More test coverage for oidc matching
+- Added more tests for oidc data sync
+
+### ⚙️ Miscellaneous Tasks
+
+- Fix code style issues with rustfmt
+
+
+
 ## [0.14.6] - 2026-06-13
 
 ### 🐛 Bug Fixes
