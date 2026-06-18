@@ -867,10 +867,13 @@ mod tests {
           async move { axum::Json(json!({"id_token": slot.lock().unwrap().clone()})) }
         }),
       )
-      .route("/userinfo", get(move || {
-        let userinfo = userinfo.clone();
-        async move { axum::Json(userinfo) }
-      }));
+      .route(
+        "/userinfo",
+        get(move || {
+          let userinfo = userinfo.clone();
+          async move { axum::Json(userinfo) }
+        }),
+      );
     tokio::spawn(async move {
       axum::serve(listener, app).await.unwrap();
     });
@@ -940,7 +943,8 @@ mod tests {
     .await
     .unwrap();
 
-    out.into_response()
+    out
+      .into_response()
       .headers()
       .get(LOCATION)
       .unwrap()

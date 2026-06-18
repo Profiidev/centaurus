@@ -117,7 +117,14 @@ mod tests {
     let conn = db().await;
     let uid = conn
       .user()
-      .create_user("u".into(), "u@x.com".into(), "h".into(), "s".into(), false, None)
+      .create_user(
+        "u".into(),
+        "u@x.com".into(),
+        "h".into(),
+        "s".into(),
+        false,
+        None,
+      )
       .await
       .unwrap();
 
@@ -132,7 +139,14 @@ mod tests {
     let conn = db().await;
     let uid = conn
       .user()
-      .create_user("u".into(), "u@x.com".into(), "h".into(), "s".into(), false, None)
+      .create_user(
+        "u".into(),
+        "u@x.com".into(),
+        "h".into(),
+        "s".into(),
+        false,
+        None,
+      )
       .await
       .unwrap();
 
