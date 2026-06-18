@@ -653,6 +653,193 @@ mod tests {
   }
 
   #[tokio::test]
+  async fn test_resolve_oidc_user_no_match() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    table
+      .create_user(
+        "other".into(),
+        "other@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        Some("subject-1".into()),
+      )
+      .await
+      .unwrap();
+
+    assert!(
+      table
+        .resolve_oidc_user("unknown-subject", "unknown@example.com")
+        .await
+        .unwrap()
+        .is_none()
+    );
+  }
+
+  #[tokio::test]
+  async fn test_resolve_oidc_user_subject_precedence_over_email() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let subject_id = table
+      .create_user(
+        "by-subject".into(),
+        "subject@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        Some("subject-1".into()),
+      )
+      .await
+      .unwrap();
+    let email_id = table
+      .create_user(
+        "by-email".into(),
+        "email@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        None,
+      )
+      .await
+      .unwrap();
+
+    // subject matches one user while the email belongs to a different user:
+    // the subject match must win and the email user must stay untouched.
+    let user = table
+      .resolve_oidc_user("subject-1", "email@example.com")
+      .await
+      .unwrap()
+      .unwrap();
+    assert_eq!(user.id, subject_id);
+
+    let email_user = table.get_user_by_id(email_id).await.unwrap();
+    assert_eq!(email_user.oidc_subject, None);
+  }
+
+  #[tokio::test]
+  async fn test_try_get_user_by_oidc_subject() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let id = table
+      .create_user(
+        "subj".into(),
+        "subj@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        Some("subject-1".into()),
+      )
+      .await
+      .unwrap();
+
+    assert_eq!(
+      table
+        .try_get_user_by_oidc_subject("subject-1")
+        .await
+        .unwrap()
+        .unwrap()
+        .id,
+      id
+    );
+    assert!(
+      table
+        .try_get_user_by_oidc_subject("missing")
+        .await
+        .unwrap()
+        .is_none()
+    );
+  }
+
+  #[tokio::test]
+  async fn test_set_oidc_subject() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    let id = table
+      .create_user(
+        "user".into(),
+        "user@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        None,
+      )
+      .await
+      .unwrap();
+
+    let updated = table
+      .set_oidc_subject(id, "subject-1".into())
+      .await
+      .unwrap();
+    assert_eq!(updated.oidc_subject, Some("subject-1".into()));
+    assert_eq!(
+      table.get_user_by_id(id).await.unwrap().oidc_subject,
+      Some("subject-1".into())
+    );
+  }
+
+  #[tokio::test]
+  async fn test_create_user_duplicate_oidc_subject_fails() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    table
+      .create_user(
+        "first".into(),
+        "first@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        true,
+        Some("subject-1".into()),
+      )
+      .await
+      .unwrap();
+
+    assert!(
+      table
+        .create_user(
+          "second".into(),
+          "second@example.com".into(),
+          "pw".into(),
+          "salt".into(),
+          true,
+          Some("subject-1".into()),
+        )
+        .await
+        .is_err()
+    );
+  }
+
+  #[tokio::test]
+  async fn test_create_user_allows_multiple_null_subjects() {
+    let conn = setup().await;
+    let table = UserTable::new(&conn);
+    table
+      .create_user(
+        "first".into(),
+        "first@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        false,
+        None,
+      )
+      .await
+      .unwrap();
+    table
+      .create_user(
+        "second".into(),
+        "second@example.com".into(),
+        "pw".into(),
+        "salt".into(),
+        false,
+        None,
+      )
+      .await
+      .unwrap();
+
+    assert_eq!(table.list_users_simple().await.unwrap().len(), 2);
+  }
+
+  #[tokio::test]
   async fn test_delete_user() {
     let conn = setup().await;
     let table = UserTable::new(&conn);

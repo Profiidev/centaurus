@@ -1346,6 +1346,32 @@ mod tests {
   }
 
   #[tokio::test]
+  async fn test_callback_no_match_create_user_disabled() {
+    let conn = db().await;
+
+    let idp = signing_idp(json!({
+      "sub": "subject-1",
+      "email": "nobody@example.com",
+      "name": "OIDC User"
+    }))
+    .await;
+    // No existing user matches by subject or email, and user creation is off.
+    let loc = run_oidc_callback(&conn, &idp, false, "subject-1").await;
+    assert!(
+      loc.contains("error=user_not_found"),
+      "expected user_not_found, got {loc}"
+    );
+    assert!(
+      conn
+        .user()
+        .try_get_user_by_oidc_subject("subject-1")
+        .await
+        .unwrap()
+        .is_none()
+    );
+  }
+
+  #[tokio::test]
   async fn test_callback_token_endpoint_error() {
     // A mock IdP whose token endpoint rejects the exchange.
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
