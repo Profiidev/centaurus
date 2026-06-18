@@ -630,7 +630,7 @@ async fn sync_oidc_user<T: UpdateMessage>(
   auth: &AuthInfo,
   config: &OidcConfig,
   db: &Connection,
-  token: String,
+  #[allow(unused)] token: String,
   updater: Updater<T>,
 ) -> Result<()> {
   if db
