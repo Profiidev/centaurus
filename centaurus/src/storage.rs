@@ -116,6 +116,9 @@ impl FileStorage {
     match self {
       Self::Local(path) => {
         let file_path = path.join(name);
+        if let Some(parent) = file_path.parent() {
+          fs::create_dir_all(parent).await?;
+        }
         let mut file = fs::File::create(&file_path).await?;
         io::copy(reader, &mut file).await?;
       }
@@ -375,6 +378,31 @@ mod tests {
 
     storage.delete_file("test.txt").await.unwrap();
     assert!(!storage.exists("test.txt").await.unwrap());
+  }
+
+  #[tokio::test]
+  async fn test_local_save_file_creates_nested_dirs() {
+    let dir = tempdir().unwrap();
+    let storage = FileStorage::Local(dir.path().to_path_buf());
+
+    // A name containing "/" must create the intermediate directories.
+    let mut content = b"nested" as &[u8];
+    storage
+      .save_file(&mut content, "a/b/c/file.txt")
+      .await
+      .unwrap();
+
+    // The directory tree was created on disk.
+    assert!(dir.path().join("a/b/c").is_dir());
+    assert!(dir.path().join("a/b/c/file.txt").is_file());
+
+    // The file is reachable through the normal API surface.
+    assert!(storage.exists("a/b/c/file.txt").await.unwrap());
+    let body = storage.get_file("a/b/c/file.txt", None).await.unwrap();
+    assert_eq!(read_body(body).await, b"nested");
+
+    storage.delete_file("a/b/c/file.txt").await.unwrap();
+    assert!(!storage.exists("a/b/c/file.txt").await.unwrap());
   }
 
   #[tokio::test]
