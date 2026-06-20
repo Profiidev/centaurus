@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-06-20
+
+### 🐛 Bug Fixes
+
+- Local storage dirs not created when path contains /
+
+
+
 ## [0.15.0] - 2026-06-18
 
 ### 🚀 Features
