@@ -86,7 +86,7 @@ impl<'db> UserTable<'db> {
     };
 
     let model = user::Model {
-      id: Uuid::new_v4(),
+      id: Uuid::now_v7(),
       name: username,
       email,
       password,
@@ -495,9 +495,9 @@ mod tests {
   async fn test_missing_user_errors() {
     let conn = setup().await;
     let table = UserTable::new(&conn);
-    assert!(table.get_user_by_id(Uuid::new_v4()).await.is_err());
+    assert!(table.get_user_by_id(Uuid::now_v7()).await.is_err());
     // user_info resolves to None rather than erroring for an unknown id.
-    assert!(table.user_info(Uuid::new_v4()).await.unwrap().is_none());
+    assert!(table.user_info(Uuid::now_v7()).await.unwrap().is_none());
   }
 
   #[tokio::test]

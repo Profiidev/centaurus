@@ -479,7 +479,7 @@ async fn user_avatar_missing_is_not_found() {
   let app = TestApp::new().await;
   let uid = app.local_user("av", "pw").await;
   let token = app.token(uid);
-  let other = Uuid::new_v4();
+  let other = Uuid::now_v7();
   let (status, _) = app
     .send(
       Method::GET,
@@ -656,7 +656,7 @@ async fn management_crud_flow() {
   let (status, _) = app
     .send(
       Method::GET,
-      &format!("/user/management/{}", Uuid::new_v4()),
+      &format!("/user/management/{}", Uuid::now_v7()),
       Some(&token),
       None,
     )

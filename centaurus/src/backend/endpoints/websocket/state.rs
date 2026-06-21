@@ -172,8 +172,8 @@ mod tests {
   #[tokio::test]
   async fn test_send_to_targets_single_user() {
     let (state, updater) = UpdateState::<Msg>::init().await;
-    let user = Uuid::new_v4();
-    let other = Uuid::new_v4();
+    let user = Uuid::now_v7();
+    let other = Uuid::now_v7();
 
     let (_id, mut rx) = state.create_session(user).await;
     let (_id2, mut rx_other) = state.create_session(other).await;
@@ -189,7 +189,7 @@ mod tests {
   #[tokio::test]
   async fn test_broadcast_reaches_all_sessions() {
     let (state, updater) = UpdateState::<Msg>::init().await;
-    let user = Uuid::new_v4();
+    let user = Uuid::now_v7();
     let (_a, mut rx_a) = state.create_session(user).await;
     let (_b, mut rx_b) = state.create_session(user).await;
 
@@ -202,7 +202,7 @@ mod tests {
   #[tokio::test]
   async fn test_remove_session_stops_delivery() {
     let (state, updater) = UpdateState::<Msg>::init().await;
-    let user = Uuid::new_v4();
+    let user = Uuid::now_v7();
     let (id, mut rx) = state.create_session(user).await;
 
     state.remove_session(&user, &id).await;
