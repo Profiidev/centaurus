@@ -102,13 +102,13 @@ mod tests {
   async fn test_admin_group_persistence() {
     let conn = setup().await;
     let table = SetupTable::new(&conn);
-    let group = Uuid::new_v4();
+    let group = Uuid::now_v7();
 
     table.set_admin_group_created(group).await.unwrap();
     assert_eq!(table.get_admin_group_id().await.unwrap(), Some(group));
 
     // The admin group can be reassigned, and is independent of completion.
-    let group2 = Uuid::new_v4();
+    let group2 = Uuid::now_v7();
     table.set_admin_group_created(group2).await.unwrap();
     assert_eq!(table.get_admin_group_id().await.unwrap(), Some(group2));
     assert!(!table.is_setup().await.unwrap());

@@ -44,7 +44,7 @@ impl<'db> GroupTable<'db> {
   }
 
   pub async fn create_group(&self, name: String) -> Result<Uuid> {
-    let group_id = Uuid::new_v4();
+    let group_id = Uuid::now_v7();
     let model = group::Model { id: group_id, name }.into_active_model();
 
     model.insert(self.db).await?;
@@ -423,7 +423,7 @@ mod tests {
     // Empty user/group additions must also be no-ops and not error.
     table.add_users_to_group(id, vec![]).await.unwrap();
     table
-      .add_user_to_groups(Uuid::new_v4(), vec![])
+      .add_user_to_groups(Uuid::now_v7(), vec![])
       .await
       .unwrap();
   }
@@ -449,7 +449,7 @@ mod tests {
     assert!(ids.contains(&user_a) && ids.contains(&user_b));
 
     assert!(table.is_in_group(group, user_a).await.unwrap());
-    assert!(!table.is_in_group(group, Uuid::new_v4()).await.unwrap());
+    assert!(!table.is_in_group(group, Uuid::now_v7()).await.unwrap());
   }
 
   #[tokio::test]
@@ -539,7 +539,7 @@ mod tests {
     assert_eq!(info.permissions, vec!["p1".to_string()]);
 
     // group_info for a missing id resolves to None rather than erroring.
-    assert!(table.group_info(Uuid::new_v4()).await.unwrap().is_none());
+    assert!(table.group_info(Uuid::now_v7()).await.unwrap().is_none());
   }
 
   #[tokio::test]
@@ -586,7 +586,7 @@ mod tests {
     assert!(table.group_info(group).await.unwrap().is_none());
 
     // Deleting a non-existent group is an error.
-    assert!(table.delete_group(Uuid::new_v4()).await.is_err());
+    assert!(table.delete_group(Uuid::now_v7()).await.is_err());
   }
 
   #[tokio::test]
@@ -614,10 +614,10 @@ mod tests {
     let table = GroupTable::new(&conn);
     assert!(
       table
-        .edit_group(Uuid::new_v4(), "x".into(), vec![], vec![])
+        .edit_group(Uuid::now_v7(), "x".into(), vec![], vec![])
         .await
         .is_err()
     );
-    assert!(table.update_name(Uuid::new_v4(), "x".into()).await.is_err());
+    assert!(table.update_name(Uuid::now_v7(), "x".into()).await.is_err());
   }
 }

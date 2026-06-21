@@ -49,7 +49,7 @@ mod tests {
     Migrator::up(&*conn, None).await.unwrap();
 
     let table = KeyTable::new(&conn);
-    let id = Uuid::new_v4();
+    let id = Uuid::now_v7();
     table
       .create_key("test".into(), "private".into(), id)
       .await

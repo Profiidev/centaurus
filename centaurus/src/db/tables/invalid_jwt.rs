@@ -28,7 +28,7 @@ impl<'db> InvalidJwtTable<'db> {
     let model = invalid_jwt::ActiveModel {
       token: Set(token),
       exp: Set(exp.naive_utc()),
-      id: Set(Uuid::new_v4()),
+      id: Set(Uuid::now_v7()),
     };
     model.insert(self.db).await?;
 

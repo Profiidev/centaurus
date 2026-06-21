@@ -130,7 +130,7 @@ mod tests {
 
     // NoPerm only requires that the user exists.
     assert!(check_user::<NoPerm>(&conn, uid).await.is_ok());
-    assert!(check_user::<NoPerm>(&conn, Uuid::new_v4()).await.is_err());
+    assert!(check_user::<NoPerm>(&conn, Uuid::now_v7()).await.is_err());
   }
 
   #[allow(deprecated)]
