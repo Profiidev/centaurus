@@ -9,7 +9,7 @@ use crate::{
   backend::{
     auth::{
       jwt::jwt_from_request,
-      jwt_state::{JWT_COOKIE_NAME, JwtState},
+      jwt_state::{JWT_COOKIE_NAME, JwtClaims, JwtState},
       permission::{NoPerm, Permission},
     },
     request::extract::StateExtractExt,
@@ -32,8 +32,13 @@ pub trait Auth: Send + Sync + 'static {
     JWT_COOKIE_NAME
   }
 
-  async fn check(&self, db: &Connection, parts: &mut Parts, token: &str)
-  -> Result<(), ErrorReport>;
+  async fn check(
+    &self,
+    db: &Connection,
+    parts: &mut Parts,
+    token: &str,
+    claims: &JwtClaims,
+  ) -> Result<(), ErrorReport>;
 }
 
 impl<S: Sync, P: Permission> FromRequestParts<S> for JwtAuth<P> {
@@ -50,7 +55,7 @@ impl<S: Sync, P: Permission> FromRequestParts<S> for JwtAuth<P> {
       bail!(UNAUTHORIZED, "invalid token");
     };
 
-    state.auth.check(&db, parts, &token).await?;
+    state.auth.check(&db, parts, &token, &claims).await?;
     P::check(&db, claims.sub, parts).await?;
 
     Ok(JwtAuth {
@@ -84,6 +89,7 @@ impl Auth for StatelessAuth {
     db: &Connection,
     _parts: &mut Parts,
     token: &str,
+    _claims: &JwtClaims,
   ) -> Result<(), ErrorReport> {
     let Ok(valid) = db.invalid_jwt().is_token_valid(token).await else {
       bail!("failed to validate jwt");
