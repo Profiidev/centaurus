@@ -1,4 +1,7 @@
-use std::sync::{Arc, atomic::AtomicI32};
+use std::{
+  collections::HashMap,
+  sync::{Arc, atomic::AtomicI32},
+};
 
 use aide::OperationIo;
 use axum::{Extension, extract::FromRequestParts};
@@ -34,6 +37,8 @@ pub struct JwtClaims {
   pub exp: i64,
   pub iss: String,
   pub sub: Uuid,
+  #[serde(flatten)]
+  pub additional_claims: HashMap<String, serde_json::Value>,
 }
 
 #[derive(Clone, FromRequestParts, OperationIo)]
@@ -50,6 +55,14 @@ pub struct JwtState {
 
 impl JwtState {
   pub fn create_raw_token(&self, uuid: Uuid) -> Result<String> {
+    self.create_raw_token_custom(uuid, HashMap::new())
+  }
+
+  pub fn create_raw_token_custom(
+    &self,
+    uuid: Uuid,
+    additional_claims: HashMap<String, serde_json::Value>,
+  ) -> Result<String> {
     let exp = Utc::now()
       .checked_add_signed(Duration::seconds(self.exp))
       .ok_or(Error::from(ErrorKind::ExpiredSignature))?
@@ -59,6 +72,7 @@ impl JwtState {
       exp,
       iss: self.iss.clone(),
       sub: uuid,
+      additional_claims,
     };
 
     Ok(encode(&self.header, &claims, &self.encoding_key)?)

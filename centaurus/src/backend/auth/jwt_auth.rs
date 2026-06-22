@@ -28,10 +28,6 @@ pub struct JwtAuth<P: Permission = NoPerm> {
 
 #[async_trait::async_trait]
 pub trait Auth: Send + Sync + 'static {
-  fn cookie(&self) -> &'static str {
-    JWT_COOKIE_NAME
-  }
-
   async fn check(
     &self,
     db: &Connection,
