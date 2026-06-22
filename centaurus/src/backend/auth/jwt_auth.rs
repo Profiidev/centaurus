@@ -9,7 +9,7 @@ use crate::{
   backend::{
     auth::{
       jwt::jwt_from_request,
-      jwt_state::{JWT_COOKIE_NAME, JwtClaims, JwtState},
+      jwt_state::{JWT_COOKIE_NAME, JwtState},
       permission::{NoPerm, Permission},
     },
     request::extract::StateExtractExt,
@@ -26,6 +26,16 @@ pub struct JwtAuth<P: Permission = NoPerm> {
   _perm: PhantomData<P>,
 }
 
+#[async_trait::async_trait]
+pub trait Auth: Send + Sync + 'static {
+  fn cookie(&self) -> &'static str {
+    JWT_COOKIE_NAME
+  }
+
+  async fn check(&self, db: &Connection, parts: &mut Parts, token: &str)
+  -> Result<(), ErrorReport>;
+}
+
 impl<S: Sync, P: Permission> FromRequestParts<S> for JwtAuth<P> {
   type Rejection = ErrorReport;
 
@@ -33,7 +43,14 @@ impl<S: Sync, P: Permission> FromRequestParts<S> for JwtAuth<P> {
     let token = jwt_from_request(parts, JWT_COOKIE_NAME).await?;
 
     let db = parts.extract_state::<Connection>().await;
-    let claims = check_jwt(&db, parts, token).await?;
+    let state = parts.extract_state::<JwtState>().await;
+
+    let Ok(claims) = state.validate_token(&token) else {
+      tracing::error!("invalid token claims for token: {}", token);
+      bail!(UNAUTHORIZED, "invalid token");
+    };
+
+    state.auth.check(&db, parts, &token).await?;
     P::check(&db, claims.sub, parts).await?;
 
     Ok(JwtAuth {
@@ -58,26 +75,25 @@ impl<S: Sync, P: Permission> OptionalFromRequestParts<S> for JwtAuth<P> {
   }
 }
 
-pub async fn check_jwt(
-  db: &Connection,
-  parts: &mut Parts,
-  token: String,
-) -> Result<JwtClaims, ErrorReport> {
-  let state = parts.extract_state::<JwtState>().await;
+pub struct StatelessAuth;
 
-  let Ok(valid) = db.invalid_jwt().is_token_valid(&token).await else {
-    bail!("failed to validate jwt");
-  };
-  if !valid {
-    bail!(UNAUTHORIZED, "token is invalidated");
+#[async_trait::async_trait]
+impl Auth for StatelessAuth {
+  async fn check(
+    &self,
+    db: &Connection,
+    _parts: &mut Parts,
+    token: &str,
+  ) -> Result<(), ErrorReport> {
+    let Ok(valid) = db.invalid_jwt().is_token_valid(token).await else {
+      bail!("failed to validate jwt");
+    };
+    if !valid {
+      bail!(UNAUTHORIZED, "token is invalidated");
+    }
+
+    Ok(())
   }
-
-  let Ok(claims) = state.validate_token(&token) else {
-    tracing::error!("invalid token claims for token: {}", token);
-    bail!(UNAUTHORIZED, "invalid token");
-  };
-
-  Ok(claims)
 }
 
 #[deprecated]

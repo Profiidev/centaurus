@@ -19,7 +19,10 @@ use tracing::info;
 use uuid::Uuid;
 
 use crate::{
-  backend::auth::settings::AuthConfig,
+  backend::auth::{
+    jwt_auth::{Auth, StatelessAuth},
+    settings::AuthConfig,
+  },
   db::{init::Connection, tables::ConnectionExt},
   error::Result,
 };
@@ -42,6 +45,7 @@ pub struct JwtState {
   validation: Validation,
   pub iss: String,
   pub exp: i64,
+  pub auth: Arc<dyn Auth + Send + Sync>,
 }
 
 impl JwtState {
@@ -80,6 +84,10 @@ impl JwtState {
   }
 
   pub async fn init(config: &AuthConfig, db: &Connection) -> Self {
+    Self::init_with_auth(config, db, StatelessAuth).await
+  }
+
+  pub async fn init_with_auth<A: Auth>(config: &AuthConfig, db: &Connection, auth: A) -> Self {
     let (key, kid) = if let Ok(key) = db.key().get_key_by_name("jwt".into()).await {
       (key.private_key, key.id.to_string())
     } else {
@@ -125,6 +133,7 @@ impl JwtState {
       validation,
       iss: config.auth_issuer.clone(),
       exp: config.auth_jwt_expiration,
+      auth: Arc::new(auth),
     }
   }
 }
