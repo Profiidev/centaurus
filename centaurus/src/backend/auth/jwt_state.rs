@@ -1,4 +1,7 @@
-use std::sync::{Arc, atomic::AtomicI32};
+use std::{
+  collections::HashMap,
+  sync::{Arc, atomic::AtomicI32},
+};
 
 use aide::OperationIo;
 use axum::{Extension, extract::FromRequestParts};
@@ -19,7 +22,10 @@ use tracing::info;
 use uuid::Uuid;
 
 use crate::{
-  backend::auth::settings::AuthConfig,
+  backend::auth::{
+    jwt_auth::{Auth, StatelessAuth},
+    settings::AuthConfig,
+  },
   db::{init::Connection, tables::ConnectionExt},
   error::Result,
 };
@@ -31,6 +37,8 @@ pub struct JwtClaims {
   pub exp: i64,
   pub iss: String,
   pub sub: Uuid,
+  #[serde(flatten)]
+  pub additional_claims: HashMap<String, serde_json::Value>,
 }
 
 #[derive(Clone, FromRequestParts, OperationIo)]
@@ -42,10 +50,19 @@ pub struct JwtState {
   validation: Validation,
   pub iss: String,
   pub exp: i64,
+  pub auth: Arc<dyn Auth + Send + Sync>,
 }
 
 impl JwtState {
   pub fn create_raw_token(&self, uuid: Uuid) -> Result<String> {
+    self.create_raw_token_custom(uuid, HashMap::new())
+  }
+
+  pub fn create_raw_token_custom(
+    &self,
+    uuid: Uuid,
+    additional_claims: HashMap<String, serde_json::Value>,
+  ) -> Result<String> {
     let exp = Utc::now()
       .checked_add_signed(Duration::seconds(self.exp))
       .ok_or(Error::from(ErrorKind::ExpiredSignature))?
@@ -55,6 +72,7 @@ impl JwtState {
       exp,
       iss: self.iss.clone(),
       sub: uuid,
+      additional_claims,
     };
 
     Ok(encode(&self.header, &claims, &self.encoding_key)?)
@@ -80,6 +98,10 @@ impl JwtState {
   }
 
   pub async fn init(config: &AuthConfig, db: &Connection) -> Self {
+    Self::init_with_auth(config, db, StatelessAuth).await
+  }
+
+  pub async fn init_with_auth<A: Auth>(config: &AuthConfig, db: &Connection, auth: A) -> Self {
     let (key, kid) = if let Ok(key) = db.key().get_key_by_name("jwt".into()).await {
       (key.private_key, key.id.to_string())
     } else {
@@ -125,6 +147,7 @@ impl JwtState {
       validation,
       iss: config.auth_issuer.clone(),
       exp: config.auth_jwt_expiration,
+      auth: Arc::new(auth),
     }
   }
 }
@@ -201,5 +224,104 @@ mod tests {
     // The cookie's value must be a token that validates back to the same user.
     let claims = state.validate_token(cookie.value()).unwrap();
     assert_eq!(claims.sub, uuid);
+  }
+
+  #[tokio::test]
+  async fn test_create_raw_token_has_empty_additional_claims() {
+    // The plain constructor delegates to the custom one with an empty map.
+    let state = test_state().await;
+    let token = state.create_raw_token(Uuid::now_v7()).unwrap();
+    let claims = state.validate_token(&token).unwrap();
+    assert!(claims.additional_claims.is_empty());
+  }
+
+  #[tokio::test]
+  async fn test_create_raw_token_custom_roundtrips_additional_claims() {
+    let state = test_state().await;
+    let uuid = Uuid::now_v7();
+    let mut extra = HashMap::new();
+    extra.insert("role".to_string(), serde_json::json!("admin"));
+    extra.insert("level".to_string(), serde_json::json!(42));
+
+    let token = state.create_raw_token_custom(uuid, extra.clone()).unwrap();
+    let claims = state.validate_token(&token).unwrap();
+
+    assert_eq!(claims.sub, uuid);
+    assert_eq!(claims.iss, state.iss);
+    assert_eq!(claims.additional_claims, extra);
+  }
+
+  #[tokio::test]
+  async fn test_additional_claims_are_flattened_into_payload() {
+    use base64::Engine;
+
+    // `#[serde(flatten)]` must merge the extra claims into the top-level
+    // payload object, not nest them under an `additional_claims` key.
+    let state = test_state().await;
+    let mut extra = HashMap::new();
+    extra.insert("role".to_string(), serde_json::json!("admin"));
+
+    let token = state
+      .create_raw_token_custom(Uuid::now_v7(), extra)
+      .unwrap();
+    let payload_b64 = token.split('.').nth(1).unwrap();
+    let payload_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+      .decode(payload_b64)
+      .unwrap();
+    let payload: serde_json::Value = serde_json::from_slice(&payload_bytes).unwrap();
+
+    assert_eq!(payload["role"], serde_json::json!("admin"));
+    assert!(payload.get("additional_claims").is_none());
+    // Standard claims still present at the top level.
+    assert!(payload.get("sub").is_some());
+    assert!(payload.get("exp").is_some());
+    assert!(payload.get("iss").is_some());
+  }
+
+  #[tokio::test]
+  async fn test_init_defaults_to_stateless_auth_rejecting_invalidated_tokens() {
+    use std::sync::atomic::AtomicI32;
+
+    // `init` wires up `StatelessAuth`, which consults the invalid-jwt table.
+    let config = AuthConfig::default();
+    let conn = connect_db(&DBConfig::default(), "sqlite::memory:").await;
+    Migrator::up(&*conn, None).await.unwrap();
+    let state = JwtState::init(&config, &conn).await;
+
+    let token = state.create_raw_token(Uuid::now_v7()).unwrap();
+    let claims = state.validate_token(&token).unwrap();
+
+    let mut parts = http::Request::builder()
+      .body(axum::body::Body::empty())
+      .unwrap()
+      .into_parts()
+      .0;
+
+    // Not yet invalidated -> the default auth accepts it.
+    assert!(
+      state
+        .auth
+        .check(&conn, &mut parts, &token, &claims)
+        .await
+        .is_ok()
+    );
+
+    // Once invalidated in the DB, the same default auth rejects it.
+    conn
+      .invalid_jwt()
+      .invalidate_jwt(
+        token.clone(),
+        chrono::Utc::now() + Duration::seconds(3600),
+        Arc::new(AtomicI32::new(0)),
+      )
+      .await
+      .unwrap();
+    assert!(
+      state
+        .auth
+        .check(&conn, &mut parts, &token, &claims)
+        .await
+        .is_err()
+    );
   }
 }
