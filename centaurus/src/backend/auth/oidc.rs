@@ -63,11 +63,13 @@ pub fn router<T: UpdateMessage>(rate_limiter: &mut RateLimiter) -> BackendRouter
     .route("/callback", get(oidc_callback::<T>))
 }
 
+type State = (Instant, Option<String>, Option<String>);
+
 #[derive(Clone, FromRequestParts, Debug, OperationIo)]
 #[from_request(via(Extension))]
 pub struct OidcState {
   config: Arc<Mutex<Option<OidcConfig>>>,
-  state: Arc<DashMap<Uuid, (Instant, Option<String>)>>,
+  state: Arc<DashMap<Uuid, State>>,
   nonce: Arc<DashMap<Uuid, Instant>>,
 }
 
@@ -191,7 +193,7 @@ impl OidcState {
             .retain(|_, &mut instant| now.duration_since(instant) < expiration_duration);
           state
             .state
-            .retain(|_, &mut (instant, _)| now.duration_since(instant) < expiration_duration);
+            .retain(|_, &mut (instant, _, _)| now.duration_since(instant) < expiration_duration);
         }
       }
     });
@@ -328,10 +330,17 @@ struct OidcResponse {
   url: String,
 }
 
+#[derive(Deserialize)]
+#[cfg_attr(feature = "openapi", derive(schemars::JsonSchema))]
+struct OidcUrlQuery {
+  redirect_to: Option<String>,
+}
+
 async fn oidc_url(
   state: OidcState,
   jwt: JwtState,
   mut cookies: CookieJar,
+  Query(OidcUrlQuery { redirect_to }): Query<OidcUrlQuery>,
 ) -> Result<(CookieJar, Json<OidcResponse>)> {
   let lock = state.config.lock().await;
   let Some(config) = lock.clone() else {
@@ -400,7 +409,7 @@ async fn oidc_url(
 
   state
     .state
-    .insert(state_id, (Instant::now(), code_verifier));
+    .insert(state_id, (Instant::now(), code_verifier, redirect_to));
   cookies = cookies.add(jwt.create_cookie(OIDC_STATE, state_id.to_string()));
 
   state.nonce.insert(nonce, Instant::now());
@@ -461,7 +470,7 @@ async fn oidc_callback<T: UpdateMessage>(
   cookies = cookies.remove(Cookie::from(OIDC_STATE));
 
   let mut url = oidc_config.site_url;
-  url.set_path(path);
+  url.set_path(&path);
   url.set_query(error.map(|e| format!("error={e}")).as_deref());
 
   Ok((cookies, Redirect::found(url.to_string())))
@@ -483,33 +492,57 @@ async fn check_code<T: UpdateMessage>(
   nonce_map: &DashMap<Uuid, Instant>,
   updater: Updater<T>,
   oidc_state: &OidcState,
-) -> Result<(&'static str, Option<String>, CookieJar)> {
+) -> Result<(String, Option<String>, CookieJar)> {
   let lock = oidc_state.config.lock().await;
   let Some(config) = lock.clone() else {
-    return Ok(("/login", Some("oidc_not_configured".to_string()), cookies));
+    return Ok((
+      "/login".to_string(),
+      Some("oidc_not_configured".to_string()),
+      cookies,
+    ));
   };
   drop(lock);
 
   if let Some(error) = error {
-    return Ok(("/login", Some(error), cookies));
+    return Ok(("/login".to_string(), Some(error), cookies));
   }
 
   let Some(state) = state else {
-    return Ok(("/login", Some("invalid_state".to_string()), cookies));
+    return Ok((
+      "/login".to_string(),
+      Some("invalid_state".to_string()),
+      cookies,
+    ));
   };
 
-  let Some((_, (_, code_verifier))) = oidc_state.state.remove(&state) else {
-    return Ok(("/login", Some("invalid_state".to_string()), cookies));
+  let Some((_, (_, code_verifier, redirect_to))) = oidc_state.state.remove(&state) else {
+    return Ok((
+      "/login".to_string(),
+      Some("invalid_state".to_string()),
+      cookies,
+    ));
   };
   let Some(cookie) = cookies.get(OIDC_STATE) else {
-    return Ok(("/login", Some("invalid_state".to_string()), cookies));
+    return Ok((
+      "/login".to_string(),
+      Some("invalid_state".to_string()),
+      cookies,
+    ));
   };
   if cookie.value() != state.to_string() {
-    return Ok(("/login", Some("invalid_state".to_string()), cookies));
+    return Ok((
+      "/login".to_string(),
+      Some("invalid_state".to_string()),
+      cookies,
+    ));
   }
 
   let Some(code) = code else {
-    return Ok(("/login", Some("missing_code".to_string()), cookies));
+    return Ok((
+      "/login".to_string(),
+      Some("missing_code".to_string()),
+      cookies,
+    ));
   };
 
   let mut form = HashMap::new();
@@ -532,10 +565,14 @@ async fn check_code<T: UpdateMessage>(
     let body = res.text().await.unwrap_or_default();
     let Ok(error) = serde_json::from_str::<TokenError>(&body) else {
       tracing::error!("OIDC token request failed: {}", body);
-      return Ok(("/login", Some("invalid_code".to_string()), cookies));
+      return Ok((
+        "/login".to_string(),
+        Some("invalid_code".to_string()),
+        cookies,
+      ));
     };
     tracing::error!("OIDC token request failed: {}", error.error);
-    return Ok(("/login", Some(error.error), cookies));
+    return Ok(("/login".to_string(), Some(error.error), cookies));
   }
 
   let res: TokenRes = res.json().await?;
@@ -552,9 +589,15 @@ async fn check_code<T: UpdateMessage>(
   if !res.status().is_success() {
     let body = res.text().await.unwrap_or_default();
     tracing::error!("OIDC userinfo request failed: {}", body);
-    return Ok(("/login", Some("invalid_token".to_string()), cookies));
+    return Ok((
+      "/login".to_string(),
+      Some("invalid_token".to_string()),
+      cookies,
+    ));
   }
   let res: AuthInfo = res.json().await?;
+
+  let redirect_to = redirect_to.unwrap_or("/".to_string());
 
   if let Some(user) = db.user().resolve_oidc_user(&res.sub, &res.email).await? {
     sync_oidc_user(user.id, &res, &config, db, token, updater).await?;
@@ -562,11 +605,15 @@ async fn check_code<T: UpdateMessage>(
     debug!("OIDC user authenticated: {}", user.id);
     cookies = cookies.add(jwt.create_token(user.id)?);
 
-    return Ok(("/", None, cookies));
+    return Ok((redirect_to, None, cookies));
   }
 
   if !config.create_user {
-    return Ok(("/login", Some("user_not_found".to_string()), cookies));
+    return Ok((
+      "/login".to_string(),
+      Some("user_not_found".to_string()),
+      cookies,
+    ));
   }
 
   let user = db
@@ -606,7 +653,7 @@ async fn check_code<T: UpdateMessage>(
   debug!("OIDC user authenticated: {}", user);
   cookies = cookies.add(jwt.create_token(user)?);
 
-  Ok(("/", None, cookies))
+  Ok((redirect_to, None, cookies))
 }
 
 impl AuthInfo {
@@ -918,9 +965,14 @@ mod tests {
     let state = OidcState::new(conn, None).await;
     state.try_init(&oidc_settings).await.unwrap();
     let jwt = JwtState::init(&AuthConfig::default(), conn).await;
-    let (cookies, _) = oidc_url(state.clone(), jwt.clone(), CookieJar::new())
-      .await
-      .unwrap();
+    let (cookies, _) = oidc_url(
+      state.clone(),
+      jwt.clone(),
+      CookieJar::new(),
+      Query(OidcUrlQuery { redirect_to: None }),
+    )
+    .await
+    .unwrap();
     let state_id = *state.state.iter().next().unwrap().key();
     let nonce = *state.nonce.iter().next().unwrap().key();
 
@@ -998,9 +1050,14 @@ mod tests {
     state.try_init(&settings(&base, true)).await.unwrap();
 
     let jwt = JwtState::init(&AuthConfig::default(), &conn).await;
-    let (cookies, axum::Json(resp)) = oidc_url(state.clone(), jwt, CookieJar::new())
-      .await
-      .unwrap();
+    let (cookies, axum::Json(resp)) = oidc_url(
+      state.clone(),
+      jwt,
+      CookieJar::new(),
+      Query(OidcUrlQuery { redirect_to: None }),
+    )
+    .await
+    .unwrap();
 
     // The provider's Location is surfaced and the state cookie is set.
     assert_eq!(resp.url, "https://idp.example/redirect");
@@ -1015,7 +1072,14 @@ mod tests {
     let conn = db().await;
     let state = OidcState::new(&conn, None).await;
     let jwt = JwtState::init(&AuthConfig::default(), &conn).await;
-    let err = match oidc_url(state, jwt, CookieJar::new()).await {
+    let err = match oidc_url(
+      state,
+      jwt,
+      CookieJar::new(),
+      Query(OidcUrlQuery { redirect_to: None }),
+    )
+    .await
+    {
       Err(e) => e,
       Ok(_) => panic!("expected error when OIDC is unconfigured"),
     };
@@ -1212,9 +1276,14 @@ mod tests {
     let jwt = JwtState::init(&AuthConfig::default(), &conn).await;
 
     // 1. Begin the flow: registers a state + nonce and sets the state cookie.
-    let (cookies, _) = oidc_url(state.clone(), jwt.clone(), CookieJar::new())
-      .await
-      .unwrap();
+    let (cookies, _) = oidc_url(
+      state.clone(),
+      jwt.clone(),
+      CookieJar::new(),
+      Query(OidcUrlQuery { redirect_to: None }),
+    )
+    .await
+    .unwrap();
     let state_id = *state.state.iter().next().unwrap().key();
     let nonce = *state.nonce.iter().next().unwrap().key();
 
@@ -1503,9 +1572,14 @@ mod tests {
     let state = OidcState::new(&conn, None).await;
     state.try_init(&settings(&base, false)).await.unwrap();
     let jwt = JwtState::init(&AuthConfig::default(), &conn).await;
-    let (cookies, _) = oidc_url(state.clone(), jwt.clone(), CookieJar::new())
-      .await
-      .unwrap();
+    let (cookies, _) = oidc_url(
+      state.clone(),
+      jwt.clone(),
+      CookieJar::new(),
+      Query(OidcUrlQuery { redirect_to: None }),
+    )
+    .await
+    .unwrap();
     let state_id = *state.state.iter().next().unwrap().key();
 
     let loc = callback_location(
