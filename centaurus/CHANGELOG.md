@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-06-22
+
+### 🚀 Features
+
+- Made auth generic over token check
+- Allow custom claims in jwt claims
+
+### 🐛 Bug Fixes
+
+- Use uuid v7 for db
+- Added claims param to auth impl
+
+### 🧪 Testing
+
+- Added generic auth tests
+
+
+
 ## [0.15.1] - 2026-06-20
 
 ### 🐛 Bug Fixes
