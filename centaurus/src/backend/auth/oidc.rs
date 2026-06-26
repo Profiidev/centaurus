@@ -63,11 +63,13 @@ pub fn router<T: UpdateMessage>(rate_limiter: &mut RateLimiter) -> BackendRouter
     .route("/callback", get(oidc_callback::<T>))
 }
 
+type State = (Instant, Option<String>, Option<String>);
+
 #[derive(Clone, FromRequestParts, Debug, OperationIo)]
 #[from_request(via(Extension))]
 pub struct OidcState {
   config: Arc<Mutex<Option<OidcConfig>>>,
-  state: Arc<DashMap<Uuid, (Instant, Option<String>)>>,
+  state: Arc<DashMap<Uuid, State>>,
   nonce: Arc<DashMap<Uuid, Instant>>,
 }
 
@@ -191,7 +193,7 @@ impl OidcState {
             .retain(|_, &mut instant| now.duration_since(instant) < expiration_duration);
           state
             .state
-            .retain(|_, &mut (instant, _)| now.duration_since(instant) < expiration_duration);
+            .retain(|_, &mut (instant, _, _)| now.duration_since(instant) < expiration_duration);
         }
       }
     });
@@ -328,10 +330,17 @@ struct OidcResponse {
   url: String,
 }
 
+#[derive(Deserialize)]
+#[cfg_attr(feature = "openapi", derive(schemars::JsonSchema))]
+struct OidcUrlQuery {
+  redirect_to: Option<String>,
+}
+
 async fn oidc_url(
   state: OidcState,
   jwt: JwtState,
   mut cookies: CookieJar,
+  Query(OidcUrlQuery { mut redirect_to }): Query<OidcUrlQuery>,
 ) -> Result<(CookieJar, Json<OidcResponse>)> {
   let lock = state.config.lock().await;
   let Some(config) = lock.clone() else {
@@ -398,9 +407,34 @@ async fn oidc_url(
     );
   };
 
+  if let Some(redirect_to) = &mut redirect_to {
+    let dummy_base = Url::parse("http://localhost").unwrap();
+    match dummy_base.join(redirect_to) {
+      Ok(redirect_url) => {
+        if redirect_url.host_str() != Some("localhost") {
+          bail!("Invalid redirect url");
+        }
+
+        let path = redirect_url.path();
+        let query = redirect_url
+          .query()
+          .map(|q| format!("?{}", q))
+          .unwrap_or_default();
+        let fragment = redirect_url
+          .fragment()
+          .map(|f| format!("#{}", f))
+          .unwrap_or_default();
+        *redirect_to = format!("{}{}{}", path, query, fragment);
+      }
+      Err(_) => {
+        bail!("Invalid redirect url");
+      }
+    }
+  }
+
   state
     .state
-    .insert(state_id, (Instant::now(), code_verifier));
+    .insert(state_id, (Instant::now(), code_verifier, redirect_to));
   cookies = cookies.add(jwt.create_cookie(OIDC_STATE, state_id.to_string()));
 
   state.nonce.insert(nonce, Instant::now());
@@ -460,9 +494,26 @@ async fn oidc_callback<T: UpdateMessage>(
 
   cookies = cookies.remove(Cookie::from(OIDC_STATE));
 
+  // `path` is a sanitized same-origin ref (/path?query#frag). Re-split it and
+  // apply onto the trusted site_url via host-safe setters; set_path alone would
+  // percent-encode the '?' and swallow the query/fragment.
   let mut url = oidc_config.site_url;
-  url.set_path(path);
-  url.set_query(error.map(|e| format!("error={e}")).as_deref());
+  let target = Url::parse("http://localhost")
+    .unwrap()
+    .join(&path)
+    .unwrap_or_else(|_| Url::parse("http://localhost/").unwrap());
+  url.set_path(target.path());
+  url.set_fragment(target.fragment());
+
+  let mut query = target.query().map(str::to_string).unwrap_or_default();
+  if let Some(e) = error {
+    if !query.is_empty() {
+      query.push('&');
+    }
+    query.push_str("error=");
+    query.push_str(&e);
+  }
+  url.set_query((!query.is_empty()).then_some(query.as_str()));
 
   Ok((cookies, Redirect::found(url.to_string())))
 }
@@ -483,33 +534,57 @@ async fn check_code<T: UpdateMessage>(
   nonce_map: &DashMap<Uuid, Instant>,
   updater: Updater<T>,
   oidc_state: &OidcState,
-) -> Result<(&'static str, Option<String>, CookieJar)> {
+) -> Result<(String, Option<String>, CookieJar)> {
   let lock = oidc_state.config.lock().await;
   let Some(config) = lock.clone() else {
-    return Ok(("/login", Some("oidc_not_configured".to_string()), cookies));
+    return Ok((
+      "/login".to_string(),
+      Some("oidc_not_configured".to_string()),
+      cookies,
+    ));
   };
   drop(lock);
 
   if let Some(error) = error {
-    return Ok(("/login", Some(error), cookies));
+    return Ok(("/login".to_string(), Some(error), cookies));
   }
 
   let Some(state) = state else {
-    return Ok(("/login", Some("invalid_state".to_string()), cookies));
+    return Ok((
+      "/login".to_string(),
+      Some("invalid_state".to_string()),
+      cookies,
+    ));
   };
 
-  let Some((_, (_, code_verifier))) = oidc_state.state.remove(&state) else {
-    return Ok(("/login", Some("invalid_state".to_string()), cookies));
+  let Some((_, (_, code_verifier, redirect_to))) = oidc_state.state.remove(&state) else {
+    return Ok((
+      "/login".to_string(),
+      Some("invalid_state".to_string()),
+      cookies,
+    ));
   };
   let Some(cookie) = cookies.get(OIDC_STATE) else {
-    return Ok(("/login", Some("invalid_state".to_string()), cookies));
+    return Ok((
+      "/login".to_string(),
+      Some("invalid_state".to_string()),
+      cookies,
+    ));
   };
   if cookie.value() != state.to_string() {
-    return Ok(("/login", Some("invalid_state".to_string()), cookies));
+    return Ok((
+      "/login".to_string(),
+      Some("invalid_state".to_string()),
+      cookies,
+    ));
   }
 
   let Some(code) = code else {
-    return Ok(("/login", Some("missing_code".to_string()), cookies));
+    return Ok((
+      "/login".to_string(),
+      Some("missing_code".to_string()),
+      cookies,
+    ));
   };
 
   let mut form = HashMap::new();
@@ -532,10 +607,14 @@ async fn check_code<T: UpdateMessage>(
     let body = res.text().await.unwrap_or_default();
     let Ok(error) = serde_json::from_str::<TokenError>(&body) else {
       tracing::error!("OIDC token request failed: {}", body);
-      return Ok(("/login", Some("invalid_code".to_string()), cookies));
+      return Ok((
+        "/login".to_string(),
+        Some("invalid_code".to_string()),
+        cookies,
+      ));
     };
     tracing::error!("OIDC token request failed: {}", error.error);
-    return Ok(("/login", Some(error.error), cookies));
+    return Ok(("/login".to_string(), Some(error.error), cookies));
   }
 
   let res: TokenRes = res.json().await?;
@@ -552,9 +631,15 @@ async fn check_code<T: UpdateMessage>(
   if !res.status().is_success() {
     let body = res.text().await.unwrap_or_default();
     tracing::error!("OIDC userinfo request failed: {}", body);
-    return Ok(("/login", Some("invalid_token".to_string()), cookies));
+    return Ok((
+      "/login".to_string(),
+      Some("invalid_token".to_string()),
+      cookies,
+    ));
   }
   let res: AuthInfo = res.json().await?;
+
+  let redirect_to = redirect_to.unwrap_or("/".to_string());
 
   if let Some(user) = db.user().resolve_oidc_user(&res.sub, &res.email).await? {
     sync_oidc_user(user.id, &res, &config, db, token, updater).await?;
@@ -562,11 +647,15 @@ async fn check_code<T: UpdateMessage>(
     debug!("OIDC user authenticated: {}", user.id);
     cookies = cookies.add(jwt.create_token(user.id)?);
 
-    return Ok(("/", None, cookies));
+    return Ok((redirect_to, None, cookies));
   }
 
   if !config.create_user {
-    return Ok(("/login", Some("user_not_found".to_string()), cookies));
+    return Ok((
+      "/login".to_string(),
+      Some("user_not_found".to_string()),
+      cookies,
+    ));
   }
 
   let user = db
@@ -606,7 +695,7 @@ async fn check_code<T: UpdateMessage>(
   debug!("OIDC user authenticated: {}", user);
   cookies = cookies.add(jwt.create_token(user)?);
 
-  Ok(("/", None, cookies))
+  Ok((redirect_to, None, cookies))
 }
 
 impl AuthInfo {
@@ -900,6 +989,7 @@ mod tests {
     idp: &SigningIdp,
     create_user: bool,
     id_token_sub: &str,
+    redirect_to: Option<&str>,
   ) -> String {
     use jsonwebtoken::{Algorithm, Header, encode};
 
@@ -918,9 +1008,16 @@ mod tests {
     let state = OidcState::new(conn, None).await;
     state.try_init(&oidc_settings).await.unwrap();
     let jwt = JwtState::init(&AuthConfig::default(), conn).await;
-    let (cookies, _) = oidc_url(state.clone(), jwt.clone(), CookieJar::new())
-      .await
-      .unwrap();
+    let (cookies, _) = oidc_url(
+      state.clone(),
+      jwt.clone(),
+      CookieJar::new(),
+      Query(OidcUrlQuery {
+        redirect_to: redirect_to.map(str::to_string),
+      }),
+    )
+    .await
+    .unwrap();
     let state_id = *state.state.iter().next().unwrap().key();
     let nonce = *state.nonce.iter().next().unwrap().key();
 
@@ -998,9 +1095,14 @@ mod tests {
     state.try_init(&settings(&base, true)).await.unwrap();
 
     let jwt = JwtState::init(&AuthConfig::default(), &conn).await;
-    let (cookies, axum::Json(resp)) = oidc_url(state.clone(), jwt, CookieJar::new())
-      .await
-      .unwrap();
+    let (cookies, axum::Json(resp)) = oidc_url(
+      state.clone(),
+      jwt,
+      CookieJar::new(),
+      Query(OidcUrlQuery { redirect_to: None }),
+    )
+    .await
+    .unwrap();
 
     // The provider's Location is surfaced and the state cookie is set.
     assert_eq!(resp.url, "https://idp.example/redirect");
@@ -1015,11 +1117,135 @@ mod tests {
     let conn = db().await;
     let state = OidcState::new(&conn, None).await;
     let jwt = JwtState::init(&AuthConfig::default(), &conn).await;
-    let err = match oidc_url(state, jwt, CookieJar::new()).await {
+    let err = match oidc_url(
+      state,
+      jwt,
+      CookieJar::new(),
+      Query(OidcUrlQuery { redirect_to: None }),
+    )
+    .await
+    {
       Err(e) => e,
       Ok(_) => panic!("expected error when OIDC is unconfigured"),
     };
     assert_eq!(err.status, StatusCode::BAD_REQUEST);
+  }
+
+  // Runs the redirect_to value through oidc_url's sanitizer and returns the
+  // value that was stored for the later callback (Ok), or the bail (Err).
+  async fn sanitize_redirect(redirect_to: Option<&str>) -> Result<Option<String>> {
+    let base = mock_idp().await;
+    let conn = db().await;
+    let state = OidcState::new(&conn, None).await;
+    state.try_init(&settings(&base, true)).await.unwrap();
+    let jwt = JwtState::init(&AuthConfig::default(), &conn).await;
+
+    let _ = oidc_url(
+      state.clone(),
+      jwt,
+      CookieJar::new(),
+      Query(OidcUrlQuery {
+        redirect_to: redirect_to.map(str::to_string),
+      }),
+    )
+    .await?;
+
+    Ok(state.state.iter().next().unwrap().value().2.clone())
+  }
+
+  #[tokio::test]
+  async fn test_sanitize_redirect_none_stays_none() {
+    assert_eq!(sanitize_redirect(None).await.unwrap(), None);
+  }
+
+  #[tokio::test]
+  async fn test_sanitize_redirect_keeps_relative_path() {
+    assert_eq!(
+      sanitize_redirect(Some("/dashboard")).await.unwrap(),
+      Some("/dashboard".to_string())
+    );
+  }
+
+  #[tokio::test]
+  async fn test_sanitize_redirect_keeps_path_and_query() {
+    assert_eq!(
+      sanitize_redirect(Some("/dashboard?a=1&b=2")).await.unwrap(),
+      Some("/dashboard?a=1&b=2".to_string())
+    );
+  }
+
+  #[tokio::test]
+  async fn test_sanitize_redirect_normalizes_dot_segments() {
+    assert_eq!(
+      sanitize_redirect(Some("/a/../b")).await.unwrap(),
+      Some("/b".to_string())
+    );
+  }
+
+  // An absolute URL pointing at localhost is reduced to just its path+query.
+  #[tokio::test]
+  async fn test_sanitize_redirect_strips_localhost_origin() {
+    assert_eq!(
+      sanitize_redirect(Some("http://localhost/foo?x=1"))
+        .await
+        .unwrap(),
+      Some("/foo?x=1".to_string())
+    );
+  }
+
+  #[tokio::test]
+  async fn test_sanitize_redirect_rejects_absolute_other_host() {
+    assert!(
+      sanitize_redirect(Some("https://evil.com/phish"))
+        .await
+        .is_err()
+    );
+  }
+
+  #[tokio::test]
+  async fn test_sanitize_redirect_rejects_protocol_relative() {
+    assert!(sanitize_redirect(Some("//evil.com")).await.is_err());
+  }
+
+  #[tokio::test]
+  async fn test_sanitize_redirect_rejects_userinfo_host_confusion() {
+    assert!(
+      sanitize_redirect(Some("http://localhost@evil.com"))
+        .await
+        .is_err()
+    );
+  }
+
+  // url crate follows WHATWG and treats backslashes as slashes for special
+  // schemes, so these resolve to evil.com as host and are rejected.
+  #[tokio::test]
+  async fn test_sanitize_redirect_rejects_backslash_tricks() {
+    assert!(sanitize_redirect(Some("/\\evil.com")).await.is_err());
+    assert!(sanitize_redirect(Some("\\/\\/evil.com")).await.is_err());
+  }
+
+  // A non-http scheme like javascript: parses to no host and is rejected.
+  #[tokio::test]
+  async fn test_sanitize_redirect_rejects_other_scheme() {
+    assert!(
+      sanitize_redirect(Some("javascript:alert(1)"))
+        .await
+        .is_err()
+    );
+  }
+
+  #[tokio::test]
+  async fn test_sanitize_redirect_keeps_fragment() {
+    assert_eq!(
+      sanitize_redirect(Some("/dashboard#section")).await.unwrap(),
+      Some("/dashboard#section".to_string())
+    );
+    assert_eq!(
+      sanitize_redirect(Some("/dashboard?a=1#section"))
+        .await
+        .unwrap(),
+      Some("/dashboard?a=1#section".to_string())
+    );
   }
 
   async fn callback_location(
@@ -1212,9 +1438,14 @@ mod tests {
     let jwt = JwtState::init(&AuthConfig::default(), &conn).await;
 
     // 1. Begin the flow: registers a state + nonce and sets the state cookie.
-    let (cookies, _) = oidc_url(state.clone(), jwt.clone(), CookieJar::new())
-      .await
-      .unwrap();
+    let (cookies, _) = oidc_url(
+      state.clone(),
+      jwt.clone(),
+      CookieJar::new(),
+      Query(OidcUrlQuery { redirect_to: None }),
+    )
+    .await
+    .unwrap();
     let state_id = *state.state.iter().next().unwrap().key();
     let nonce = *state.nonce.iter().next().unwrap().key();
 
@@ -1289,13 +1520,99 @@ mod tests {
       "name": "OIDC User"
     }))
     .await;
-    let loc = run_oidc_callback(&conn, &idp, false, "subject-1").await;
+    let loc = run_oidc_callback(&conn, &idp, false, "subject-1", None).await;
     assert!(!loc.contains("error="), "unexpected error redirect: {loc}");
 
     let user = conn.user().get_user_by_id(user_id).await.unwrap();
     assert_eq!(user.email, "new@example.com");
     assert_eq!(user.name, "OIDC User");
     assert_eq!(user.oidc_subject, Some("subject-1".into()));
+  }
+
+  // redirect_to from oidc_url is threaded through to the post-login redirect for
+  // an existing user.
+  #[tokio::test]
+  async fn test_callback_existing_user_honors_redirect_to() {
+    let conn = db().await;
+    conn
+      .user()
+      .create_user(
+        "existing".into(),
+        "old@example.com".into(),
+        String::new(),
+        "salt".into(),
+        true,
+        Some("subject-1".into()),
+      )
+      .await
+      .unwrap();
+
+    let idp = signing_idp(json!({
+      "sub": "subject-1",
+      "email": "new@example.com",
+      "name": "OIDC User"
+    }))
+    .await;
+    let loc = run_oidc_callback(&conn, &idp, false, "subject-1", Some("/dashboard")).await;
+    assert!(!loc.contains("error="), "unexpected error redirect: {loc}");
+    assert_eq!(Url::parse(&loc).unwrap().path(), "/dashboard");
+  }
+
+  // redirect_to is also honored on the new-user provisioning path.
+  #[tokio::test]
+  async fn test_callback_new_user_honors_redirect_to() {
+    let conn = db().await;
+    let group = conn.group().create_group("Admin".into()).await.unwrap();
+    conn.setup().set_admin_group_created(group).await.unwrap();
+
+    let idp = signing_idp(json!({
+      "sub": "subject-1",
+      "email": "oidc@example.com",
+      "name": "OIDC User"
+    }))
+    .await;
+    let loc = run_oidc_callback(&conn, &idp, true, "subject-1", Some("/projects/42")).await;
+    assert!(!loc.contains("error="), "unexpected error redirect: {loc}");
+    assert_eq!(Url::parse(&loc).unwrap().path(), "/projects/42");
+  }
+
+  // The redirect_to query and fragment survive end-to-end (set_path used to
+  // percent-encode the '?' and the fragment was dropped entirely).
+  #[tokio::test]
+  async fn test_callback_honors_redirect_to_query_and_fragment() {
+    let conn = db().await;
+    conn
+      .user()
+      .create_user(
+        "existing".into(),
+        "old@example.com".into(),
+        String::new(),
+        "salt".into(),
+        true,
+        Some("subject-1".into()),
+      )
+      .await
+      .unwrap();
+
+    let idp = signing_idp(json!({
+      "sub": "subject-1",
+      "email": "new@example.com",
+      "name": "OIDC User"
+    }))
+    .await;
+    let loc = run_oidc_callback(
+      &conn,
+      &idp,
+      false,
+      "subject-1",
+      Some("/dashboard?tab=x#frag"),
+    )
+    .await;
+    let url = Url::parse(&loc).unwrap();
+    assert!(!loc.contains("error="), "unexpected error redirect: {loc}");
+    assert_eq!(url.path(), "/dashboard");
+    assert_eq!(url.query(), Some("tab=x"));
+    assert_eq!(url.fragment(), Some("frag"));
   }
 
   #[tokio::test]
@@ -1332,7 +1649,7 @@ mod tests {
       "name": "OIDC User"
     }))
     .await;
-    let loc = run_oidc_callback(&conn, &idp, false, "subject-1").await;
+    let loc = run_oidc_callback(&conn, &idp, false, "subject-1", None).await;
     assert!(!loc.contains("error="), "unexpected error redirect: {loc}");
 
     // Login succeeds, name syncs, but the conflicting email is left untouched.
@@ -1364,7 +1681,7 @@ mod tests {
       "name": "OIDC User"
     }))
     .await;
-    let loc = run_oidc_callback(&conn, &idp, false, "subject-1").await;
+    let loc = run_oidc_callback(&conn, &idp, false, "subject-1", None).await;
     assert!(!loc.contains("error="), "unexpected error redirect: {loc}");
 
     let user = conn.user().get_user_by_id(user_id).await.unwrap();
@@ -1394,7 +1711,7 @@ mod tests {
       "name": "OIDC User"
     }))
     .await;
-    let loc = run_oidc_callback(&conn, &idp, false, "subject-1").await;
+    let loc = run_oidc_callback(&conn, &idp, false, "subject-1", None).await;
     assert!(!loc.contains("error="), "unexpected error redirect: {loc}");
 
     let user = conn.user().get_user_by_id(user_id).await.unwrap();
@@ -1424,7 +1741,7 @@ mod tests {
       "name": "OIDC User"
     }))
     .await;
-    let loc = run_oidc_callback(&conn, &idp, false, "subject-1").await;
+    let loc = run_oidc_callback(&conn, &idp, false, "subject-1", None).await;
     assert!(
       loc.contains("error=user_not_found"),
       "expected user_not_found, got {loc}"
@@ -1442,7 +1759,7 @@ mod tests {
     }))
     .await;
     // No existing user matches by subject or email, and user creation is off.
-    let loc = run_oidc_callback(&conn, &idp, false, "subject-1").await;
+    let loc = run_oidc_callback(&conn, &idp, false, "subject-1", None).await;
     assert!(
       loc.contains("error=user_not_found"),
       "expected user_not_found, got {loc}"
@@ -1503,9 +1820,14 @@ mod tests {
     let state = OidcState::new(&conn, None).await;
     state.try_init(&settings(&base, false)).await.unwrap();
     let jwt = JwtState::init(&AuthConfig::default(), &conn).await;
-    let (cookies, _) = oidc_url(state.clone(), jwt.clone(), CookieJar::new())
-      .await
-      .unwrap();
+    let (cookies, _) = oidc_url(
+      state.clone(),
+      jwt.clone(),
+      CookieJar::new(),
+      Query(OidcUrlQuery { redirect_to: None }),
+    )
+    .await
+    .unwrap();
     let state_id = *state.state.iter().next().unwrap().key();
 
     let loc = callback_location(
