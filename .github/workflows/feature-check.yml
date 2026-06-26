@@ -36,12 +36,18 @@ jobs:
         with:
           components: rustfmt,clippy
 
+      - name: Sanitize cache key
+        id: sanitize
+        run: |
+          CLEAN_FEATURE=$(echo "${{ matrix.feature }}" | tr ',' '-')
+          echo "clean_feature=$CLEAN_FEATURE" >> $GITHUB_OUTPUT
+
       - name: Cache cargo and rust files
         id: rust_cache
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           cache-on-failure: true
-          shared-key: "linter_cache-${{ replace(matrix.feature, ',', '-') }}"
+          shared-key: "linter_cache-${{ steps.sanitize.outputs.clean_feature }}"
 
       - name: Run Clippy
         run: cargo clippy --features "${{ matrix.feature }}" --no-default-features -- -D warnings
