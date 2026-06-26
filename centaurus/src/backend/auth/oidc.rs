@@ -340,7 +340,7 @@ async fn oidc_url(
   state: OidcState,
   jwt: JwtState,
   mut cookies: CookieJar,
-  Query(OidcUrlQuery { redirect_to }): Query<OidcUrlQuery>,
+  Query(OidcUrlQuery { mut redirect_to }): Query<OidcUrlQuery>,
 ) -> Result<(CookieJar, Json<OidcResponse>)> {
   let lock = state.config.lock().await;
   let Some(config) = lock.clone() else {
@@ -407,6 +407,31 @@ async fn oidc_url(
     );
   };
 
+  if let Some(redirect_to) = &mut redirect_to {
+    let dummy_base = Url::parse("http://localhost").unwrap();
+    match dummy_base.join(redirect_to) {
+      Ok(redirect_url) => {
+        if redirect_url.host_str() != Some("localhost") {
+          bail!("Invalid redirect url");
+        }
+
+        let path = redirect_url.path();
+        let query = redirect_url
+          .query()
+          .map(|q| format!("?{}", q))
+          .unwrap_or_default();
+        let fragment = redirect_url
+          .fragment()
+          .map(|f| format!("#{}", f))
+          .unwrap_or_default();
+        *redirect_to = format!("{}{}{}", path, query, fragment);
+      }
+      Err(_) => {
+        bail!("Invalid redirect url");
+      }
+    }
+  }
+
   state
     .state
     .insert(state_id, (Instant::now(), code_verifier, redirect_to));
@@ -469,9 +494,26 @@ async fn oidc_callback<T: UpdateMessage>(
 
   cookies = cookies.remove(Cookie::from(OIDC_STATE));
 
+  // `path` is a sanitized same-origin ref (/path?query#frag). Re-split it and
+  // apply onto the trusted site_url via host-safe setters; set_path alone would
+  // percent-encode the '?' and swallow the query/fragment.
   let mut url = oidc_config.site_url;
-  url.set_path(&path);
-  url.set_query(error.map(|e| format!("error={e}")).as_deref());
+  let target = Url::parse("http://localhost")
+    .unwrap()
+    .join(&path)
+    .unwrap_or_else(|_| Url::parse("http://localhost/").unwrap());
+  url.set_path(target.path());
+  url.set_fragment(target.fragment());
+
+  let mut query = target.query().map(str::to_string).unwrap_or_default();
+  if let Some(e) = error {
+    if !query.is_empty() {
+      query.push('&');
+    }
+    query.push_str("error=");
+    query.push_str(&e);
+  }
+  url.set_query((!query.is_empty()).then_some(query.as_str()));
 
   Ok((cookies, Redirect::found(url.to_string())))
 }
@@ -1089,6 +1131,123 @@ mod tests {
     assert_eq!(err.status, StatusCode::BAD_REQUEST);
   }
 
+  // Runs the redirect_to value through oidc_url's sanitizer and returns the
+  // value that was stored for the later callback (Ok), or the bail (Err).
+  async fn sanitize_redirect(redirect_to: Option<&str>) -> Result<Option<String>> {
+    let base = mock_idp().await;
+    let conn = db().await;
+    let state = OidcState::new(&conn, None).await;
+    state.try_init(&settings(&base, true)).await.unwrap();
+    let jwt = JwtState::init(&AuthConfig::default(), &conn).await;
+
+    let _ = oidc_url(
+      state.clone(),
+      jwt,
+      CookieJar::new(),
+      Query(OidcUrlQuery {
+        redirect_to: redirect_to.map(str::to_string),
+      }),
+    )
+    .await?;
+
+    Ok(state.state.iter().next().unwrap().value().2.clone())
+  }
+
+  #[tokio::test]
+  async fn test_sanitize_redirect_none_stays_none() {
+    assert_eq!(sanitize_redirect(None).await.unwrap(), None);
+  }
+
+  #[tokio::test]
+  async fn test_sanitize_redirect_keeps_relative_path() {
+    assert_eq!(
+      sanitize_redirect(Some("/dashboard")).await.unwrap(),
+      Some("/dashboard".to_string())
+    );
+  }
+
+  #[tokio::test]
+  async fn test_sanitize_redirect_keeps_path_and_query() {
+    assert_eq!(
+      sanitize_redirect(Some("/dashboard?a=1&b=2")).await.unwrap(),
+      Some("/dashboard?a=1&b=2".to_string())
+    );
+  }
+
+  #[tokio::test]
+  async fn test_sanitize_redirect_normalizes_dot_segments() {
+    assert_eq!(
+      sanitize_redirect(Some("/a/../b")).await.unwrap(),
+      Some("/b".to_string())
+    );
+  }
+
+  // An absolute URL pointing at localhost is reduced to just its path+query.
+  #[tokio::test]
+  async fn test_sanitize_redirect_strips_localhost_origin() {
+    assert_eq!(
+      sanitize_redirect(Some("http://localhost/foo?x=1"))
+        .await
+        .unwrap(),
+      Some("/foo?x=1".to_string())
+    );
+  }
+
+  #[tokio::test]
+  async fn test_sanitize_redirect_rejects_absolute_other_host() {
+    assert!(
+      sanitize_redirect(Some("https://evil.com/phish"))
+        .await
+        .is_err()
+    );
+  }
+
+  #[tokio::test]
+  async fn test_sanitize_redirect_rejects_protocol_relative() {
+    assert!(sanitize_redirect(Some("//evil.com")).await.is_err());
+  }
+
+  #[tokio::test]
+  async fn test_sanitize_redirect_rejects_userinfo_host_confusion() {
+    assert!(
+      sanitize_redirect(Some("http://localhost@evil.com"))
+        .await
+        .is_err()
+    );
+  }
+
+  // url crate follows WHATWG and treats backslashes as slashes for special
+  // schemes, so these resolve to evil.com as host and are rejected.
+  #[tokio::test]
+  async fn test_sanitize_redirect_rejects_backslash_tricks() {
+    assert!(sanitize_redirect(Some("/\\evil.com")).await.is_err());
+    assert!(sanitize_redirect(Some("\\/\\/evil.com")).await.is_err());
+  }
+
+  // A non-http scheme like javascript: parses to no host and is rejected.
+  #[tokio::test]
+  async fn test_sanitize_redirect_rejects_other_scheme() {
+    assert!(
+      sanitize_redirect(Some("javascript:alert(1)"))
+        .await
+        .is_err()
+    );
+  }
+
+  #[tokio::test]
+  async fn test_sanitize_redirect_keeps_fragment() {
+    assert_eq!(
+      sanitize_redirect(Some("/dashboard#section")).await.unwrap(),
+      Some("/dashboard#section".to_string())
+    );
+    assert_eq!(
+      sanitize_redirect(Some("/dashboard?a=1#section"))
+        .await
+        .unwrap(),
+      Some("/dashboard?a=1#section".to_string())
+    );
+  }
+
   async fn callback_location(
     state: OidcState,
     query: OidcCallbackQuery,
@@ -1415,6 +1574,45 @@ mod tests {
     let loc = run_oidc_callback(&conn, &idp, true, "subject-1", Some("/projects/42")).await;
     assert!(!loc.contains("error="), "unexpected error redirect: {loc}");
     assert_eq!(Url::parse(&loc).unwrap().path(), "/projects/42");
+  }
+
+  // The redirect_to query and fragment survive end-to-end (set_path used to
+  // percent-encode the '?' and the fragment was dropped entirely).
+  #[tokio::test]
+  async fn test_callback_honors_redirect_to_query_and_fragment() {
+    let conn = db().await;
+    conn
+      .user()
+      .create_user(
+        "existing".into(),
+        "old@example.com".into(),
+        String::new(),
+        "salt".into(),
+        true,
+        Some("subject-1".into()),
+      )
+      .await
+      .unwrap();
+
+    let idp = signing_idp(json!({
+      "sub": "subject-1",
+      "email": "new@example.com",
+      "name": "OIDC User"
+    }))
+    .await;
+    let loc = run_oidc_callback(
+      &conn,
+      &idp,
+      false,
+      "subject-1",
+      Some("/dashboard?tab=x#frag"),
+    )
+    .await;
+    let url = Url::parse(&loc).unwrap();
+    assert!(!loc.contains("error="), "unexpected error redirect: {loc}");
+    assert_eq!(url.path(), "/dashboard");
+    assert_eq!(url.query(), Some("tab=x"));
+    assert_eq!(url.fragment(), Some("frag"));
   }
 
   #[tokio::test]
