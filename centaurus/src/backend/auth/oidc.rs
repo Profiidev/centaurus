@@ -947,6 +947,7 @@ mod tests {
     idp: &SigningIdp,
     create_user: bool,
     id_token_sub: &str,
+    redirect_to: Option<&str>,
   ) -> String {
     use jsonwebtoken::{Algorithm, Header, encode};
 
@@ -969,7 +970,9 @@ mod tests {
       state.clone(),
       jwt.clone(),
       CookieJar::new(),
-      Query(OidcUrlQuery { redirect_to: None }),
+      Query(OidcUrlQuery {
+        redirect_to: redirect_to.map(str::to_string),
+      }),
     )
     .await
     .unwrap();
@@ -1358,13 +1361,60 @@ mod tests {
       "name": "OIDC User"
     }))
     .await;
-    let loc = run_oidc_callback(&conn, &idp, false, "subject-1").await;
+    let loc = run_oidc_callback(&conn, &idp, false, "subject-1", None).await;
     assert!(!loc.contains("error="), "unexpected error redirect: {loc}");
 
     let user = conn.user().get_user_by_id(user_id).await.unwrap();
     assert_eq!(user.email, "new@example.com");
     assert_eq!(user.name, "OIDC User");
     assert_eq!(user.oidc_subject, Some("subject-1".into()));
+  }
+
+  // redirect_to from oidc_url is threaded through to the post-login redirect for
+  // an existing user.
+  #[tokio::test]
+  async fn test_callback_existing_user_honors_redirect_to() {
+    let conn = db().await;
+    conn
+      .user()
+      .create_user(
+        "existing".into(),
+        "old@example.com".into(),
+        String::new(),
+        "salt".into(),
+        true,
+        Some("subject-1".into()),
+      )
+      .await
+      .unwrap();
+
+    let idp = signing_idp(json!({
+      "sub": "subject-1",
+      "email": "new@example.com",
+      "name": "OIDC User"
+    }))
+    .await;
+    let loc = run_oidc_callback(&conn, &idp, false, "subject-1", Some("/dashboard")).await;
+    assert!(!loc.contains("error="), "unexpected error redirect: {loc}");
+    assert_eq!(Url::parse(&loc).unwrap().path(), "/dashboard");
+  }
+
+  // redirect_to is also honored on the new-user provisioning path.
+  #[tokio::test]
+  async fn test_callback_new_user_honors_redirect_to() {
+    let conn = db().await;
+    let group = conn.group().create_group("Admin".into()).await.unwrap();
+    conn.setup().set_admin_group_created(group).await.unwrap();
+
+    let idp = signing_idp(json!({
+      "sub": "subject-1",
+      "email": "oidc@example.com",
+      "name": "OIDC User"
+    }))
+    .await;
+    let loc = run_oidc_callback(&conn, &idp, true, "subject-1", Some("/projects/42")).await;
+    assert!(!loc.contains("error="), "unexpected error redirect: {loc}");
+    assert_eq!(Url::parse(&loc).unwrap().path(), "/projects/42");
   }
 
   #[tokio::test]
@@ -1401,7 +1451,7 @@ mod tests {
       "name": "OIDC User"
     }))
     .await;
-    let loc = run_oidc_callback(&conn, &idp, false, "subject-1").await;
+    let loc = run_oidc_callback(&conn, &idp, false, "subject-1", None).await;
     assert!(!loc.contains("error="), "unexpected error redirect: {loc}");
 
     // Login succeeds, name syncs, but the conflicting email is left untouched.
@@ -1433,7 +1483,7 @@ mod tests {
       "name": "OIDC User"
     }))
     .await;
-    let loc = run_oidc_callback(&conn, &idp, false, "subject-1").await;
+    let loc = run_oidc_callback(&conn, &idp, false, "subject-1", None).await;
     assert!(!loc.contains("error="), "unexpected error redirect: {loc}");
 
     let user = conn.user().get_user_by_id(user_id).await.unwrap();
@@ -1463,7 +1513,7 @@ mod tests {
       "name": "OIDC User"
     }))
     .await;
-    let loc = run_oidc_callback(&conn, &idp, false, "subject-1").await;
+    let loc = run_oidc_callback(&conn, &idp, false, "subject-1", None).await;
     assert!(!loc.contains("error="), "unexpected error redirect: {loc}");
 
     let user = conn.user().get_user_by_id(user_id).await.unwrap();
@@ -1493,7 +1543,7 @@ mod tests {
       "name": "OIDC User"
     }))
     .await;
-    let loc = run_oidc_callback(&conn, &idp, false, "subject-1").await;
+    let loc = run_oidc_callback(&conn, &idp, false, "subject-1", None).await;
     assert!(
       loc.contains("error=user_not_found"),
       "expected user_not_found, got {loc}"
@@ -1511,7 +1561,7 @@ mod tests {
     }))
     .await;
     // No existing user matches by subject or email, and user creation is off.
-    let loc = run_oidc_callback(&conn, &idp, false, "subject-1").await;
+    let loc = run_oidc_callback(&conn, &idp, false, "subject-1", None).await;
     assert!(
       loc.contains("error=user_not_found"),
       "expected user_not_found, got {loc}"
