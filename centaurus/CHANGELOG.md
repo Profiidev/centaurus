@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.1] - 2026-06-26
+
+### 🚀 Features
+
+- Added oidc redirect param for after login redirect
+
+### 🐛 Bug Fixes
+
+- Sanatize redirect to url
+
+### 🧪 Testing
+
+- Added test for oidc redirect param
+
+
+
 ## [0.16.0] - 2026-06-22
 
 ### 🚀 Features
