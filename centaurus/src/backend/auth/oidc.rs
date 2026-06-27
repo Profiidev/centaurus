@@ -30,7 +30,7 @@ use axum::{
 use axum_extra::extract::{CookieJar, cookie::Cookie};
 use base64::{Engine, prelude::BASE64_URL_SAFE_NO_PAD};
 use dashmap::DashMap;
-use http::{StatusCode, header::LOCATION};
+use http::StatusCode;
 use jsonwebtoken::{
   DecodingKey, Validation,
   jwk::{AlgorithmParameters, JwkSet},
@@ -384,29 +384,6 @@ async fn oidc_url(
     form.insert("scope", config.scope.join(" "));
   }
 
-  let req = config
-    .client
-    .post(config.authorization_endpoint.clone())
-    .form(&form)
-    .build()?;
-
-  let res = config.client.execute(req).await?;
-
-  if !res.status().is_redirection() {
-    let body = res.text().await.unwrap_or_default();
-    bail!(
-      INTERNAL_SERVER_ERROR,
-      "OIDC authorization request failed: {}",
-      body
-    );
-  }
-  let Some(location) = res.headers().get(LOCATION).and_then(|h| h.to_str().ok()) else {
-    bail!(
-      INTERNAL_SERVER_ERROR,
-      "OIDC authorization response missing location header"
-    );
-  };
-
   if let Some(redirect_to) = &mut redirect_to {
     let dummy_base = Url::parse("http://localhost").unwrap();
     match dummy_base.join(redirect_to) {
@@ -439,10 +416,13 @@ async fn oidc_url(
 
   state.nonce.insert(nonce, Instant::now());
 
+  let mut url = config.authorization_endpoint.clone();
+  url.query_pairs_mut().extend_pairs(&form);
+
   Ok((
     cookies,
     Json(OidcResponse {
-      url: location.to_string(),
+      url: url.to_string(),
     }),
   ))
 }
@@ -816,6 +796,7 @@ mod tests {
   use crate::db::{config::DBConfig, init::connect_db, migrations::Migrator};
   use axum::response::IntoResponse;
   use axum::routing::{get, post};
+  use http::header::LOCATION;
   use sea_orm_migration::MigratorTrait;
   use serde::{Deserialize, Serialize};
   use serde_json::json;
@@ -1104,12 +1085,53 @@ mod tests {
     .await
     .unwrap();
 
-    // The provider's Location is surfaced and the state cookie is set.
-    assert_eq!(resp.url, "https://idp.example/redirect");
+    // The authorize URL is built directly from the endpoint + form params
+    // (fast track, no round-trip to the provider) and the state cookie is set.
+    let url = Url::parse(&resp.url).unwrap();
+    assert_eq!(url.path(), "/authorize");
+    let q: HashMap<_, _> = url.query_pairs().into_owned().collect();
+    assert_eq!(q.get("response_type").map(String::as_str), Some("code"));
+    assert_eq!(q.get("client_id").map(String::as_str), Some("client"));
+    let state_id = *state.state.iter().next().unwrap().key();
+    let nonce = *state.nonce.iter().next().unwrap().key();
+    assert_eq!(q.get("state"), Some(&state_id.to_string()));
+    assert_eq!(q.get("nonce"), Some(&nonce.to_string()));
+    // pkce=true ⇒ challenge params present.
+    assert!(q.contains_key("code_challenge"));
+    assert_eq!(
+      q.get("code_challenge_method").map(String::as_str),
+      Some("S256")
+    );
+    assert_eq!(q.get("scope").map(String::as_str), Some("openid profile"));
     assert!(cookies.get(OIDC_STATE).is_some());
     // A pending state + nonce were registered for the later callback.
     assert_eq!(state.state.len(), 1);
     assert_eq!(state.nonce.len(), 1);
+  }
+
+  #[tokio::test]
+  async fn test_oidc_url_no_pkce_omits_challenge() {
+    let base = mock_idp().await;
+    let conn = db().await;
+    let state = OidcState::new(&conn, None).await;
+    state.try_init(&settings(&base, false)).await.unwrap();
+
+    let jwt = JwtState::init(&AuthConfig::default(), &conn).await;
+    let (_, axum::Json(resp)) = oidc_url(
+      state.clone(),
+      jwt,
+      CookieJar::new(),
+      Query(OidcUrlQuery { redirect_to: None }),
+    )
+    .await
+    .unwrap();
+
+    let url = Url::parse(&resp.url).unwrap();
+    let q: HashMap<_, _> = url.query_pairs().into_owned().collect();
+    assert!(!q.contains_key("code_challenge"));
+    assert!(!q.contains_key("code_challenge_method"));
+    // The stored verifier is None when pkce is disabled.
+    assert!(state.state.iter().next().unwrap().value().1.is_none());
   }
 
   #[tokio::test]
