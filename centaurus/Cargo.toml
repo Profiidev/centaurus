@@ -32,7 +32,7 @@ async-trait = { version = "0.1.89", optional = true }
 axum = { version = "0.8.9", features = ["macros", "multipart", "tracing", "ws"], optional = true }
 axum-extra = { version = "0.12.6", features = ["cookie", "typed-header"], optional = true }
 base64 = { version = "0.22.1", optional = true }
-bollard = { version = "0.20.2", default-features = false, optional = true }
+bollard = { version = "0.21.0", default-features = false, optional = true }
 centaurus-derive = { workspace = true }
 chrono = { version = "0.4.44", features = ["serde"], optional = true }
 color-eyre = { version = "0.6.5", optional = true }
@@ -49,8 +49,8 @@ image = { version = "0.25.10", default-features = false, features = [
   "webp",
 ], optional = true }
 jsonwebtoken = { version = "10.3.0", features = ["rust_crypto"], optional = true }
-k8s-openapi = { version = "0.27.1", features = ["latest", "schemars"], optional = true }
-kube = { version = "3.1.0", features = ["derive", "runtime"], optional = true }
+k8s-openapi = { version = "0.28.0", features = ["latest", "schemars"], optional = true }
+kube = { version = "4.0.0", features = ["derive", "runtime"], optional = true }
 lettre = { version = "0.11.21", default-features = false, features = [
   "builder",
   "ring",
@@ -88,7 +88,7 @@ tower = { version = "0.5.3", optional = true }
 tower_governor = { version = "0.8.0", default-features = false, features = [
   "axum",
 ], optional = true }
-tower-http = { version = "0.6.8", features = ["cors", "trace"], optional = true }
+tower-http = { version = "0.7.0", features = ["cors", "trace"], optional = true }
 tower-service = { version = "0.3.3", optional = true }
 tracing = { version = "0.1.44", features = ["std"], optional = true }
 tracing-error = { version = "0.2.1", optional = true }
@@ -104,7 +104,7 @@ sha2 = { version = "0.11.0", optional = true }
 [dev-dependencies]
 tempfile = "=3.27.0"
 tower = { version = "=0.5.3", features = ["util"] }
-tokio-tungstenite = "=0.28.0"
+tokio-tungstenite = "=0.29.0"
 futures-util = "=0.3.32"
 
 [features]
