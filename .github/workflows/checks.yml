@@ -28,7 +28,7 @@ jobs:
           shared-key: "linter_cache"
 
       - name: Run linters
-        uses: profiidev/rust-lint-action@ec3bf81f84ae2a9834fce8967d0eabe852227ff9 # v4
+        uses: profiidev/rust-lint-action@e9435ea64793ce035116e328195eb0c786a46f5a # v4
         with:
           rustfmt: true
           clippy: true
