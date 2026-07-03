@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.3] - 2026-07-03
+
+### 🐛 Bug Fixes
+
+- *(deps)* Update all non-major dependencies ([#151](https://github.com/Profiidev/centaurus/pull/151))
+
+### ⚙️ Miscellaneous Tasks
+
+- Aws correct feature flags
+
+
+
 ## [0.16.2] - 2026-06-27
 
 ### 🚀 Features
