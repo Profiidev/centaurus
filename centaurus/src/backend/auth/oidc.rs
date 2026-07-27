@@ -297,7 +297,7 @@ impl OidcConfig {
 
     let validation = {
       let mut validation = Validation::new(header.alg);
-      validation.set_audience(&[self.client_id.to_string()]);
+      validation.set_audience(std::slice::from_ref(&self.client_id));
       validation.set_issuer(&[&self.issuer]);
       validation.validate_exp = false;
       validation
