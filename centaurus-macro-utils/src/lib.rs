@@ -65,10 +65,9 @@ impl Manifest {
     let find = |d: &Item| {
       let dep = if let Some(dep) = d.get(name) {
         return Some(parse_str(dep_package(dep).unwrap_or(name)));
-      } else if let Some(dep) = d.get(&self.crate_name) {
-        dep_package(dep).unwrap_or(&self.crate_name)
       } else {
-        return None;
+        let dep = d.get(&self.crate_name)?;
+        dep_package(dep).unwrap_or(&self.crate_name)
       };
 
       let mut path = parse_str::<syn::Path>(dep);
