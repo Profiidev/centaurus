@@ -2,7 +2,6 @@ use aide::axum::routing::{ApiMethodRouter, get_with, post_with};
 use axum::Json;
 use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
-use tower_governor::GovernorLayer;
 use tracing::debug;
 use uuid::Uuid;
 
@@ -19,7 +18,7 @@ use crate::error::Result;
 pub fn router(rate_limiter: &mut RateLimiter) -> BackendRouter {
   BackendRouter::new()
     .api_route("/", authenticate_route())
-    .layer(GovernorLayer::new(rate_limiter.create_limiter()))
+    .layer(rate_limiter.create_limiter())
     .api_route("/", key_route())
 }
 

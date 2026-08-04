@@ -10,7 +10,6 @@ use axum::Json;
 use base64::prelude::*;
 use schemars::JsonSchema;
 use serde::Deserialize;
-use tower_governor::GovernorLayer;
 
 #[cfg(feature = "avatar")]
 use crate::error::ErrorReportStatusExt;
@@ -32,7 +31,7 @@ pub fn router<T: UpdateMessage>(rate_limiter: &mut RateLimiter) -> ApiRouter {
   let router = ApiRouter::new()
     .api_route("/password", update_password_route())
     .api_route("/email_change_start", start_email_change_route())
-    .layer(GovernorLayer::new(rate_limiter.create_limiter()))
+    .layer(rate_limiter.create_limiter())
     .api_route("/update", update_account_route::<T>())
     .api_route("/email_change_confirm", confirm_email_change_route::<T>());
 

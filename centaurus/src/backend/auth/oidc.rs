@@ -41,7 +41,6 @@ use rsa::rand_core::OsRng;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::{spawn, sync::Mutex, time::sleep};
-use tower_governor::GovernorLayer;
 use tracing::{debug, info, warn};
 use url::Url;
 use uuid::Uuid;
@@ -59,7 +58,7 @@ pub fn router<T: UpdateMessage>(rate_limiter: &mut RateLimiter) -> BackendRouter
 
   BackendRouter::new()
     .route("/url", get(oidc_url))
-    .layer(GovernorLayer::new(rate_limiter.create_limiter()))
+    .layer(rate_limiter.create_limiter())
     .route("/callback", get(oidc_callback::<T>))
 }
 
