@@ -8,10 +8,13 @@ use std::{
 use dashmap::DashMap;
 use governor::{clock::QuantaClock, middleware::StateInformationMiddleware, state::InMemoryState};
 use tower_governor::{
+  GovernorLayer,
   governor::{GovernorConfig, GovernorConfigBuilder},
   key_extractor::SmartIpKeyExtractor,
 };
 
+pub type RateLimiterLayer =
+  GovernorLayer<SmartIpKeyExtractor, StateInformationMiddleware, axum::body::Body>;
 pub type Governor = GovernorConfig<SmartIpKeyExtractor, StateInformationMiddleware>;
 type Limiter = Arc<
   governor::RateLimiter<
@@ -28,7 +31,7 @@ pub struct RateLimiter {
 }
 
 impl RateLimiter {
-  pub fn create_limiter(&mut self) -> Governor {
+  pub fn create_limiter(&mut self) -> RateLimiterLayer {
     let conf = GovernorConfigBuilder::default()
       .key_extractor(SmartIpKeyExtractor)
       .per_second(10)
@@ -39,7 +42,7 @@ impl RateLimiter {
 
     self.cleaner.push(conf.limiter().clone());
 
-    conf
+    GovernorLayer::new(conf)
   }
 
   pub fn init(self) {

@@ -9,7 +9,6 @@ use crate::{
 };
 use aide::axum::ApiRouter;
 use axum::Extension;
-use tower_governor::GovernorLayer;
 
 mod reset;
 pub mod state;
@@ -20,7 +19,7 @@ pub fn router(rate_limiter: &mut RateLimiter) -> ApiRouter {
   ApiRouter::new()
     .nest("/reset", reset::router())
     .nest("/test", test::router())
-    .layer(GovernorLayer::new(rate_limiter.create_limiter()))
+    .layer(rate_limiter.create_limiter())
 }
 
 pub async fn state<C: Config>(router: ApiRouter, db: &Connection, config: &C) -> ApiRouter {

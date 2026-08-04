@@ -1,30 +1,22 @@
 use sea_orm::entity::prelude::*;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
+#[sea_orm::model]
+#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "group_permission")]
 pub struct Model {
   #[sea_orm(primary_key, auto_increment = false)]
   pub group_id: Uuid,
   #[sea_orm(primary_key, auto_increment = false)]
   pub permission: String,
-}
-
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {
   #[sea_orm(
-    belongs_to = "super::group::Entity",
-    from = "Column::GroupId",
-    to = "super::group::Column::Id",
+    belongs_to,
+    from = "group_id",
+    to = "id",
     on_update = "Cascade",
     on_delete = "Cascade"
   )]
-  Group,
-}
-
-impl Related<super::group::Entity> for Entity {
-  fn to() -> RelationDef {
-    Relation::Group.def()
-  }
+  pub group: BelongsTo<super::group::Entity>,
 }
 
 impl ActiveModelBehavior for ActiveModel {}
