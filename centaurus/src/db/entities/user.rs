@@ -1,6 +1,8 @@
 use sea_orm::entity::prelude::*;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
+#[sea_orm::model]
+#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "user")]
 pub struct Model {
   #[sea_orm(primary_key, auto_increment = false)]
@@ -11,39 +13,12 @@ pub struct Model {
   pub password: String,
   pub salt: String,
   pub oidc_user: bool,
-  #[sea_orm(unique, nullable)]
+  #[sea_orm(unique)]
   pub oidc_subject: Option<String>,
-}
-
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {
-  #[sea_orm(has_many = "super::group_user::Entity")]
-  GroupUser,
-  #[cfg(feature = "avatar")]
-  #[sea_orm(has_one = "super::user_avatar::Entity")]
-  UserAvatar,
-}
-
-impl Related<super::group_user::Entity> for Entity {
-  fn to() -> RelationDef {
-    Relation::GroupUser.def()
-  }
-}
-
-#[cfg(feature = "avatar")]
-impl Related<super::user_avatar::Entity> for Entity {
-  fn to() -> RelationDef {
-    Relation::UserAvatar.def()
-  }
-}
-
-impl Related<super::group::Entity> for Entity {
-  fn to() -> RelationDef {
-    super::group_user::Relation::Group.def()
-  }
-  fn via() -> Option<RelationDef> {
-    Some(super::group_user::Relation::User.def().rev())
-  }
+  #[sea_orm(has_one)]
+  pub user_avatar: HasOne<super::user_avatar::Entity>,
+  #[sea_orm(has_many, via = "group_user")]
+  pub groups: HasMany<super::group::Entity>,
 }
 
 impl ActiveModelBehavior for ActiveModel {}

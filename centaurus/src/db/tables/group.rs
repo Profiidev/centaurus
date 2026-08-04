@@ -174,7 +174,7 @@ impl<'db> GroupTable<'db> {
   pub async fn get_user_permissions(&self, user_id: Uuid) -> Result<Vec<String>> {
     let group_permissions = group_permission::Entity::find()
       .join(JoinType::InnerJoin, group_permission::Relation::Group.def())
-      .join(JoinType::InnerJoin, group::Relation::GroupUser.def())
+      .join_rev(JoinType::InnerJoin, group_user::Relation::Group.def())
       .filter(group_user::Column::UserId.eq(user_id))
       .all(self.db)
       .await?;
