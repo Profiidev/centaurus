@@ -6,7 +6,6 @@ use axum_extra::extract::CookieJar;
 use http::StatusCode;
 use rsa::rand_core::OsRng;
 use schemars::JsonSchema;
-use sea_orm::ConnectionTrait;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 use url::Url;
@@ -179,6 +178,7 @@ async fn is_setup(
     sea_orm::DatabaseBackend::Postgres => "PostgreSQL",
     sea_orm::DatabaseBackend::MySql => "MySQL",
     sea_orm::DatabaseBackend::Sqlite => "SQLite",
+    _ => "Unknown",
   }
   .to_string();
 

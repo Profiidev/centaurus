@@ -64,7 +64,7 @@ async fn create_connection(config: &DBConfig, connection_url: &str) -> DatabaseC
 async fn sqlite_init(conn: &DatabaseConnection) {
   if conn.get_database_backend() == DatabaseBackend::Sqlite {
     conn
-      .execute(Statement::from_string(
+      .execute_raw(Statement::from_string(
         DatabaseBackend::Sqlite,
         "PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 60000;".to_string(),
       ))
@@ -91,7 +91,7 @@ async fn migrate_to_centaurus_migrations(conn: &DatabaseConnection) -> Result<()
   };
 
   let tables = conn
-    .query_all(stmt)
+    .query_all_raw(stmt)
     .await?
     .into_iter()
     .filter_map(|row| row.try_get_by_index::<String>(0).ok())
@@ -118,13 +118,13 @@ async fn migrate_to_centaurus_migrations(conn: &DatabaseConnection) -> Result<()
     WHERE version LIKE 'm20%';
   ",
   );
-  conn.execute(stmt).await?;
+  conn.execute_raw(stmt).await?;
 
   let stmt = Statement::from_string(
     backend,
     "DELETE FROM seaql_migrations WHERE version = 'm20260129_154755_user_avatar';",
   );
-  conn.execute(stmt).await?;
+  conn.execute_raw(stmt).await?;
 
   Ok(())
 }
