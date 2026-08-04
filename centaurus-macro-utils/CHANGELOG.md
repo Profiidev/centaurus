@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.4] - 2026-08-04
+
+### 🐛 Bug Fixes
+
+- *(deps)* Update all non-major dependencies ([#161](https://github.com/Profiidev/centaurus/pull/161))
+
+### ⚙️ Miscellaneous Tasks
+
+- Updated deps
+
+
+
 ## [0.1.3] - 2026-07-03
 
 

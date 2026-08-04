@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-08-04
+
+### 🐛 Bug Fixes
+
+- *(deps)* Update all non-major dependencies ([#161](https://github.com/Profiidev/centaurus/pull/161))
+- User avatar feature
+
+### 🚜 Refactor
+
+- Better rate limit init
+- Updated sea-orm models to new format
+
+### ⚙️ Miscellaneous Tasks
+
+- Updated deps
+- Updated sea-orm to v2
+
+
+
 ## [0.16.3] - 2026-07-03
 
 ### 🐛 Bug Fixes
