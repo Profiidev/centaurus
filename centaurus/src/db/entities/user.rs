@@ -15,6 +15,7 @@ pub struct Model {
   pub oidc_user: bool,
   #[sea_orm(unique)]
   pub oidc_subject: Option<String>,
+  #[cfg(feature = "avatar")]
   #[sea_orm(has_one)]
   pub user_avatar: HasOne<super::user_avatar::Entity>,
   #[sea_orm(has_many, via = "group_user")]
