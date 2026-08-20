@@ -92,7 +92,7 @@ tower-http = { version = "0.7.0", features = ["cors", "trace"], optional = true 
 tower-service = { version = "0.3.3", optional = true }
 tracing = { version = "0.1.44", features = ["std"], optional = true }
 tracing-error = { version = "0.2.1", optional = true }
-tracing-subscriber = { version = "=0.3.19", optional = true }
+tracing-subscriber = { version = "0.3.23", optional = true }
 url = { version = "2.5.8", optional = true }
 uuid = { version = "1.24.0", features = ["v4", "v7"], optional = true }
 webauthn-rs-core = { version = "0.5.5", default-features = false, optional = true }
