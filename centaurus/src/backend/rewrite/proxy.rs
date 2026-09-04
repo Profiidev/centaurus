@@ -5,11 +5,11 @@ use axum::{
   response::{IntoResponse, Response},
   routing::get,
 };
-use http::StatusCode;
+use http::{HeaderValue, StatusCode};
 use hyper_util::{client::legacy::connect::HttpConnector, rt::TokioExecutor};
 use tracing::instrument;
 
-use crate::backend::BackendRouter;
+use crate::{USER_AGENT, backend::BackendRouter};
 
 type Client = hyper_util::client::legacy::Client<HttpConnector, Body>;
 
@@ -54,6 +54,10 @@ async fn handler(state: ProxyState, mut req: Request) -> Result<Response, Status
 
   let uri = format!("{}{}{}", state.proxy_url, path, query);
   *req.uri_mut() = uri.parse().map_err(|_| StatusCode::BAD_REQUEST)?;
+  req.headers_mut().insert(
+    http::header::USER_AGENT,
+    HeaderValue::from_static(USER_AGENT),
+  );
 
   Ok(
     state

@@ -112,7 +112,7 @@ tokio-tungstenite = "=0.30.0"
 futures-util = "=0.3.34"
 
 [features]
-default = ["avatar", "endpoints", "logging", "frontend", "metrics"]
+default = ["avatar", "endpoints", "logging", "frontend", "metrics", "storage"]
 
 db = [
   "chrono",
