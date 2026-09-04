@@ -5,7 +5,8 @@ use std::{
 };
 
 use crate::{
-  USER_AGENT, backend::{
+  USER_AGENT,
+  backend::{
     BackendRouter,
     auth::{
       jwt_state::JwtState,
@@ -15,7 +16,11 @@ use crate::{
     endpoints::websocket::state::{UpdateMessage, Updater},
     middleware::rate_limiter::RateLimiter,
     request::redirect::Redirect,
-  }, bail, db::{init::Connection, tables::ConnectionExt}, error::{ErrorReportStatusExt, Result}, overwrite_with_env_config,
+  },
+  bail,
+  db::{init::Connection, tables::ConnectionExt},
+  error::{ErrorReportStatusExt, Result},
+  overwrite_with_env_config,
 };
 use aide::OperationIo;
 use argon2::password_hash::generate_salt;
