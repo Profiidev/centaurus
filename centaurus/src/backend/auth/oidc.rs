@@ -22,12 +22,13 @@ use crate::{
   overwrite_with_env_config,
 };
 use aide::OperationIo;
-use argon2::password_hash::SaltString;
+use argon2::password_hash::generate_salt;
 use axum::{
   Extension, Json,
   extract::{FromRequestParts, Query},
 };
 use axum_extra::extract::{CookieJar, cookie::Cookie};
+use base64::prelude::*;
 use base64::{Engine, prelude::BASE64_URL_SAFE_NO_PAD};
 use dashmap::DashMap;
 use http::StatusCode;
@@ -37,7 +38,6 @@ use jsonwebtoken::{
 };
 use rand::seq::IndexedRandom;
 use reqwest::{Client, redirect::Policy};
-use rsa::rand_core::OsRng;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::{spawn, sync::Mutex, time::sleep};
@@ -643,7 +643,7 @@ async fn check_code<T: UpdateMessage>(
       res.name.clone(),
       res.email.clone(),
       String::new(),
-      SaltString::generate(OsRng {}).to_string(),
+      BASE64_STANDARD_NO_PAD.encode(generate_salt()),
       true,
       Some(res.sub.clone()),
     )
@@ -796,6 +796,7 @@ mod tests {
   use axum::response::IntoResponse;
   use axum::routing::{get, post};
   use http::header::LOCATION;
+  use rsa::rand_core::OsRng;
   use sea_orm_migration::MigratorTrait;
   use serde::{Deserialize, Serialize};
   use serde_json::json;

@@ -1,10 +1,10 @@
 use aide::axum::ApiRouter;
 use aide::axum::routing::{ApiMethodRouter, get_with, post_with};
-use argon2::password_hash::SaltString;
+use argon2::password_hash::generate_salt;
 use axum::Json;
 use axum_extra::extract::CookieJar;
+use base64::prelude::*;
 use http::StatusCode;
-use rsa::rand_core::OsRng;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tracing::info;
@@ -134,7 +134,7 @@ async fn complete_setup(
     );
   };
 
-  let salt = SaltString::generate(OsRng {}).to_string();
+  let salt = BASE64_STANDARD_NO_PAD.encode(generate_salt());
   let hash = state.pw_hash(&salt, &payload.admin_password)?;
 
   let admin = db

@@ -1,7 +1,4 @@
-use argon2::{
-  Argon2,
-  password_hash::{PasswordHasher, SaltString},
-};
+use argon2::{Argon2, password_hash::PasswordHasher};
 use axum::{Extension, extract::FromRequestParts};
 use base64::prelude::*;
 use rsa::{
@@ -68,12 +65,11 @@ impl PasswordState {
 pub fn hash_secret(pepper: &[u8], salt: &str, passphrase: &[u8]) -> Result<String> {
   let mut salt = BASE64_STANDARD_NO_PAD.decode(salt)?;
   salt.extend_from_slice(pepper);
-  let salt_string = SaltString::encode_b64(&salt)?;
 
   let argon2 = Argon2::default();
   Ok(
     argon2
-      .hash_password(passphrase, salt_string.as_salt())?
+      .hash_password_with_salt(passphrase, &salt)?
       .to_string(),
   )
 }

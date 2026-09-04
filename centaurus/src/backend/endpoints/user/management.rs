@@ -1,11 +1,10 @@
 use aide::axum::ApiRouter;
 use aide::axum::routing::{ApiMethodRouter, delete_with, get_with, post_with, put_with};
-use argon2::password_hash::SaltString;
+use argon2::password_hash::generate_salt;
 use axum::{Json, extract::Path};
 use base64::prelude::*;
 use http::StatusCode;
 use rand::RngExt;
-use rsa::rand_core::OsRng;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -170,7 +169,7 @@ async fn create_user<T: UpdateMessage>(
     );
   };
 
-  let salt = SaltString::generate(OsRng {}).to_string();
+  let salt = BASE64_STANDARD_NO_PAD.encode(generate_salt());
   let password_hash = state.pw_hash_raw(&salt, &password)?;
 
   let user_id = db
