@@ -39,3 +39,4 @@ pub mod private {
 }
 
 pub const VERSION_HEADER_NAME: &str = "X-Api-Version";
+pub const USER_AGENT: &str = concat!("Centaurus v", env!("CARGO_PKG_VERSION"));

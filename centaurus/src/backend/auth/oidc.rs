@@ -5,6 +5,7 @@ use std::{
 };
 
 use crate::{
+  USER_AGENT,
   backend::{
     BackendRouter,
     auth::{
@@ -249,7 +250,10 @@ impl OidcConfig {
     }
     let jwk_set: JwkSet = res.json().await?;
 
-    let client = Client::builder().redirect(Policy::none()).build()?;
+    let client = Client::builder()
+      .redirect(Policy::none())
+      .user_agent(USER_AGENT)
+      .build()?;
     info!(
       "OIDC configured successfully with issuer: {}",
       config.issuer
