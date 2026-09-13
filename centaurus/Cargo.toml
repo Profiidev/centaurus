@@ -171,6 +171,7 @@ logging = ["dep:color-eyre", "dep:tracing", "dep:tracing-error", "dep:tracing-su
 mail = ["dep:lettre", "error", "serde", "tokio", "centaurus-derive/mail"]
 storage = [
   "dep:object_store",
+  "dep:futures-util",
   "logging",
   "serde",
   "dep:tokio",
