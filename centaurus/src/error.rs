@@ -216,6 +216,8 @@ impl_from_error!(
   kube::runtime::finalizer::Error<ErrorReport>,
   StatusCode::INTERNAL_SERVER_ERROR
 );
+#[cfg(feature = "storage")]
+impl_from_error!(object_store::Error, StatusCode::INTERNAL_SERVER_ERROR);
 
 #[cfg(feature = "http")]
 pub trait ErrorReportStatusExt<T> {
