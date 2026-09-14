@@ -56,12 +56,14 @@ impl FileStorage {
     }
 
     // unwrap is safe here because the presence of these fields is already checked in config.use_s3()
+    let host = config.s3_host.as_ref().unwrap();
     let s3 = AmazonS3Builder::default()
       .with_access_key_id(config.s3_access_key.as_ref().unwrap())
       .with_secret_access_key(config.s3_secret_key.as_ref().unwrap())
       .with_region(config.s3_region.as_ref().unwrap())
       .with_bucket_name(config.s3_bucket.as_ref().unwrap())
-      .with_endpoint(config.s3_host.as_ref().unwrap())
+      .with_endpoint(host)
+      .with_allow_http(host.starts_with("http://"))
       .with_virtual_hosted_style_request(!config.s3_force_path_style)
       .build()?;
 
