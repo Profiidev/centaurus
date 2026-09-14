@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.2] - 2026-09-14
+
+### 🐛 Bug Fixes
+
+- *(deps)* Update all non-major dependencies ([#171](https://github.com/Profiidev/centaurus/pull/171))
+- Request user agent
+- Storage deps
+- Expose storage path
+- Object store http
+
+### 🚜 Refactor
+
+- Use object store
+
+### ⚙️ Miscellaneous Tasks
+
+- Fix code style issues with rustfmt
+
+
+
 ## [0.17.1] - 2026-08-20
 
 ### ⚙️ Miscellaneous Tasks
