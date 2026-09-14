@@ -1,39 +1,27 @@
-use std::{io::SeekFrom, path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 
-use aws_config::Region;
-use aws_sdk_s3::{
-  config::{Credentials, SharedCredentialsProvider},
-  error::SdkError,
-  primitives::ByteStream,
-  types::{CompletedMultipartUpload, CompletedPart},
-};
 use axum::body::Body;
-use eyre::Context;
-use http::StatusCode;
+use futures_util::StreamExt;
+use object_store::{
+  GetOptions, GetRange, ObjectStore, ObjectStoreExt, aws::AmazonS3Builder, buffered::BufWriter,
+  local::LocalFileSystem, path::Path,
+};
 use serde::{Deserialize, Serialize};
 use tokio::{
   fs,
-  io::{self, AsyncRead, AsyncReadExt, AsyncSeekExt},
+  io::{self, AsyncRead, AsyncWriteExt},
 };
-use tokio_util::io::ReaderStream;
 use tracing::{info, warn};
 
-use crate::{
-  bail,
-  error::{ErrorReportStatusExt, Result},
-};
+use crate::{anyhow, bail, error::Result};
+
+pub use object_store::path::Path as StoragePath;
 
 #[derive(Clone)]
 #[cfg_attr(feature = "openapi", derive(aide::OperationIo))]
 #[cfg_attr(feature = "backend", derive(axum::extract::FromRequestParts))]
 #[cfg_attr(feature = "backend", from_request(via(axum::extract::Extension)))]
-pub enum FileStorage {
-  Local(PathBuf),
-  S3 {
-    client: Arc<aws_sdk_s3::Client>,
-    bucket: String,
-  },
-}
+pub struct FileStorage(Arc<dyn ObjectStore>, &'static str);
 
 impl FileStorage {
   pub async fn init(config: &StorageConfig) -> Result<Self> {
@@ -42,7 +30,15 @@ impl FileStorage {
 
       // Setup and check read and write permissions for the local storage path
       fs::create_dir_all(&path).await?;
-      let test_file = path.join("test_permission.tmp");
+      // Unique name so concurrent inits on the same path do not delete each other's probe file
+      let test_file = path.join(format!(
+        "test_permission_{}_{}.tmp",
+        std::process::id(),
+        std::time::SystemTime::now()
+          .duration_since(std::time::UNIX_EPOCH)
+          .unwrap_or_default()
+          .as_nanos()
+      ));
       let test_content = b"test";
       fs::write(&test_file, test_content).await?;
       let read_content = fs::read(&test_file).await?;
@@ -51,255 +47,84 @@ impl FileStorage {
         bail!("Failed to verify access permission on storage path");
       }
 
+      let fs = LocalFileSystem::new_with_prefix(&path)?
+        .with_fsync(true)
+        .with_automatic_cleanup(true);
+
       info!("Using local file storage at {}", path.display());
-      return Ok(Self::Local(path));
+      return Ok(Self(Arc::new(fs), "Local"));
     }
 
-    let credentials = Credentials::new(
-      // unwrap is safe here because the presence of these fields is already checked in config.use_s3()
-      config.s3_access_key.as_ref().unwrap(),
-      // unwrap is safe here because the presence of these fields is already checked in config.use_s3()
-      config.s3_secret_key.as_ref().unwrap(),
-      None,
-      None,
-      "file_storage",
-    );
-
     // unwrap is safe here because the presence of these fields is already checked in config.use_s3()
-    let mut builder = aws_sdk_s3::Config::builder()
-      .region(Some(Region::new(config.s3_region.clone().unwrap())))
-      .endpoint_url(config.s3_host.clone().unwrap())
-      .credentials_provider(SharedCredentialsProvider::new(credentials));
+    let host = config.s3_host.as_ref().unwrap();
+    let s3 = AmazonS3Builder::default()
+      .with_access_key_id(config.s3_access_key.as_ref().unwrap())
+      .with_secret_access_key(config.s3_secret_key.as_ref().unwrap())
+      .with_region(config.s3_region.as_ref().unwrap())
+      .with_bucket_name(config.s3_bucket.as_ref().unwrap())
+      .with_endpoint(host)
+      .with_allow_http(host.starts_with("http://"))
+      .with_virtual_hosted_style_request(!config.s3_force_path_style)
+      .build()?;
 
-    if config.s3_force_path_style {
-      builder = builder.force_path_style(true);
+    let mut stream = s3.list(None);
+    if let Some(Err(e)) = stream.next().await {
+      bail!("connection/auth error: {e}");
     }
 
     // unwrap is safe here because the presence of these fields is already checked in config.use_s3()
     let bucket = config.s3_bucket.clone().unwrap();
-    let config = builder.build();
-    let client = aws_sdk_s3::Client::from_conf(config);
-
-    let buckets = client
-      .list_buckets()
-      .send()
-      .await
-      .context("Failed to list S3 buckets")?;
-
-    if !buckets
-      .buckets()
-      .iter()
-      .any(|b| b.name().unwrap_or_default() == bucket)
-    {
-      bail!("S3 bucket does not exist");
-    }
 
     info!("Using S3 file storage with bucket {}", bucket);
-    Ok(Self::S3 {
-      client: Arc::new(client),
-      bucket,
-    })
+    Ok(Self(Arc::new(s3), "S3"))
   }
 
   pub fn name(&self) -> &'static str {
-    match self {
-      Self::Local(_) => "Local",
-      Self::S3 { .. } => "S3",
-    }
+    self.1
   }
 
   pub async fn save_file<R: AsyncRead + Unpin + Send>(
     &self,
     reader: &mut R,
-    name: &str,
+    path: Path,
   ) -> Result<()> {
-    match self {
-      Self::Local(path) => {
-        let file_path = path.join(name);
-        if let Some(parent) = file_path.parent() {
-          fs::create_dir_all(parent).await?;
-        }
-        let mut file = fs::File::create(&file_path).await?;
-        io::copy(reader, &mut file).await?;
-      }
-      Self::S3 { client, bucket } => {
-        const CHUNK_SIZE: usize = 8 * 1024 * 1024; // 8MB
-
-        async fn read_chunk<R: AsyncRead + Unpin + Send>(reader: &mut R) -> Result<Vec<u8>> {
-          let mut buffer = vec![0; CHUNK_SIZE];
-          let mut total_read = 0;
-          while total_read < CHUNK_SIZE {
-            let n = reader.read(&mut buffer[total_read..]).await?;
-            if n == 0 {
-              break;
-            }
-            total_read += n;
-          }
-          buffer.truncate(total_read);
-          Ok(buffer)
-        }
-
-        let first_chunk = read_chunk(reader).await?;
-
-        if first_chunk.len() < CHUNK_SIZE {
-          // If the first chunk is smaller than the chunk size, we can upload it directly
-          client
-            .put_object()
-            .bucket(bucket)
-            .key(name)
-            .body(ByteStream::from(first_chunk))
-            .send()
-            .await
-            .context("Failed to upload file to S3 Bucket")?;
-          return Ok(());
-        }
-
-        let multipart_upload = client
-          .create_multipart_upload()
-          .bucket(bucket)
-          .key(name)
-          .send()
-          .await
-          .context("Failed to create multipart upload for file in S3 Bucket")?;
-
-        let upload_id = multipart_upload.upload_id().status_context(
-          StatusCode::INTERNAL_SERVER_ERROR,
-          "Failed to get upload ID for multipart upload",
-        )?;
-        let mut parts: Vec<CompletedPart> = Vec::new();
-
-        loop {
-          let chunk = if parts.is_empty() {
-            first_chunk.clone()
-          } else {
-            read_chunk(reader).await?
-          };
-
-          let done = chunk.len() < CHUNK_SIZE;
-          let part_number = (parts.len() + 1) as i32;
-
-          let part = client
-            .upload_part()
-            .bucket(bucket)
-            .key(name)
-            .upload_id(upload_id)
-            .part_number(part_number)
-            .body(ByteStream::from(chunk))
-            .send()
-            .await
-            .context("Failed to upload part of file to S3 Bucket")?;
-          let part = CompletedPart::builder()
-            .set_e_tag(part.e_tag().map(|s| s.to_string()))
-            .part_number(part_number)
-            .build();
-          parts.push(part);
-
-          if done {
-            break;
-          }
-        }
-
-        let completed_mulipart_upload = CompletedMultipartUpload::builder()
-          .set_parts(Some(parts))
-          .build();
-        client
-          .complete_multipart_upload()
-          .bucket(bucket)
-          .key(name)
-          .upload_id(upload_id)
-          .multipart_upload(completed_mulipart_upload)
-          .send()
-          .await
-          .context("Failed to complete multipart upload for file in S3 Bucket")?;
-      }
-    }
+    let mut writer = BufWriter::new(self.0.clone(), path);
+    io::copy(reader, &mut writer).await?;
+    writer.shutdown().await?;
 
     Ok(())
   }
 
-  pub async fn get_file(&self, name: &str, range: Option<(u64, u64)>) -> Result<Body> {
-    if !self.exists(name).await? {
+  pub async fn get_file(&self, path: &Path, range: Option<(u64, u64)>) -> Result<Body> {
+    if !self.exists(path).await? {
       bail!(NOT_FOUND, "File file not found");
     }
 
-    match self {
-      Self::Local(path) => {
-        let file_path = path.join(name);
-        let mut file = fs::File::open(file_path).await?;
+    let opts = GetOptions {
+      range: range.map(|(start, end)| GetRange::Bounded(start..end + 1)),
+      ..Default::default()
+    };
 
-        if let Some((start, end)) = range {
-          if file.seek(SeekFrom::Start(start)).await.is_err() {
-            bail!(RANGE_NOT_SATISFIABLE, "Invalid range header");
-          }
+    let result = self.0.get_opts(path, opts).await?;
+    let stream = result.into_stream();
+    let body = Body::from_stream(stream);
+    Ok(body)
+  }
 
-          let reader = file.take(end - start + 1);
-          let stream = ReaderStream::new(reader);
-          return Ok(Body::from_stream(stream));
-        }
-
-        Ok(Body::from_stream(ReaderStream::new(file)))
-      }
-      Self::S3 { client, bucket } => {
-        let res = client
-          .get_object()
-          .bucket(bucket)
-          .key(name)
-          .set_range(range.map(|(start, end)| format!("bytes={}-{}", start, end)))
-          .send()
-          .await
-          .context("Failed to download file from S3 Bucket")?;
-
-        Ok(Body::from_stream(ReaderStream::new(
-          res.body.into_async_read(),
-        )))
-      }
+  pub async fn exists(&self, path: &Path) -> Result<bool> {
+    match self.0.head(path).await {
+      Err(object_store::Error::NotFound { .. }) => Ok(false),
+      Ok(_) => Ok(true),
+      Err(e) => Err(anyhow!("Failed to check if file exists: {e}")),
     }
   }
 
-  pub async fn exists(&self, name: &str) -> Result<bool> {
-    match self {
-      Self::Local(path) => {
-        let file_path = path.join(name);
-        Ok(file_path.exists())
-      }
-      Self::S3 { client, bucket } => {
-        let res = client.head_object().bucket(bucket).key(name).send().await;
-
-        match res {
-          Ok(_) => Ok(true),
-          Err(SdkError::ServiceError(e)) => {
-            if e.err().is_not_found() {
-              Ok(false)
-            } else {
-              bail!("Failed to check file existence in S3 Bucket: {}", e.err());
-            }
-          }
-          Err(e) => Err(dbg!(e)).context("Failed to check file existence in S3 Bucket")?,
-        }
-      }
-    }
-  }
-
-  pub async fn delete_file(&self, name: &str) -> Result<()> {
-    if !self.exists(name).await? {
+  pub async fn delete_file(&self, path: &Path) -> Result<()> {
+    if !self.exists(path).await? {
       return Ok(());
     }
 
-    match self {
-      Self::Local(path) => {
-        let file_path = path.join(name);
-        fs::remove_file(file_path).await?;
-      }
-      Self::S3 { client, bucket } => {
-        client
-          .delete_object()
-          .bucket(bucket)
-          .key(name)
-          .send()
-          .await
-          .context("Failed to delete nar from S3 Bucket")?;
-      }
-    }
+    self.0.delete(path).await?;
 
     Ok(())
   }
@@ -352,7 +177,16 @@ impl StorageConfig {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use http::StatusCode;
   use tempfile::tempdir;
+
+  async fn local(dir: &std::path::Path) -> FileStorage {
+    let config = StorageConfig {
+      storage_path: dir.to_str().unwrap().to_string(),
+      ..Default::default()
+    };
+    FileStorage::init(&config).await.unwrap()
+  }
 
   async fn read_body(body: Body) -> Vec<u8> {
     axum::body::to_bytes(body, usize::MAX)
@@ -364,31 +198,29 @@ mod tests {
   #[tokio::test]
   async fn test_local_storage() {
     let dir = tempdir().unwrap();
-    let config = StorageConfig {
-      storage_path: dir.path().to_str().unwrap().to_string(),
-      ..Default::default()
-    };
-
-    let storage = FileStorage::init(&config).await.unwrap();
+    let storage = local(dir.path()).await;
     assert_eq!(storage.name(), "Local");
 
     let mut content = b"hello world" as &[u8];
-    storage.save_file(&mut content, "test.txt").await.unwrap();
-    assert!(storage.exists("test.txt").await.unwrap());
+    storage
+      .save_file(&mut content, Path::from("test.txt"))
+      .await
+      .unwrap();
+    assert!(storage.exists(&Path::from("test.txt")).await.unwrap());
 
-    storage.delete_file("test.txt").await.unwrap();
-    assert!(!storage.exists("test.txt").await.unwrap());
+    storage.delete_file(&Path::from("test.txt")).await.unwrap();
+    assert!(!storage.exists(&Path::from("test.txt")).await.unwrap());
   }
 
   #[tokio::test]
   async fn test_local_save_file_creates_nested_dirs() {
     let dir = tempdir().unwrap();
-    let storage = FileStorage::Local(dir.path().to_path_buf());
+    let storage = local(dir.path()).await;
 
     // A name containing "/" must create the intermediate directories.
     let mut content = b"nested" as &[u8];
     storage
-      .save_file(&mut content, "a/b/c/file.txt")
+      .save_file(&mut content, Path::from("a/b/c/file.txt"))
       .await
       .unwrap();
 
@@ -397,45 +229,63 @@ mod tests {
     assert!(dir.path().join("a/b/c/file.txt").is_file());
 
     // The file is reachable through the normal API surface.
-    assert!(storage.exists("a/b/c/file.txt").await.unwrap());
-    let body = storage.get_file("a/b/c/file.txt", None).await.unwrap();
+    assert!(storage.exists(&Path::from("a/b/c/file.txt")).await.unwrap());
+    let body = storage
+      .get_file(&Path::from("a/b/c/file.txt"), None)
+      .await
+      .unwrap();
     assert_eq!(read_body(body).await, b"nested");
 
-    storage.delete_file("a/b/c/file.txt").await.unwrap();
-    assert!(!storage.exists("a/b/c/file.txt").await.unwrap());
+    storage
+      .delete_file(&Path::from("a/b/c/file.txt"))
+      .await
+      .unwrap();
+    assert!(!storage.exists(&Path::from("a/b/c/file.txt")).await.unwrap());
   }
 
   #[tokio::test]
   async fn test_local_get_file_full_and_range() {
     let dir = tempdir().unwrap();
-    let storage = FileStorage::Local(dir.path().to_path_buf());
+    let storage = local(dir.path()).await;
 
     let mut content = b"0123456789" as &[u8];
-    storage.save_file(&mut content, "data.bin").await.unwrap();
+    storage
+      .save_file(&mut content, Path::from("data.bin"))
+      .await
+      .unwrap();
 
     // Full read returns the whole file.
-    let body = storage.get_file("data.bin", None).await.unwrap();
+    let body = storage
+      .get_file(&Path::from("data.bin"), None)
+      .await
+      .unwrap();
     assert_eq!(read_body(body).await, b"0123456789");
 
     // A byte range returns only the requested slice (inclusive bounds).
-    let body = storage.get_file("data.bin", Some((2, 5))).await.unwrap();
+    let body = storage
+      .get_file(&Path::from("data.bin"), Some((2, 5)))
+      .await
+      .unwrap();
     assert_eq!(read_body(body).await, b"2345");
   }
 
   #[tokio::test]
   async fn test_local_get_missing_file_is_not_found() {
     let dir = tempdir().unwrap();
-    let storage = FileStorage::Local(dir.path().to_path_buf());
-    let err = storage.get_file("nope", None).await.unwrap_err();
+    let storage = local(dir.path()).await;
+    let err = storage
+      .get_file(&Path::from("nope"), None)
+      .await
+      .unwrap_err();
     assert_eq!(err.status, StatusCode::NOT_FOUND);
   }
 
   #[tokio::test]
   async fn test_delete_missing_file_is_ok() {
     let dir = tempdir().unwrap();
-    let storage = FileStorage::Local(dir.path().to_path_buf());
+    let storage = local(dir.path()).await;
     // Deleting a non-existent file is a no-op success.
-    assert!(storage.delete_file("ghost").await.is_ok());
+    assert!(storage.delete_file(&Path::from("ghost")).await.is_ok());
   }
 
   #[test]

@@ -99,7 +99,14 @@ impl TestApp {
       .layer(Extension(UserSettings::default()))
       .layer(Extension(MailSettings::default()));
     #[cfg(feature = "storage")]
-    let api = api.layer(Extension(FileStorage::Local(std::env::temp_dir())));
+    let api = api.layer(Extension(
+      FileStorage::init(&crate::storage::StorageConfig {
+        storage_path: std::env::temp_dir().to_str().unwrap().to_string(),
+        ..Default::default()
+      })
+      .await
+      .unwrap(),
+    ));
     rl.init();
 
     let mut openapi = aide::openapi::OpenApi::default();
