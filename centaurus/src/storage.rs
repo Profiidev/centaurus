@@ -15,6 +15,8 @@ use tracing::{info, warn};
 
 use crate::{anyhow, bail, error::Result};
 
+pub use object_store::path::Path as StoragePath;
+
 #[derive(Clone)]
 #[cfg_attr(feature = "openapi", derive(aide::OperationIo))]
 #[cfg_attr(feature = "backend", derive(axum::extract::FromRequestParts))]
