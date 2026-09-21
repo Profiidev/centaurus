@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{ops::Deref, path::PathBuf, sync::Arc};
 
 use axum::body::Body;
 use futures_util::StreamExt;
@@ -22,6 +22,14 @@ pub use object_store::path::Path as StoragePath;
 #[cfg_attr(feature = "backend", derive(axum::extract::FromRequestParts))]
 #[cfg_attr(feature = "backend", from_request(via(axum::extract::Extension)))]
 pub struct FileStorage(Arc<dyn ObjectStore>, &'static str);
+
+impl Deref for FileStorage {
+  type Target = dyn ObjectStore;
+
+  fn deref(&self) -> &Self::Target {
+    &*self.0
+  }
+}
 
 impl FileStorage {
   pub async fn init(config: &StorageConfig) -> Result<Self> {
