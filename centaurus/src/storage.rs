@@ -15,19 +15,27 @@ use tracing::{info, warn};
 
 use crate::{anyhow, bail, error::Result};
 
-pub use object_store::path::Path as StoragePath;
+pub use object_store::{
+  MultipartId,
+  multipart::{MultipartStore, PartId},
+  path::Path as StoragePath,
+};
 
 #[derive(Clone)]
 #[cfg_attr(feature = "openapi", derive(aide::OperationIo))]
 #[cfg_attr(feature = "backend", derive(axum::extract::FromRequestParts))]
 #[cfg_attr(feature = "backend", from_request(via(axum::extract::Extension)))]
-pub struct FileStorage(Arc<dyn ObjectStore>, &'static str);
+pub struct FileStorage {
+  store: Arc<dyn ObjectStore>,
+  multipart: Option<Arc<dyn MultipartStore>>,
+  name: &'static str,
+}
 
 impl Deref for FileStorage {
   type Target = dyn ObjectStore;
 
   fn deref(&self) -> &Self::Target {
-    &*self.0
+    &*self.store
   }
 }
 
@@ -60,7 +68,11 @@ impl FileStorage {
         .with_automatic_cleanup(true);
 
       info!("Using local file storage at {}", path.display());
-      return Ok(Self(Arc::new(fs), "Local"));
+      return Ok(Self {
+        store: Arc::new(fs),
+        multipart: None,
+        name: "Local",
+      });
     }
 
     // unwrap is safe here because the presence of these fields is already checked in config.use_s3()
@@ -84,11 +96,20 @@ impl FileStorage {
     let bucket = config.s3_bucket.clone().unwrap();
 
     info!("Using S3 file storage with bucket {}", bucket);
-    Ok(Self(Arc::new(s3), "S3"))
+    let s3 = Arc::new(s3);
+    Ok(Self {
+      store: s3.clone(),
+      multipart: Some(s3),
+      name: "S3",
+    })
   }
 
   pub fn name(&self) -> &'static str {
-    self.1
+    self.name
+  }
+
+  pub fn multipart(&self) -> Option<&dyn MultipartStore> {
+    self.multipart.as_deref()
   }
 
   pub async fn save_file<R: AsyncRead + Unpin + Send>(
@@ -96,7 +117,7 @@ impl FileStorage {
     reader: &mut R,
     path: Path,
   ) -> Result<()> {
-    let mut writer = BufWriter::new(self.0.clone(), path);
+    let mut writer = BufWriter::new(self.store.clone(), path);
     io::copy(reader, &mut writer).await?;
     writer.shutdown().await?;
 
@@ -113,14 +134,14 @@ impl FileStorage {
       ..Default::default()
     };
 
-    let result = self.0.get_opts(path, opts).await?;
+    let result = self.store.get_opts(path, opts).await?;
     let stream = result.into_stream();
     let body = Body::from_stream(stream);
     Ok(body)
   }
 
   pub async fn exists(&self, path: &Path) -> Result<bool> {
-    match self.0.head(path).await {
+    match self.store.head(path).await {
       Err(object_store::Error::NotFound { .. }) => Ok(false),
       Ok(_) => Ok(true),
       Err(e) => Err(anyhow!("Failed to check if file exists: {e}")),
@@ -132,7 +153,7 @@ impl FileStorage {
       return Ok(());
     }
 
-    self.0.delete(path).await?;
+    self.store.delete(path).await?;
 
     Ok(())
   }
@@ -208,6 +229,8 @@ mod tests {
     let dir = tempdir().unwrap();
     let storage = local(dir.path()).await;
     assert_eq!(storage.name(), "Local");
+    // The local filesystem has no resumable multipart API.
+    assert!(storage.multipart().is_none());
 
     let mut content = b"hello world" as &[u8];
     storage
