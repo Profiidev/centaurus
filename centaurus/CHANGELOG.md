@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.3] - 2026-09-21
+
+### 🚀 Features
+
+- Allow access to file storage object store
+
+### 🐛 Bug Fixes
+
+- Disable storage feature per default
+
+
+
 ## [0.17.2] - 2026-09-14
 
 ### 🐛 Bug Fixes
