@@ -85,7 +85,9 @@ impl FileStorage {
 
     // unwrap is safe here because the presence of these fields is already checked in config.use_s3()
     let host = config.s3_host.as_ref().unwrap();
+    // Client options first, the builder's own setters (e.g. allow_http) modify them
     let s3 = AmazonS3Builder::default()
+      .with_client_options(client_options)
       .with_access_key_id(config.s3_access_key.as_ref().unwrap())
       .with_secret_access_key(config.s3_secret_key.as_ref().unwrap())
       .with_region(config.s3_region.as_ref().unwrap())
@@ -93,7 +95,6 @@ impl FileStorage {
       .with_endpoint(host)
       .with_allow_http(host.starts_with("http://"))
       .with_virtual_hosted_style_request(!config.s3_force_path_style)
-      .with_client_options(client_options)
       .build()?;
 
     let mut stream = s3.list(None);
