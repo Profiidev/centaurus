@@ -284,7 +284,8 @@ impl OidcConfig {
 }
 
 impl OidcConfig {
-  async fn validate_jwk(&self, token: &str, nonce_map: &DashMap<Uuid, Instant>) -> Result<()> {
+  /// Validates the id_token and returns its `sub` claim.
+  async fn validate_jwk(&self, token: &str, nonce_map: &DashMap<Uuid, Instant>) -> Result<String> {
     let header = jsonwebtoken::decode_header(token)?;
 
     let Some(kid) = header.kid else {
@@ -328,7 +329,11 @@ impl OidcConfig {
       bail!(INTERNAL_SERVER_ERROR, "Invalid nonce");
     }
 
-    Ok(())
+    let Some(sub) = data.claims.get("sub").and_then(|sub| sub.as_str()) else {
+      bail!(INTERNAL_SERVER_ERROR, "Missing sub in id_token claims");
+    };
+
+    Ok(sub.to_string())
   }
 }
 
@@ -447,6 +452,7 @@ struct OidcCallbackQuery {
 
 #[derive(Deserialize)]
 struct TokenRes {
+  access_token: String,
   id_token: String,
 }
 
@@ -611,8 +617,9 @@ async fn check_code<T: UpdateMessage>(
   }
 
   let res: TokenRes = res.json().await?;
-  config.validate_jwk(&res.id_token, nonce_map).await?;
-  let token = res.id_token.clone();
+  let id_token_sub = config.validate_jwk(&res.id_token, nonce_map).await?;
+  // OIDC Core 5.3.1: the UserInfo endpoint is called with the access token.
+  let token = res.access_token;
 
   let req = config
     .client
@@ -631,6 +638,17 @@ async fn check_code<T: UpdateMessage>(
     ));
   }
   let res: AuthInfo = res.json().await?;
+
+  // OIDC Core 5.3.2: the UserInfo sub must match the id_token sub, otherwise the
+  // response must not be used.
+  if res.sub != id_token_sub {
+    tracing::error!("OIDC userinfo sub does not match id_token sub");
+    return Ok((
+      "/login".to_string(),
+      Some("invalid_token".to_string()),
+      cookies,
+    ));
+  }
 
   let redirect_to = redirect_to.unwrap_or("/".to_string());
 
@@ -777,7 +795,7 @@ async fn sync_image<T: UpdateMessage>(
   user: Uuid,
   picture: Option<String>,
   db: Connection,
-  id_token: String,
+  access_token: String,
   client: Client,
   updater: Updater<T>,
 ) {
@@ -786,7 +804,7 @@ async fn sync_image<T: UpdateMessage>(
   };
 
   spawn(async move {
-    let req = client.get(picture).bearer_auth(id_token).build()?;
+    let req = client.get(picture).bearer_auth(access_token).build()?;
     let res = client.execute(req).await?;
     if !res.status().is_success() {
       return Result::Ok(());
@@ -958,14 +976,22 @@ mod tests {
         "/token",
         post(move || {
           let slot = slot.clone();
-          async move { axum::Json(json!({"id_token": slot.lock().unwrap().clone()})) }
+          async move {
+            axum::Json(json!({"access_token": "access", "id_token": slot.lock().unwrap().clone()}))
+          }
         }),
       )
       .route(
         "/userinfo",
-        get(move || {
+        get(move |headers: http::HeaderMap| {
           let userinfo = userinfo.clone();
-          async move { axum::Json(userinfo) }
+          async move {
+            // UserInfo must be called with the access token, not the id_token.
+            if headers.get(http::header::AUTHORIZATION).unwrap() != "Bearer access" {
+              return Err(StatusCode::UNAUTHORIZED);
+            }
+            Ok(axum::Json(userinfo))
+          }
         }),
       );
     tokio::spawn(async move {
@@ -1444,7 +1470,9 @@ mod tests {
         "/token",
         post(move || {
           let slot = slot.clone();
-          async move { axum::Json(json!({"id_token": slot.lock().unwrap().clone()})) }
+          async move {
+            axum::Json(json!({"access_token": "access", "id_token": slot.lock().unwrap().clone()}))
+          }
         }),
       )
       .route(
@@ -1791,6 +1819,36 @@ mod tests {
     assert!(
       loc.contains("error=user_not_found"),
       "expected user_not_found, got {loc}"
+    );
+  }
+
+  #[tokio::test]
+  async fn test_callback_userinfo_sub_mismatch_rejected() {
+    let conn = db().await;
+    conn
+      .user()
+      .create_user(
+        "existing".into(),
+        "oidc@example.com".into(),
+        String::new(),
+        "salt".into(),
+        true,
+        Some("subject-1".into()),
+      )
+      .await
+      .unwrap();
+
+    let idp = signing_idp(json!({
+      "sub": "subject-1",
+      "email": "oidc@example.com",
+      "name": "OIDC User"
+    }))
+    .await;
+    // id_token is for a different subject than the UserInfo response.
+    let loc = run_oidc_callback(&conn, &idp, false, "subject-2", None).await;
+    assert!(
+      loc.contains("error=invalid_token"),
+      "expected invalid_token, got {loc}"
     );
   }
 
