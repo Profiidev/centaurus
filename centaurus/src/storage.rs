@@ -16,7 +16,7 @@ use tracing::{info, warn};
 use crate::{anyhow, bail, error::Result};
 
 pub use object_store::{
-  MultipartId,
+  ClientOptions, MultipartId,
   multipart::{MultipartStore, PartId},
   path::Path as StoragePath,
 };
@@ -41,6 +41,14 @@ impl Deref for FileStorage {
 
 impl FileStorage {
   pub async fn init(config: &StorageConfig) -> Result<Self> {
+    Self::init_with_client_options(config, ClientOptions::default()).await
+  }
+
+  /// Like [`Self::init`], but with custom HTTP client options for S3 (ignored for local storage)
+  pub async fn init_with_client_options(
+    config: &StorageConfig,
+    client_options: ClientOptions,
+  ) -> Result<Self> {
     if !config.use_s3() {
       let path = PathBuf::from(&config.storage_path);
 
@@ -77,7 +85,9 @@ impl FileStorage {
 
     // unwrap is safe here because the presence of these fields is already checked in config.use_s3()
     let host = config.s3_host.as_ref().unwrap();
+    // Client options first, the builder's own setters (e.g. allow_http) modify them
     let s3 = AmazonS3Builder::default()
+      .with_client_options(client_options)
       .with_access_key_id(config.s3_access_key.as_ref().unwrap())
       .with_secret_access_key(config.s3_secret_key.as_ref().unwrap())
       .with_region(config.s3_region.as_ref().unwrap())
