@@ -16,7 +16,7 @@ use tracing::{info, warn};
 use crate::{anyhow, bail, error::Result};
 
 pub use object_store::{
-  MultipartId,
+  ClientOptions, MultipartId,
   multipart::{MultipartStore, PartId},
   path::Path as StoragePath,
 };
@@ -41,6 +41,14 @@ impl Deref for FileStorage {
 
 impl FileStorage {
   pub async fn init(config: &StorageConfig) -> Result<Self> {
+    Self::init_with_client_options(config, ClientOptions::default()).await
+  }
+
+  /// Like [`Self::init`], but with custom HTTP client options for S3 (ignored for local storage)
+  pub async fn init_with_client_options(
+    config: &StorageConfig,
+    client_options: ClientOptions,
+  ) -> Result<Self> {
     if !config.use_s3() {
       let path = PathBuf::from(&config.storage_path);
 
@@ -85,6 +93,7 @@ impl FileStorage {
       .with_endpoint(host)
       .with_allow_http(host.starts_with("http://"))
       .with_virtual_hosted_style_request(!config.s3_force_path_style)
+      .with_client_options(client_options)
       .build()?;
 
     let mut stream = s3.list(None);
