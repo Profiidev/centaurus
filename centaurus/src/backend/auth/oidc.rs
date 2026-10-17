@@ -65,6 +65,11 @@ pub fn router<T: UpdateMessage>(rate_limiter: &mut RateLimiter) -> BackendRouter
 
 type State = (Instant, Option<String>, Option<String>);
 
+/// Callback url registered at the provider. Consumers mount the auth router at `/api/auth`.
+fn redirect_uri(site: &SiteConfig) -> Result<String> {
+  Ok(site.site_url.join("api/auth/oidc/callback")?.to_string())
+}
+
 #[derive(Clone, FromRequestParts, Debug, OperationIo)]
 #[from_request(via(Extension))]
 pub struct OidcState {
@@ -342,6 +347,7 @@ struct OidcUrlQuery {
 async fn oidc_url(
   state: OidcState,
   jwt: JwtState,
+  site: SiteConfig,
   mut cookies: CookieJar,
   Query(OidcUrlQuery { mut redirect_to }): Query<OidcUrlQuery>,
 ) -> Result<(CookieJar, Json<OidcResponse>)> {
@@ -357,6 +363,7 @@ async fn oidc_url(
   let mut form = HashMap::new();
   form.insert("response_type", "code".to_string());
   form.insert("client_id", config.client_id.clone());
+  form.insert("redirect_uri", redirect_uri(&site)?);
   form.insert("state", state_id.to_string());
   form.insert("nonce", nonce.to_string());
 
@@ -472,6 +479,7 @@ async fn oidc_callback<T: UpdateMessage>(
     &oidc_state.nonce,
     updater,
     &oidc_state,
+    &oidc_config,
   )
   .await?;
 
@@ -517,6 +525,7 @@ async fn check_code<T: UpdateMessage>(
   nonce_map: &DashMap<Uuid, Instant>,
   updater: Updater<T>,
   oidc_state: &OidcState,
+  site: &SiteConfig,
 ) -> Result<(String, Option<String>, CookieJar)> {
   let lock = oidc_state.config.lock().await;
   let Some(config) = lock.clone() else {
@@ -573,6 +582,7 @@ async fn check_code<T: UpdateMessage>(
   let mut form = HashMap::new();
   form.insert("grant_type", "authorization_code".to_string());
   form.insert("code", code);
+  form.insert("redirect_uri", redirect_uri(site)?);
 
   if let Some(code_verifier) = code_verifier {
     form.insert("code_verifier", code_verifier);
@@ -996,6 +1006,7 @@ mod tests {
     let (cookies, _) = oidc_url(
       state.clone(),
       jwt.clone(),
+      SiteConfig::default(),
       CookieJar::new(),
       Query(OidcUrlQuery {
         redirect_to: redirect_to.map(str::to_string),
@@ -1083,6 +1094,7 @@ mod tests {
     let (cookies, axum::Json(resp)) = oidc_url(
       state.clone(),
       jwt,
+      SiteConfig::default(),
       CookieJar::new(),
       Query(OidcUrlQuery { redirect_to: None }),
     )
@@ -1096,6 +1108,10 @@ mod tests {
     let q: HashMap<_, _> = url.query_pairs().into_owned().collect();
     assert_eq!(q.get("response_type").map(String::as_str), Some("code"));
     assert_eq!(q.get("client_id").map(String::as_str), Some("client"));
+    assert_eq!(
+      q.get("redirect_uri").map(String::as_str),
+      Some("http://localhost:8000/api/auth/oidc/callback")
+    );
     let state_id = *state.state.iter().next().unwrap().key();
     let nonce = *state.nonce.iter().next().unwrap().key();
     assert_eq!(q.get("state"), Some(&state_id.to_string()));
@@ -1124,6 +1140,7 @@ mod tests {
     let (_, axum::Json(resp)) = oidc_url(
       state.clone(),
       jwt,
+      SiteConfig::default(),
       CookieJar::new(),
       Query(OidcUrlQuery { redirect_to: None }),
     )
@@ -1146,6 +1163,7 @@ mod tests {
     let err = match oidc_url(
       state,
       jwt,
+      SiteConfig::default(),
       CookieJar::new(),
       Query(OidcUrlQuery { redirect_to: None }),
     )
@@ -1169,6 +1187,7 @@ mod tests {
     let _ = oidc_url(
       state.clone(),
       jwt,
+      SiteConfig::default(),
       CookieJar::new(),
       Query(OidcUrlQuery {
         redirect_to: redirect_to.map(str::to_string),
@@ -1467,6 +1486,7 @@ mod tests {
     let (cookies, _) = oidc_url(
       state.clone(),
       jwt.clone(),
+      SiteConfig::default(),
       CookieJar::new(),
       Query(OidcUrlQuery { redirect_to: None }),
     )
@@ -1849,6 +1869,7 @@ mod tests {
     let (cookies, _) = oidc_url(
       state.clone(),
       jwt.clone(),
+      SiteConfig::default(),
       CookieJar::new(),
       Query(OidcUrlQuery { redirect_to: None }),
     )
