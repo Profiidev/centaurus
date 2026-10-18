@@ -373,4 +373,104 @@ mod tests {
     assert!(config.use_s3());
     assert!(FileStorage::init(&config).await.is_err());
   }
+
+  /// Starts an adobe/s3mock container with `test-bucket` and returns the matching config.
+  /// The container is removed when the returned handle is dropped.
+  async fn s3mock() -> (
+    testcontainers::ContainerAsync<testcontainers::GenericImage>,
+    StorageConfig,
+  ) {
+    use testcontainers::{
+      GenericImage, ImageExt,
+      core::{IntoContainerPort, WaitFor},
+      runners::AsyncRunner,
+    };
+
+    let container = GenericImage::new("adobe/s3mock", "5.2.3")
+      .with_exposed_port(9090.tcp())
+      .with_wait_for(WaitFor::message_on_stdout("Started S3MockApplication"))
+      .with_env_var(
+        "COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS",
+        "test-bucket",
+      )
+      .start()
+      .await
+      .expect("Failed to start s3mock container (is Docker running?)");
+
+    let host = container.get_host().await.unwrap();
+    let port = container.get_host_port_ipv4(9090).await.unwrap();
+    let config = StorageConfig {
+      storage_path: String::new(),
+      s3_bucket: Some("test-bucket".into()),
+      s3_region: Some("us-east-1".into()),
+      s3_host: Some(format!("http://{host}:{port}")),
+      s3_access_key: Some("key".into()),
+      s3_secret_key: Some("secret".into()),
+      s3_force_path_style: true,
+    };
+    (container, config)
+  }
+
+  #[tokio::test]
+  async fn test_s3_storage() {
+    let (_s3, config) = s3mock().await;
+    let storage = FileStorage::init(&config).await.unwrap();
+    assert_eq!(storage.name(), "S3");
+    assert!(storage.multipart().is_some());
+
+    let path = Path::from("dir/data.bin");
+    let mut content = b"0123456789" as &[u8];
+    storage.save_file(&mut content, path.clone()).await.unwrap();
+    assert!(storage.exists(&path).await.unwrap());
+
+    let body = storage.get_file(&path, None).await.unwrap();
+    assert_eq!(read_body(body).await, b"0123456789");
+    let body = storage.get_file(&path, Some((2, 5))).await.unwrap();
+    assert_eq!(read_body(body).await, b"2345");
+
+    storage.delete_file(&path).await.unwrap();
+    assert!(!storage.exists(&path).await.unwrap());
+    // Deleting a missing object is a no-op success.
+    storage.delete_file(&path).await.unwrap();
+
+    let err = storage.get_file(&path, None).await.unwrap_err();
+    assert_eq!(err.status, StatusCode::NOT_FOUND);
+  }
+
+  #[tokio::test]
+  async fn test_s3_init_unknown_bucket_errors() {
+    let (_s3, mut config) = s3mock().await;
+    config.s3_bucket = Some("missing-bucket".into());
+    assert!(FileStorage::init(&config).await.is_err());
+  }
+
+  #[tokio::test]
+  async fn test_s3_multipart_upload() {
+    let (_s3, config) = s3mock().await;
+    let storage = FileStorage::init(&config).await.unwrap();
+    let multipart = storage.multipart().unwrap();
+
+    // S3 requires every part but the last to be at least 5 MiB.
+    let first = vec![b'a'; 5 * 1024 * 1024];
+    let path = Path::from("big.bin");
+    let id = multipart.create_multipart(&path).await.unwrap();
+    let parts = vec![
+      multipart
+        .put_part(&path, &id, 0, first.clone().into())
+        .await
+        .unwrap(),
+      multipart
+        .put_part(&path, &id, 1, b"tail".to_vec().into())
+        .await
+        .unwrap(),
+    ];
+    multipart
+      .complete_multipart(&path, &id, parts)
+      .await
+      .unwrap();
+
+    let data = read_body(storage.get_file(&path, None).await.unwrap()).await;
+    assert_eq!(data.len(), first.len() + 4);
+    assert!(data.ends_with(b"tail"));
+  }
 }

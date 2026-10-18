@@ -24,3 +24,24 @@ impl MigratorTrait for Migrator {
     ]
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::db::{config::DBConfig, init::connect_db};
+
+  #[tokio::test]
+  async fn migrations_full_down_up_sqlite() {
+    let conn = connect_db(&DBConfig::default(), "sqlite::memory:").await;
+    Migrator::up(&*conn, None).await.unwrap();
+    // Rolling back every migration must produce valid SQLite SQL.
+    Migrator::down(&*conn, None).await.unwrap();
+    assert!(
+      Migrator::get_applied_migrations(&*conn)
+        .await
+        .unwrap()
+        .is_empty()
+    );
+    Migrator::up(&*conn, None).await.unwrap();
+  }
+}
