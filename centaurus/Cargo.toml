@@ -105,6 +105,7 @@ tempfile = "=3.27.0"
 tower = { version = "=0.5.3", features = ["util"] }
 tokio-tungstenite = "=0.30.0"
 futures-util = "=0.3.34"
+testcontainers = "=0.28.0"
 
 [features]
 default = ["avatar", "endpoints", "logging", "frontend", "metrics"]

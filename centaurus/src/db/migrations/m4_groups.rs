@@ -133,14 +133,15 @@ impl MigrationTrait for Migration {
       )
       .await?;
 
+    // One table per statement, SQLite rejects multi-table DROP TABLE
     manager
-      .drop_table(
-        Table::drop()
-          .table(GroupPermission::Table)
-          .table(GroupUser::Table)
-          .table(Group::Table)
-          .to_owned(),
-      )
+      .drop_table(Table::drop().table(GroupPermission::Table).to_owned())
+      .await?;
+    manager
+      .drop_table(Table::drop().table(GroupUser::Table).to_owned())
+      .await?;
+    manager
+      .drop_table(Table::drop().table(Group::Table).to_owned())
       .await
   }
 }

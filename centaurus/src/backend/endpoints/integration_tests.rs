@@ -65,7 +65,10 @@ impl TestApp {
   async fn new() -> Self {
     let conn = connect_db(&DBConfig::default(), "sqlite::memory:").await;
     Migrator::up(&*conn, None).await.unwrap();
+    Self::with_conn(conn).await
+  }
 
+  async fn with_conn(conn: Connection) -> Self {
     let auth_config = AuthConfig::default();
     let jwt = JwtState::init(&auth_config, &conn).await;
     let pw = auth::init_pw_state(&auth_config, &conn).await;
@@ -240,6 +243,38 @@ async fn setup_is_setup_reports_backends() {
   assert_eq!(body["is_setup"], json!(false));
   assert_eq!(body["db_backend"], json!("SQLite"));
   assert_eq!(body["storage_backend"], json!("Local"));
+}
+
+#[tokio::test]
+async fn setup_flow_on_postgres() {
+  let (_pg, conn) = crate::db::postgres_tests::postgres().await;
+  let app = TestApp::with_conn(conn).await;
+  let (status, body) = app.send(Method::GET, "/setup", None, None).await;
+  assert_eq!(status, StatusCode::OK);
+  assert_eq!(body["db_backend"], json!("PostgreSQL"));
+
+  let group = app.conn.group().create_group("Admin".into()).await.unwrap();
+  app
+    .conn
+    .setup()
+    .set_admin_group_created(group)
+    .await
+    .unwrap();
+  let pw = app.encrypt("admin-pw");
+  let (status, body) = app
+    .send(
+      Method::POST,
+      "/setup",
+      None,
+      Some(json!({"admin_username":"a","admin_password":pw,"admin_email":"a@x.com"})),
+    )
+    .await;
+  assert_eq!(status, StatusCode::OK);
+  let admin: Uuid = serde_json::from_value(body["user"].clone()).unwrap();
+  assert!(app.conn.group().is_last_admin(group, admin).await.unwrap());
+
+  let (_, body) = app.send(Method::GET, "/setup", None, None).await;
+  assert_eq!(body["is_setup"], json!(true));
 }
 
 #[tokio::test]
