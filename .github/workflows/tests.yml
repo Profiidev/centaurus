@@ -7,11 +7,6 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
-        id: app-token
-        with:
-          client-id: ${{ secrets.COMMIT_BOT_CLIENT_ID }}
-          private-key: ${{ secrets.COMMIT_BOT_PRIVATE_KEY }}
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
@@ -28,17 +23,19 @@ jobs:
       - name: "Build and test"
         run: cargo nextest run --workspace --all-features
 
+      # Published by tests-publish.yml, which also works for PRs from forks
       - name: Upload Test Result File
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results
           path: ${{ github.workspace }}/target/nextest/default/junit.xml
           retention-days: 5
 
-      - name: Publish Test Results
-        uses: EnricoMi/publish-unit-test-result-action@d0a4676d0e0b938bc201470d88276b7c74c712b3 # v2
+      - name: Upload Event File
         if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          github_token: ${{ steps.app-token.outputs.token }}
-          files: |
-            ${{ github.workspace }}/target/nextest/default/junit.xml
+          name: event-file
+          path: ${{ github.event_path }}
+          retention-days: 5
