@@ -48,6 +48,8 @@ use uuid::Uuid;
 
 pub const OIDC_STATE: &str = "oidc_state";
 pub const SKIP_SETUP_ENV: &str = "SKIP_SETUP";
+/// 1s backoff doubling up to 60s: 20 attempts span about 14 minutes after boot.
+const OIDC_INIT_ATTEMPTS: u32 = 20;
 pub const URL_SAFE_CHARS: &[u8] =
   b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
 
@@ -162,14 +164,17 @@ impl OidcState {
             }
           }
 
-          if let Err(e) = state.try_init(&oidc_settings).await {
+          if let Err(e) = state
+            .init_retrying(&oidc_settings, OIDC_INIT_ATTEMPTS)
+            .await
+          {
             if skip_setup && !is_setup {
               info!(
                 "Failed to init Oidc. Setup will not be skipped. Error: {:?}",
                 e
               );
             } else {
-              warn!("Failed to initialize OIDC: {:?}", e);
+              warn!("Failed to initialize OIDC, giving up: {:?}", e);
             }
           } else if skip_setup && !is_setup {
             info!("Oidc initialized successfully, setup will be skipped");
@@ -211,6 +216,31 @@ impl OidcState {
     let mut lock = self.config.lock().await;
     *lock = Some(config);
     Ok(())
+  }
+
+  /// At boot the issuer (or the proxy in front of it) is often not reachable yet,
+  /// so retry with backoff instead of leaving OIDC disabled until restart.
+  /// Returns the last error after `attempts` failed tries.
+  async fn init_retrying(&self, settings: &OidcSettings, attempts: u32) -> Result<()> {
+    let mut delay = Duration::from_secs(1);
+    for attempt in 1.. {
+      let Err(e) = self.try_init(settings).await else {
+        return Ok(());
+      };
+      if attempt >= attempts {
+        return Err(e);
+      }
+      warn!(
+        "Failed to initialize OIDC (attempt {attempt}/{attempts}), retrying in {delay:?}: {e:?}"
+      );
+      sleep(delay).await;
+      // Settings saved in the meantime have already initialized OIDC.
+      if self.is_enabled().await {
+        return Ok(());
+      }
+      delay = (delay * 2).min(Duration::from_secs(60));
+    }
+    unreachable!()
   }
 
   pub async fn deactivate(&self) {
@@ -856,7 +886,10 @@ mod tests {
   /// A minimal mock OIDC provider: discovery + JWKS + a redirecting authorize
   /// endpoint. Returns its base URL.
   async fn mock_idp() -> String {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    serve_mock_idp(tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap())
+  }
+
+  fn serve_mock_idp(listener: tokio::net::TcpListener) -> String {
     let base = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());
 
     let disco_base = base.clone();
@@ -1106,6 +1139,52 @@ mod tests {
         .await
         .is_err()
     );
+    assert!(!state.is_enabled().await);
+  }
+
+  #[tokio::test]
+  async fn test_init_retrying_waits_for_issuer() {
+    let conn = db().await;
+    let state = OidcState::new(&conn, None).await;
+    // Reserve a free port, then leave it closed so the first attempt fails.
+    let addr = tokio::net::TcpListener::bind("127.0.0.1:0")
+      .await
+      .unwrap()
+      .local_addr()
+      .unwrap();
+
+    let retry = tokio::spawn({
+      let state = state.clone();
+      let settings = settings(&format!("http://{addr}"), false);
+      async move { state.init_retrying(&settings, OIDC_INIT_ATTEMPTS).await }
+    });
+    sleep(Duration::from_millis(200)).await;
+    assert!(!state.is_enabled().await);
+
+    serve_mock_idp(tokio::net::TcpListener::bind(addr).await.unwrap());
+    tokio::time::timeout(Duration::from_secs(10), retry)
+      .await
+      .unwrap()
+      .unwrap()
+      .unwrap();
+    assert!(state.is_enabled().await);
+  }
+
+  #[tokio::test]
+  async fn test_init_retrying_gives_up_after_attempts() {
+    let conn = db().await;
+    let state = OidcState::new(&conn, None).await;
+    // Bound and immediately dropped, so nothing listens there.
+    let addr = tokio::net::TcpListener::bind("127.0.0.1:0")
+      .await
+      .unwrap()
+      .local_addr()
+      .unwrap();
+
+    let res = state
+      .init_retrying(&settings(&format!("http://{addr}"), false), 2)
+      .await;
+    assert!(res.is_err());
     assert!(!state.is_enabled().await);
   }
 
