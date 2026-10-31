@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.9] - 2026-10-31
+
+### 🚀 Features
+
+- Remove openssl
+
+
+
 ## [0.17.8] - 2026-10-26
 
 ### 🚀 Features
