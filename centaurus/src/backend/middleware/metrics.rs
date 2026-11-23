@@ -5,7 +5,7 @@ use ::metrics::{
 };
 use axum::{
   Extension, RequestExt,
-  extract::{FromRequestParts, Request},
+  extract::{FromRequestParts, MatchedPath, Request},
   middleware::{Next, from_fn},
   response::Response,
   routing::get,
@@ -111,8 +111,14 @@ fn describe_metrics(prefix: &str) {
 async fn request_metrics(mut req: Request, next: Next) -> Response {
   let start = Instant::now();
   let scheme = scheme(&req);
-  let method = req.method().to_string();
-  let path = req.uri().path().to_string();
+  let method = method_label(req.method()).to_string();
+  // Label by route template, never by raw path: arbitrary request paths
+  // (including 404s) would otherwise create unbounded metric series.
+  let path = req
+    .extensions()
+    .get::<MatchedPath>()
+    .map(|p| p.as_str().to_string())
+    .unwrap_or_else(|| "unmatched".to_string());
 
   let MetricsPrefix(prefix, extra_labels) = req.extract_parts::<MetricsPrefix>().await.unwrap();
 
@@ -156,24 +162,40 @@ fn content_size(headers: &HeaderMap) -> f64 {
     .unwrap_or(0.0)
 }
 
-fn scheme(req: &Request) -> String {
-  if let Some(scheme) = req.headers().get("X-Forwarded-Prot") {
-    scheme.to_str().unwrap_or("http").to_string()
-  } else if let Some(scheme) = req.headers().get("X-Forwarded-Protocol") {
-    scheme.to_str().unwrap_or("http").to_string()
-  } else if let Some(ssl) = req.headers().get("X-Forwarded-Ssl") {
-    if ssl.to_str().unwrap_or("off") == "on" {
-      "https".to_string()
-    } else {
-      "http".to_string()
-    }
-  } else if let Some(scheme) = req.headers().get("X-Url-Scheme") {
-    scheme.to_str().unwrap_or("http").to_string()
-  } else if let Some(scheme) = req.uri().scheme() {
-    scheme.as_str().to_string()
-  } else {
-    "http".to_string()
+/// Standard methods keep their name; extension methods (any token is valid
+/// HTTP) would otherwise become unbounded label values.
+fn method_label(method: &http::Method) -> &'static str {
+  use http::Method;
+  match *method {
+    Method::GET => "GET",
+    Method::POST => "POST",
+    Method::PUT => "PUT",
+    Method::DELETE => "DELETE",
+    Method::PATCH => "PATCH",
+    Method::HEAD => "HEAD",
+    Method::OPTIONS => "OPTIONS",
+    Method::CONNECT => "CONNECT",
+    Method::TRACE => "TRACE",
+    _ => "other",
   }
+}
+
+/// Only ever `http` or `https`: the headers are client-controlled and must not
+/// become free-form label values.
+fn scheme(req: &Request) -> String {
+  let headers = req.headers();
+  let header = |name: &str| headers.get(name).and_then(|v| v.to_str().ok());
+  let https = if let Some(scheme) = header("X-Forwarded-Prot")
+    .or_else(|| header("X-Forwarded-Protocol"))
+    .or_else(|| header("X-Url-Scheme"))
+  {
+    scheme.eq_ignore_ascii_case("https")
+  } else if let Some(ssl) = header("X-Forwarded-Ssl") {
+    ssl == "on"
+  } else {
+    req.uri().scheme_str() == Some("https")
+  };
+  if https { "https" } else { "http" }.to_string()
 }
 
 #[cfg(test)]
@@ -237,6 +259,67 @@ mod tests {
       .unwrap();
     let text = String::from_utf8_lossy(&body);
     assert!(text.contains("test_http_requests_total"));
+    assert!(text.contains("url_path=\"/ping\""));
+  }
+
+  #[tokio::test]
+  async fn test_metrics_labels_are_bounded() {
+    let handle = init_metrics("test_service".into());
+
+    let api = BackendRouter::new().route("/items/{id}", get(async || "item"));
+    let router = BackendRouter::new().nest("/api", api);
+    let router = metrics_route(router, "/metrics");
+    let router = metrics_middleware(router, "test".into(), vec![]);
+    let router = metrics(router, "test".into(), handle);
+    let app = finish(router);
+
+    for (method, uri) in [
+      ("GET", "/api/items/1"),
+      ("GET", "/api/items/2"),
+      ("GET", "/random/a"),
+      ("RANDOMVERB", "/random/b"),
+      ("OTHERVERB", "/api/items/3"),
+    ] {
+      app
+        .clone()
+        .oneshot(
+          Request::builder()
+            .method(method)
+            .uri(uri)
+            .header("X-Url-Scheme", "evil-value")
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    }
+
+    let response = app
+      .oneshot(
+        Request::builder()
+          .uri("/metrics")
+          .body(Body::empty())
+          .unwrap(),
+      )
+      .await
+      .unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+      .await
+      .unwrap();
+    let text = String::from_utf8_lossy(&body);
+    // Matched routes use their template, everything else collapses.
+    assert!(text.contains("url_path=\"/api/items/{id}\""));
+    assert!(text.contains("url_path=\"unmatched\""));
+    assert!(text.contains("http_request_method=\"other\""));
+    for raw in [
+      "/api/items/1",
+      "/random/a",
+      "evil-value",
+      "RANDOMVERB",
+      "OTHERVERB",
+    ] {
+      assert!(!text.contains(raw), "{raw} leaked into labels:\n{text}");
+    }
   }
 
   #[test]
@@ -252,6 +335,13 @@ mod tests {
       .body(Body::empty())
       .unwrap();
     assert_eq!(scheme(&req), "https");
+
+    // Anything but https collapses to http.
+    let req = Request::builder()
+      .header("X-Forwarded-Prot", "gopher")
+      .body(Body::empty())
+      .unwrap();
+    assert_eq!(scheme(&req), "http");
 
     // Falls back to plain http when nothing indicates otherwise.
     let req = Request::builder().uri("/x").body(Body::empty()).unwrap();
