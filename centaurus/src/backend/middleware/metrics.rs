@@ -111,7 +111,7 @@ fn describe_metrics(prefix: &str) {
 async fn request_metrics(mut req: Request, next: Next) -> Response {
   let start = Instant::now();
   let scheme = scheme(&req);
-  let method = req.method().to_string();
+  let method = method_label(req.method()).to_string();
   // Label by route template, never by raw path: arbitrary request paths
   // (including 404s) would otherwise create unbounded metric series.
   let path = req
@@ -160,6 +160,24 @@ fn content_size(headers: &HeaderMap) -> f64 {
     .and_then(|value| value.to_str().ok())
     .and_then(|s| s.parse::<f64>().ok())
     .unwrap_or(0.0)
+}
+
+/// Standard methods keep their name; extension methods (any token is valid
+/// HTTP) would otherwise become unbounded label values.
+fn method_label(method: &http::Method) -> &'static str {
+  use http::Method;
+  match *method {
+    Method::GET => "GET",
+    Method::POST => "POST",
+    Method::PUT => "PUT",
+    Method::DELETE => "DELETE",
+    Method::PATCH => "PATCH",
+    Method::HEAD => "HEAD",
+    Method::OPTIONS => "OPTIONS",
+    Method::CONNECT => "CONNECT",
+    Method::TRACE => "TRACE",
+    _ => "other",
+  }
 }
 
 /// Only ever `http` or `https`: the headers are client-controlled and must not
@@ -255,11 +273,18 @@ mod tests {
     let router = metrics(router, "test".into(), handle);
     let app = finish(router);
 
-    for uri in ["/api/items/1", "/api/items/2", "/random/a", "/random/b"] {
+    for (method, uri) in [
+      ("GET", "/api/items/1"),
+      ("GET", "/api/items/2"),
+      ("GET", "/random/a"),
+      ("RANDOMVERB", "/random/b"),
+      ("OTHERVERB", "/api/items/3"),
+    ] {
       app
         .clone()
         .oneshot(
           Request::builder()
+            .method(method)
             .uri(uri)
             .header("X-Url-Scheme", "evil-value")
             .body(Body::empty())
@@ -285,7 +310,14 @@ mod tests {
     // Matched routes use their template, everything else collapses.
     assert!(text.contains("url_path=\"/api/items/{id}\""));
     assert!(text.contains("url_path=\"unmatched\""));
-    for raw in ["/api/items/1", "/random/a", "evil-value"] {
+    assert!(text.contains("http_request_method=\"other\""));
+    for raw in [
+      "/api/items/1",
+      "/random/a",
+      "evil-value",
+      "RANDOMVERB",
+      "OTHERVERB",
+    ] {
       assert!(!text.contains(raw), "{raw} leaked into labels:\n{text}");
     }
   }
