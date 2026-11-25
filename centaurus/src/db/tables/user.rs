@@ -60,7 +60,15 @@ impl<'db> UserTable<'db> {
     #[cfg(feature = "avatar")]
     let url = crate::gravatar::get_gravatar_url(&email);
     #[cfg(feature = "avatar")]
-    let data = match reqwest::get(&url).await {
+    let res = match reqwest::Client::builder()
+      .user_agent(crate::USER_AGENT)
+      .build()
+    {
+      Ok(client) => client.get(&url).send().await,
+      Err(e) => Err(e),
+    };
+    #[cfg(feature = "avatar")]
+    let data = match res {
       Ok(response) => {
         if response.status().is_success() {
           match response.bytes().await {
