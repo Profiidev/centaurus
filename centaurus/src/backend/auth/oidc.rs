@@ -265,8 +265,11 @@ impl OidcConfig {
       .push(".well-known")
       .push("openid-configuration");
 
+    // discovery follows redirects; the stored client must not
+    let discovery = Client::builder().user_agent(USER_AGENT).build()?;
+
     info!("Configuring OIDC with URL: {}", url);
-    let res = reqwest::get(url.clone()).await?;
+    let res = discovery.get(url.clone()).send().await?;
     if !res.status().is_success() {
       let body = res.text().await.unwrap_or_default();
       bail!(
@@ -278,7 +281,7 @@ impl OidcConfig {
     let config: OidcConfiguration = res.json().await?;
 
     info!("Retrieving JWKs from: {}", config.jwks_uri);
-    let res = reqwest::get(config.jwks_uri.clone()).await?;
+    let res = discovery.get(config.jwks_uri.clone()).send().await?;
     if !res.status().is_success() {
       let body = res.text().await.unwrap_or_default();
       bail!("Failed to retrieve JWKs from {}: {}", config.jwks_uri, body);
