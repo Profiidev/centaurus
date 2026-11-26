@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.10] - 2026-11-26
+
+### 🐛 Bug Fixes
+
+- *(metrics)* Bound request metric label cardinality
+- *(metrics)* Collapse non-standard HTTP methods into one label value
+- Send user agent on all outgoing http requests
+- *(deps)* Update rust crate rsa to 0.10.0 [security] ([#208](https://github.com/Profiidev/centaurus/pull/208))
+
+
+
 ## [0.17.9] - 2026-10-31
 
 ### 🚀 Features
