@@ -1,11 +1,12 @@
 #[cfg(feature = "endpoints")]
 use axum::Extension;
 #[cfg(feature = "endpoints")]
+use rand::rngs::SysRng;
+#[cfg(feature = "endpoints")]
 use rsa::{
-  RsaPrivateKey,
+  PrivateKey,
   pkcs1::{DecodeRsaPrivateKey, EncodeRsaPrivateKey},
   pkcs8::LineEnding,
-  rand_core::OsRng,
 };
 #[cfg(feature = "endpoints")]
 use tracing::info;
@@ -91,14 +92,14 @@ pub async fn state<C: Config>(router: BackendRouter, config: &C, db: &Connection
 #[cfg(feature = "endpoints")]
 pub async fn init_pw_state(config: &AuthConfig, db: &Connection) -> PasswordState {
   let key = if let Ok(key) = db.key().get_key_by_name("password".into()).await {
-    RsaPrivateKey::from_pkcs1_pem(&key.private_key).expect("Failed to parse private password key")
+    PrivateKey::from_pkcs1_pem(&key.private_key).expect("Failed to parse private password key")
   } else {
-    let mut rng = OsRng {};
+    let mut rng = SysRng;
     info!(
       "Generating new RSA key for password transfer encryption. This may take a few seconds..."
     );
-    let bits = if cfg!(feature = "test") { 512 } else { 4096 };
-    let private_key = RsaPrivateKey::new(&mut rng, bits).expect("Failed to create Rsa key");
+    let bits = if cfg!(feature = "test") { 1024 } else { 4096 };
+    let private_key = PrivateKey::new(&mut rng, bits).expect("Failed to create Rsa key");
     let key = private_key
       .to_pkcs1_pem(LineEnding::CRLF)
       .expect("Failed to export private key")

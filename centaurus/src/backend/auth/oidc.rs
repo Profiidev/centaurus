@@ -861,7 +861,7 @@ mod tests {
   use axum::response::IntoResponse;
   use axum::routing::{get, post};
   use http::header::LOCATION;
-  use rsa::rand_core::OsRng;
+  use rand::rngs::SysRng;
   use sea_orm_migration::MigratorTrait;
   use serde::{Deserialize, Serialize};
   use serde_json::json;
@@ -961,12 +961,12 @@ mod tests {
     use rsa::pkcs1::EncodeRsaPrivateKey;
     use rsa::pkcs8::LineEnding;
     use rsa::traits::PublicKeyParts;
-    use rsa::{RsaPrivateKey, RsaPublicKey};
+    use rsa::{PrivateKey, PublicKey};
 
-    let priv_key = RsaPrivateKey::new(&mut OsRng, 2048).unwrap();
-    let pub_key = RsaPublicKey::from(&priv_key);
-    let n = BASE64_URL_SAFE_NO_PAD.encode(pub_key.n().to_bytes_be());
-    let e = BASE64_URL_SAFE_NO_PAD.encode(pub_key.e().to_bytes_be());
+    let priv_key = PrivateKey::new(&mut SysRng, 2048).unwrap();
+    let pub_key = PublicKey::from(&priv_key);
+    let n = BASE64_URL_SAFE_NO_PAD.encode(pub_key.n().to_be_bytes_trimmed_vartime());
+    let e = BASE64_URL_SAFE_NO_PAD.encode(pub_key.e().to_be_bytes_trimmed_vartime());
     let enc_key =
       EncodingKey::from_rsa_pem(priv_key.to_pkcs1_pem(LineEnding::LF).unwrap().as_bytes()).unwrap();
     let token_slot = Arc::new(Mutex::new(String::new()));
@@ -1496,14 +1496,14 @@ mod tests {
     use rsa::pkcs1::EncodeRsaPrivateKey;
     use rsa::pkcs8::LineEnding;
     use rsa::traits::PublicKeyParts;
-    use rsa::{RsaPrivateKey, RsaPublicKey};
+    use rsa::{PrivateKey, PublicKey};
     use std::sync::{Arc, Mutex};
 
     // Generate the IdP signing key and expose its public part as a JWK.
-    let priv_key = RsaPrivateKey::new(&mut OsRng, 2048).unwrap();
-    let pub_key = RsaPublicKey::from(&priv_key);
-    let n = BASE64_URL_SAFE_NO_PAD.encode(pub_key.n().to_bytes_be());
-    let e = BASE64_URL_SAFE_NO_PAD.encode(pub_key.e().to_bytes_be());
+    let priv_key = PrivateKey::new(&mut SysRng, 2048).unwrap();
+    let pub_key = PublicKey::from(&priv_key);
+    let n = BASE64_URL_SAFE_NO_PAD.encode(pub_key.n().to_be_bytes_trimmed_vartime());
+    let e = BASE64_URL_SAFE_NO_PAD.encode(pub_key.e().to_be_bytes_trimmed_vartime());
     let enc_key =
       EncodingKey::from_rsa_pem(priv_key.to_pkcs1_pem(LineEnding::LF).unwrap().as_bytes()).unwrap();
 

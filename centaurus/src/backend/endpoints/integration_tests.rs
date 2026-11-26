@@ -10,7 +10,8 @@ use aide::axum::ApiRouter;
 use axum::{Extension, Router, body::Body};
 use base64::prelude::*;
 use http::{Method, Request, StatusCode, header::CONTENT_TYPE};
-use rsa::{Pkcs1v15Encrypt, RsaPublicKey, pkcs1::DecodeRsaPublicKey, rand_core::OsRng};
+use rand::rngs::SysRng;
+use rsa::{Pkcs1v15Encrypt, PublicKey, pkcs1::DecodeRsaPublicKey};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tower::ServiceExt;
@@ -58,7 +59,7 @@ struct TestApp {
   conn: Connection,
   jwt: JwtState,
   pw: PasswordState,
-  pw_pub: RsaPublicKey,
+  pw_pub: PublicKey,
 }
 
 impl TestApp {
@@ -72,7 +73,7 @@ impl TestApp {
     let auth_config = AuthConfig::default();
     let jwt = JwtState::init(&auth_config, &conn).await;
     let pw = auth::init_pw_state(&auth_config, &conn).await;
-    let pw_pub = RsaPublicKey::from_pkcs1_pem(&pw.pub_key).unwrap();
+    let pw_pub = PublicKey::from_pkcs1_pem(&pw.pub_key).unwrap();
 
     let (update_state, updater) = UpdateState::<TestMsg>::init().await;
     let oidc = OidcState::new(&conn, None).await;
@@ -132,7 +133,7 @@ impl TestApp {
   fn encrypt(&self, plain: &str) -> String {
     let ct = self
       .pw_pub
-      .encrypt(&mut OsRng, Pkcs1v15Encrypt, plain.as_bytes())
+      .encrypt(&mut SysRng, Pkcs1v15Encrypt, plain.as_bytes())
       .unwrap();
     BASE64_STANDARD.encode(ct)
   }

@@ -11,11 +11,11 @@ use jsonwebtoken::{
   Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode,
   errors::{Error, ErrorKind},
 };
+use rand::rngs::SysRng;
 use rsa::{
-  RsaPrivateKey, RsaPublicKey,
+  PrivateKey, PublicKey,
   pkcs1::{DecodeRsaPrivateKey, EncodeRsaPrivateKey, EncodeRsaPublicKey},
   pkcs8::LineEnding,
-  rand_core::OsRng,
 };
 use serde::{Deserialize, Serialize};
 use tracing::info;
@@ -105,10 +105,10 @@ impl JwtState {
     let (key, kid) = if let Ok(key) = db.key().get_key_by_name("jwt".into()).await {
       (key.private_key, key.id.to_string())
     } else {
-      let mut rng = OsRng {};
+      let mut rng = SysRng;
       info!("Generating new JWT RSA keypair. This may take a few seconds...");
-      let bits = if cfg!(feature = "test") { 512 } else { 4096 };
-      let private_key = RsaPrivateKey::new(&mut rng, bits).expect("Failed to create Rsa key");
+      let bits = if cfg!(feature = "test") { 1024 } else { 4096 };
+      let private_key = PrivateKey::new(&mut rng, bits).expect("Failed to create Rsa key");
       let key = private_key
         .to_pkcs1_pem(LineEnding::CRLF)
         .expect("Failed to export private key")
@@ -124,8 +124,8 @@ impl JwtState {
       (key, uuid.to_string())
     };
 
-    let private_key = RsaPrivateKey::from_pkcs1_pem(&key).expect("Failed to load public key");
-    let public_key = RsaPublicKey::from(private_key);
+    let private_key = PrivateKey::from_pkcs1_pem(&key).expect("Failed to load public key");
+    let public_key = PublicKey::from(private_key);
     let public_key_pem = public_key
       .to_pkcs1_pem(LineEnding::CRLF)
       .expect("Failed to export public key");

@@ -28,30 +28,30 @@ aide = { version = "0.16.0-alpha.4", features = [
   "swagger",
 ], optional = true }
 argon2 = { version = "0.6.0", optional = true }
-async-trait = { version = "0.1.91", optional = true }
+async-trait = { version = "0.1.92", optional = true }
 axum = { version = "0.8.9", features = ["macros", "multipart", "tracing", "ws"], optional = true }
 axum-extra = { version = "0.12.6", features = ["cookie", "typed-header"], optional = true }
-base64 = { version = "0.23.0", optional = true }
-bollard = { version = "0.21.0", default-features = false, optional = true }
+base64 = { version = "0.23.1", optional = true }
+bollard = { version = "0.21.1", default-features = false, optional = true }
 centaurus-derive = { workspace = true }
 chrono = { version = "0.4.45", features = ["serde"], optional = true }
 color-eyre = { version = "0.6.5", optional = true }
 dashmap = { version = "6.2.1", optional = true }
-eyre = { version = "0.6.12", optional = true }
-futures-util = { version = "0.3.33", optional = true }
+eyre = { version = "0.6.14", optional = true }
+futures-util = { version = "0.3.34", optional = true }
 governor = { version = "0.10.4", optional = true }
 hmac = { version = "0.13.0", optional = true }
 http = { version = "1.5.0", optional = true }
-hyper-util = { version = "0.1.20", features = ["client-legacy"], optional = true }
+hyper-util = { version = "0.1.21", features = ["client-legacy"], optional = true }
 image = { version = "0.25.10", default-features = false, features = [
   "jpeg",
   "png",
   "webp",
 ], optional = true }
-jsonwebtoken = { version = "11.0.0", features = ["rust_crypto"], optional = true }
-k8s-openapi = { version = "0.28.0", features = ["latest", "schemars"], optional = true }
-kube = { version = "4.2.0", features = ["derive", "runtime"], optional = true }
-lettre = { version = "0.11.23", default-features = false, features = [
+jsonwebtoken = { version = "12.0.0", features = ["rust_crypto"], optional = true }
+k8s-openapi = { version = "0.29.0", features = ["latest", "schemars"], optional = true }
+kube = { version = "5.2.0", features = ["derive", "runtime"], optional = true }
+lettre = { version = "0.11.24", default-features = false, features = [
   "builder",
   "ring",
   "rustls",
@@ -62,8 +62,8 @@ lettre = { version = "0.11.23", default-features = false, features = [
 md5 = { version = "0.8.1", optional = true }
 metrics = { version = "0.24.6", optional = true }
 metrics-exporter-prometheus = { version = "0.18.3", default-features = false, optional = true }
-rand = { version = "0.10.2", optional = true }
-reqwest = { version = "0.13.4", default-features = false, features = [
+rand = { version = "0.10.4", optional = true }
+reqwest = { version = "0.13.5", default-features = false, features = [
   "charset",
   "form",
   "http2",
@@ -71,34 +71,34 @@ reqwest = { version = "0.13.4", default-features = false, features = [
   "system-proxy",
 ], optional = true }
 rsa = { version = "0.10.0", optional = true }
-schemars = { version = "1.2.2", optional = true }
-sea-orm = { version = "2.0.1", features = [
+schemars = { version = "1.2.3", optional = true }
+sea-orm = { version = "2.0.4", features = [
   "runtime-tokio-rustls",
   "sqlx-postgres",
   "sqlx-sqlite",
 ], optional = true }
-sea-orm-migration = { version = "2.0.1", optional = true }
+sea-orm-migration = { version = "2.0.4", optional = true }
 serde = { version = "1.0.229", features = ["derive"], optional = true }
-serde_json = { version = "1.0.151", optional = true }
+serde_json = { version = "1.0.154", optional = true }
 serde-xml-rs = { version = "0.8.2", optional = true }
-thiserror = { version = "2.0.19", optional = true }
+thiserror = { version = "2.0.21", optional = true }
 time = { version = "0.3.55", optional = true }
-tokio = { version = "1.53.1", features = ["full"], optional = true }
+tokio = { version = "1.54.1", features = ["full"], optional = true }
 tower = { version = "0.5.3", optional = true }
 tower_governor = { version = "0.8.0", default-features = false, features = [
   "axum",
 ], optional = true }
-tower-http = { version = "0.7.0", features = ["cors", "trace"], optional = true }
+tower-http = { version = "0.7.1", features = ["cors", "trace"], optional = true }
 tower-service = { version = "0.3.3", optional = true }
 tracing = { version = "0.1.44", features = ["std"], optional = true }
 tracing-error = { version = "0.2.1", optional = true }
 tracing-subscriber = { version = "0.3.23", optional = true }
-url = { version = "2.5.8", optional = true }
-uuid = { version = "1.24.0", features = ["v4", "v7"], optional = true }
+url = { version = "2.5.9", optional = true }
+uuid = { version = "1.29.3", features = ["v4", "v7"], optional = true }
 webauthn-rs-core = { version = "0.6.2", default-features = false, optional = true }
-object_store = { version = "0.14.1", features = ["aws"], optional = true }
-tokio-util = { version = "0.7.19", features = ["io"], optional = true }
-sha2 = { version = "0.11.0", optional = true }
+object_store = { version = "0.14.2", features = ["aws"], optional = true }
+tokio-util = { version = "0.7.20", features = ["io"], optional = true }
+sha2 = { version = "0.11.2", optional = true }
 
 [dev-dependencies]
 tempfile = "=3.27.0"
@@ -129,6 +129,7 @@ auth = [
   "jsonwebtoken",
   "reqwest",
   "rsa",
+  "dep:rand",
   "url/serde",
   "centaurus-derive/auth",
   "sha2",
