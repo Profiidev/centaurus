@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.12] - 2026-11-26
+
+### 🚀 Features
+
+- *(health)* Let apps add a readiness check to /ready
+
+
+
 ## [0.17.11] - 2026-11-26
 
 ### 🚀 Features
