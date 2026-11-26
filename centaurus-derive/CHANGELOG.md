@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-11-26
+
+### 🐛 Bug Fixes
+
+- *(deps)* Update rust crate rsa to 0.10.0 [security] ([#208](https://github.com/Profiidev/centaurus/pull/208))
+
+
+
 ## [0.1.7] - 2026-08-04
 
 ### ⚙️ Miscellaneous Tasks

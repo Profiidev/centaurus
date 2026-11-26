@@ -943,7 +943,7 @@ dependencies = [
 
 [[package]]
 name = "centaurus"
-version = "0.17.9"
+version = "0.17.10"
 dependencies = [
  "addr",
  "aide",
@@ -1003,7 +1003,7 @@ dependencies = [
 
 [[package]]
 name = "centaurus-derive"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "centaurus-macro-utils",
  "proc-macro2",
@@ -1013,7 +1013,7 @@ dependencies = [
 
 [[package]]
 name = "centaurus-macro-utils"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "proc-macro2",
  "quote",

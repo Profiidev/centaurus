@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.5] - 2026-11-26
+
+### 🐛 Bug Fixes
+
+- *(deps)* Update rust crate rsa to 0.10.0 [security] ([#208](https://github.com/Profiidev/centaurus/pull/208))
+
+
+
 ## [0.1.4] - 2026-08-04
 
 ### 🐛 Bug Fixes
