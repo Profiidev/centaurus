@@ -1,9 +1,7 @@
 use argon2::{Argon2, password_hash::PasswordHasher};
 use axum::{Extension, extract::FromRequestParts};
 use base64::prelude::*;
-use rsa::{
-  Pkcs1v15Encrypt, RsaPrivateKey, RsaPublicKey, pkcs1::EncodeRsaPublicKey, pkcs8::LineEnding,
-};
+use rsa::{Pkcs1v15Encrypt, PrivateKey, PublicKey, pkcs1::EncodeRsaPublicKey, pkcs8::LineEnding};
 use tracing::instrument;
 
 use crate::error::Result;
@@ -12,7 +10,7 @@ use crate::error::Result;
 #[cfg_attr(feature = "openapi", derive(aide::OperationIo))]
 #[from_request(via(Extension))]
 pub struct PasswordState {
-  key: RsaPrivateKey,
+  key: PrivateKey,
   pub pub_key: String,
   pub pepper: Vec<u8>,
 }
@@ -45,8 +43,8 @@ impl PasswordState {
     hash_secret(&self.pepper, salt, password.as_bytes())
   }
 
-  pub async fn init(pepper: Vec<u8>, key: RsaPrivateKey) -> Self {
-    let pub_key = RsaPublicKey::from(&key)
+  pub async fn init(pepper: Vec<u8>, key: PrivateKey) -> Self {
+    let pub_key = PublicKey::from(&key)
       .to_pkcs1_pem(LineEnding::CRLF)
       .expect("Failed to export Rsa Public Key");
 
@@ -77,12 +75,12 @@ pub fn hash_secret(pepper: &[u8], salt: &str, passphrase: &[u8]) -> Result<Strin
 #[cfg(test)]
 mod tests {
   use super::*;
-  use rsa::rand_core::OsRng;
+  use rand::rngs::SysRng;
 
   #[tokio::test]
   async fn test_pw_state_init() {
-    let mut rng = OsRng;
-    let key = RsaPrivateKey::new(&mut rng, 512).unwrap();
+    let mut rng = SysRng;
+    let key = PrivateKey::new(&mut rng, 1024).unwrap();
     let state = PasswordState::init(vec![1, 2, 3], key).await;
     assert!(state.pub_key.contains("BEGIN RSA PUBLIC KEY"));
   }
@@ -107,9 +105,9 @@ mod tests {
 
   #[tokio::test]
   async fn test_decrypt_roundtrip() {
-    let mut rng = OsRng;
-    let key = RsaPrivateKey::new(&mut rng, 512).unwrap();
-    let pub_key = RsaPublicKey::from(&key);
+    let mut rng = SysRng;
+    let key = PrivateKey::new(&mut rng, 1024).unwrap();
+    let pub_key = PublicKey::from(&key);
     let state = PasswordState::init(vec![1, 2, 3], key).await;
 
     let ciphertext = pub_key
@@ -120,9 +118,9 @@ mod tests {
 
   #[tokio::test]
   async fn test_pw_hash_matches_raw() {
-    let mut rng = OsRng;
-    let key = RsaPrivateKey::new(&mut rng, 512).unwrap();
-    let pub_key = RsaPublicKey::from(&key);
+    let mut rng = SysRng;
+    let key = PrivateKey::new(&mut rng, 1024).unwrap();
+    let pub_key = PublicKey::from(&key);
     let state = PasswordState::init(vec![7], key).await;
 
     // pw_hash decrypts a base64'd RSA-encrypted password; the resulting hash
@@ -139,8 +137,8 @@ mod tests {
 
   #[tokio::test]
   async fn test_pw_hash_rejects_invalid_base64() {
-    let mut rng = OsRng;
-    let key = RsaPrivateKey::new(&mut rng, 512).unwrap();
+    let mut rng = SysRng;
+    let key = PrivateKey::new(&mut rng, 1024).unwrap();
     let state = PasswordState::init(vec![1], key).await;
     assert!(state.pw_hash("c2FsdHNhbHQ", "!!!not base64!!!").is_err());
   }

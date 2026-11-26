@@ -12,8 +12,8 @@ exclude = ["CHANGELOG.md"]
 
 [dependencies]
 proc-macro2 = "1.0.107"
-syn = { version = "3.0.3", features = ["full"] }
-toml_edit = { version = "0.25.13", default-features = false, features = ["parse"] }
+syn = { version = "3.0.10", features = ["full"] }
+toml_edit = { version = "0.25.21", default-features = false, features = ["parse"] }
 
 [dev-dependencies]
 quote = "=1.0.47"
