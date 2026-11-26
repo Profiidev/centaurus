@@ -3,8 +3,22 @@ use std::time::Duration;
 
 #[cfg(any(feature = "db", feature = "storage"))]
 use axum::Extension;
-use axum::{Router, routing::get};
+use std::sync::Arc;
+
+use axum::{Extension as Ext, Router, routing::get};
 use http::StatusCode;
+
+/// App-specific readiness, run by `/ready` after the built-in checks.
+/// Register it as an extension: `router.layer(Extension(ReadyCheck::new(|| Ok(()))))`.
+/// The error text is the 503 response body.
+#[derive(Clone)]
+pub struct ReadyCheck(Arc<dyn Fn() -> Result<(), &'static str> + Send + Sync>);
+
+impl ReadyCheck {
+  pub fn new(check: impl Fn() -> Result<(), &'static str> + Send + Sync + 'static) -> Self {
+    Self(Arc::new(check))
+  }
+}
 
 /// Upper bound for each dependency check in `/ready`.
 #[cfg(any(feature = "db", feature = "storage"))]
@@ -27,6 +41,7 @@ async fn health_check() -> &'static str {
 async fn ready_check(
   #[cfg(feature = "db")] db: Option<Extension<crate::db::init::Connection>>,
   #[cfg(feature = "storage")] storage: Option<Extension<crate::storage::FileStorage>>,
+  app_check: Option<Ext<ReadyCheck>>,
 ) -> (StatusCode, &'static str) {
   #[cfg(feature = "db")]
   if let Some(Extension(db)) = db {
@@ -45,6 +60,12 @@ async fn ready_check(
       tracing::warn!("Readiness check failed for storage: {e}");
       return (StatusCode::SERVICE_UNAVAILABLE, "storage unavailable");
     }
+  }
+
+  if let Some(Ext(ReadyCheck(app_check))) = app_check
+    && let Err(e) = app_check()
+  {
+    return (StatusCode::SERVICE_UNAVAILABLE, e);
   }
 
   (StatusCode::OK, "OK")
@@ -108,6 +129,17 @@ mod tests {
   #[tokio::test]
   async fn test_ready_without_dependencies_is_ok() {
     assert_eq!(get_ready(router()).await, (StatusCode::OK, "OK".into()));
+  }
+
+  #[tokio::test]
+  async fn test_ready_runs_app_check() {
+    let ok = router().layer(Ext(ReadyCheck::new(|| Ok(()))));
+    assert_eq!(get_ready(ok).await, (StatusCode::OK, "OK".into()));
+    let failing = router().layer(Ext(ReadyCheck::new(|| Err("not ready"))));
+    assert_eq!(
+      get_ready(failing).await,
+      (StatusCode::SERVICE_UNAVAILABLE, "not ready".into())
+    );
   }
 
   #[cfg(feature = "db")]
