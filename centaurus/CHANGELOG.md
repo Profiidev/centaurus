@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.11] - 2026-11-26
+
+### 🚀 Features
+
+- *(health)* Add /ready readiness endpoint
+
+
+
 ## [0.17.10] - 2026-11-26
 
 ### 🐛 Bug Fixes
